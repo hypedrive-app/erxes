@@ -69,11 +69,23 @@ export interface IPlivoCallSession {
   totalCost?: number;
   hangupCause?: string;
   /**
-   * Plivo stores recordings free for 90 days; past that an account either pays
-   * to keep them or has them deleted, so this URL has a finite
-   * life — anything needing permanent audio must copy the file elsewhere.
+   * What the player reads: an erxes storage key once the recording has been
+   * copied into erxes storage, or Plivo's own URL when that copy failed.
    */
   recordUrl?: string;
+  /**
+   * Plivo's own URL, always kept.
+   *
+   * Plivo stores recordings free for 90 days; past that an account either pays
+   * to keep them or has them deleted, so this URL has a finite life. Retaining
+   * it lets an operator retry a re-host that failed while the file still exists.
+   */
+  providerRecordUrl?: string;
+  /**
+   * When the recording was copied into erxes storage. Unset while `recordUrl`
+   * still points at the expiring provider URL.
+   */
+  recordingStoredAt?: Date;
   recordingUuid?: string;
   recordingDuration?: number;
   startedAt?: Date;

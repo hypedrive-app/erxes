@@ -340,7 +340,8 @@ export const plivoHangupWebhook = async (req, res, next) => {
 
 /**
  * Recording callback. Acknowledged before processing for the same reason as the
- * hangup callback.
+ * hangup callback — which also keeps Plivo from redelivering it while the
+ * recording is being downloaded and copied into erxes storage.
  */
 export const plivoRecordingWebhook = async (req, res, next) => {
   try {
@@ -363,7 +364,7 @@ export const plivoRecordingWebhook = async (req, res, next) => {
     res.sendStatus(200);
 
     try {
-      await registerCallRecording(models, params);
+      await registerCallRecording(models, subdomain, integration, params);
     } catch (e: any) {
       debugError(
         `Failed to store Plivo recording for ${params.CallUUID}: ${e.message}`,
