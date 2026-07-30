@@ -45,13 +45,15 @@ export const WhatsappMessageInputWrapper = ({
     .reverse()
     .find((message: IMessage) => !!message.customerId && !message.internal);
 
-  if (!lastCustomerMessage) {
-    return children;
-  }
-
+  // No inbound message among the page we loaded. That happens on a thread the
+  // customer has not written to recently — which is precisely the closed-window
+  // case — so the composer stays blocked rather than letting an agent write a
+  // reply that Meta will reject. The backend rejects it either way; this only
+  // decides which of the two states we show.
   const isOutsideWindow =
+    !lastCustomerMessage ||
     differenceInHours(new Date(), new Date(lastCustomerMessage.createdAt)) >=
-    WHATSAPP_MESSAGE_WINDOW_HOURS;
+      WHATSAPP_MESSAGE_WINDOW_HOURS;
 
   if (!isOutsideWindow) {
     return children;
