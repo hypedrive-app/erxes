@@ -66,3 +66,23 @@ export const PLIVO_DEFAULT_RING_TIMEOUT_SECONDS = 45;
 
 /** Plivo deletes recordings this many days after they are created. */
 export const PLIVO_RECORDING_RETENTION_DAYS = 90;
+
+/**
+ * Domain every Plivo SIP endpoint registers under.
+ *
+ * An inbound call only rings a browser client when the application's answer_url
+ * returns `<Dial><User>sip:USERNAME@phone.plivo.com</User></Dial>`, so this is
+ * the host the endpoint URI handed to the frontend is built from.
+ * https://www.plivo.com/docs/voice/concepts/endpoint
+ */
+export const PLIVO_ENDPOINT_DOMAIN = 'phone.plivo.com';
+
+/**
+ * Lifetime of a browser access token, in seconds.
+ *
+ * Plivo accepts 3 minutes to 24 hours. One hour keeps a full shift from
+ * re-authenticating repeatedly while still bounding how long a token lifted
+ * from a browser stays usable.
+ * https://www.plivo.com/docs/voice/concepts/access-token
+ */
+export const PLIVO_ACCESS_TOKEN_TTL_SECONDS = 3600;

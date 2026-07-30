@@ -31,6 +31,12 @@ import {
   whatsappUpdateIntegrations,
 } from '@/integrations/whatsapp/messageBroker';
 import {
+  plivoCreateIntegrations,
+  plivoRemoveIntegrations,
+  plivoRepairIntegrations,
+  plivoUpdateIntegrations,
+} from '@/integrations/plivo/messageBroker';
+import {
   instagramCreateIntegrations,
   instagramRemoveIntegrations,
   instagramRemoveAccount,
@@ -96,6 +102,9 @@ export const sendCreateIntegration = async (
       case 'whatsapp':
         return await whatsappCreateIntegrations({ subdomain, data });
 
+      case 'plivo':
+        return await plivoCreateIntegrations({ subdomain, data });
+
       case 'mobinetSms':
         break;
 
@@ -127,6 +136,9 @@ export const sendUpdateIntegration = async (
 
       case 'whatsapp':
         return await whatsappUpdateIntegrations({ subdomain, data });
+
+      case 'plivo':
+        return await plivoUpdateIntegrations({ subdomain, data });
 
       case 'mobinetSms':
         break;
@@ -162,6 +174,9 @@ export const sendRemoveIntegration = async (
 
       case 'whatsapp':
         return await whatsappRemoveIntegrations({ subdomain, data });
+
+      case 'plivo':
+        return await plivoRemoveIntegrations({ subdomain, data });
 
       case 'mobinetSms':
         break;
@@ -220,6 +235,9 @@ export const sendRepairIntegration = async (
 
       case 'whatsapp':
         return await whatsappRepairIntegrations({ subdomain, data });
+
+      case 'plivo':
+        return await plivoRepairIntegrations({ subdomain, data });
 
       case 'mobinetSms':
         break;

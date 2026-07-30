@@ -6,12 +6,13 @@ import { useConversationContext } from '@/inbox/conversations/hooks/useConversat
 import { useConversationMessages } from '@/inbox/conversation-messages/hooks/useConversationMessages';
 import { IMessage } from '@/inbox/types/Conversation';
 import { WHATSAPP_MESSAGE_WINDOW_HOURS } from '../constants/whatsappSchema';
+import { WhatsappTemplatePicker } from './WhatsappTemplatePicker';
 
 /**
  * WhatsApp only accepts free-form replies within 24 hours of the customer's
  * last inbound message. Outside that window Meta rejects everything but a
- * pre-approved template, so the composer is replaced rather than left to fail
- * on send. Template sending is not implemented yet, hence no picker here.
+ * pre-approved template, so the composer is replaced with the template picker —
+ * the one send that is still allowed.
  */
 export const WhatsappMessageInputWrapper = ({
   children,
@@ -60,7 +61,7 @@ export const WhatsappMessageInputWrapper = ({
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
+    <div className="max-w-2xl mx-auto p-6 flex flex-col gap-4 overflow-auto">
       <Alert>
         <IconExclamationCircle />
         <Alert.Title>{t('whatsapp-24h-window-title')}</Alert.Title>
@@ -68,6 +69,7 @@ export const WhatsappMessageInputWrapper = ({
           {t('whatsapp-24h-window-description')}
         </Alert.Description>
       </Alert>
+      <WhatsappTemplatePicker />
     </div>
   );
 };

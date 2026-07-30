@@ -91,6 +91,12 @@ export const dispatchConversationToService = async (
       case 'calls':
         break;
 
+      // A call has no text channel to deliver a reply on. This case exists so
+      // the generic typing and reply paths, which dispatch for every kind, stop
+      // here instead of failing with an unsupported service error.
+      case 'plivo':
+        break;
+
       case 'mobinetSms':
         break;
 

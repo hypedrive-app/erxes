@@ -237,3 +237,24 @@ export const plivoRemoveIntegration = async (
 
   return { status: 'success' };
 };
+
+/**
+ * Deterministic SIP endpoint username for one agent on one integration.
+ *
+ * Deterministic rather than stored so a token can be minted without
+ * provisioning state, and scoped by integration so an agent working two numbers
+ * registers twice instead of having one registration steal the other's calls.
+ *
+ * Plivo endpoint usernames allow only letters, digits and underscores, so both
+ * ids are stripped to that set; they are erxes random ids, which are already
+ * alphanumeric, and the prefix keeps the name valid if an id ever starts with a
+ * digit.
+ */
+export const buildPlivoEndpointUsername = (
+  integrationId: string,
+  userId: string,
+): string => {
+  const safe = (value: string) => value.replace(/[^a-zA-Z0-9]/g, '');
+
+  return `erxes_${safe(integrationId)}_${safe(userId)}`;
+};

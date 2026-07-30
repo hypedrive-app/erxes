@@ -167,3 +167,103 @@ export interface IWhatsappWebhookBody {
     changes?: Array<{ field?: string; value: IWhatsappWebhookValue }>;
   }>;
 }
+
+/**
+ * Message templates, as returned by
+ * `GET /{WABA_ID}/message_templates` and sent to `/{PHONE_NUMBER_ID}/messages`.
+ * https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates
+ */
+
+/** Only `APPROVED` templates may actually be sent; the rest are informational. */
+export type WhatsappTemplateStatus =
+  | 'APPROVED'
+  | 'PENDING'
+  | 'REJECTED'
+  | 'PAUSED'
+  | 'DISABLED'
+  | (string & {});
+
+export type WhatsappTemplateCategory =
+  | 'UTILITY'
+  | 'MARKETING'
+  | 'AUTHENTICATION'
+  | (string & {});
+
+export type WhatsappTemplateComponentType =
+  | 'HEADER'
+  | 'BODY'
+  | 'FOOTER'
+  | 'BUTTONS';
+
+/** A HEADER may carry media instead of text; BODY/FOOTER are always TEXT. */
+export type WhatsappTemplateHeaderFormat =
+  | 'TEXT'
+  | 'IMAGE'
+  | 'VIDEO'
+  | 'DOCUMENT'
+  | 'LOCATION'
+  | (string & {});
+
+export interface IWhatsappTemplateButton {
+  type: string;
+  text?: string;
+  url?: string;
+  phone_number?: string;
+}
+
+/**
+ * One component of an approved template *definition*.
+ *
+ * `text` holds the approved copy with positional `{{1}}`, `{{2}}` placeholders;
+ * the number of distinct placeholders is what the send call must supply.
+ */
+export interface IWhatsappTemplateComponent {
+  type: WhatsappTemplateComponentType;
+  format?: WhatsappTemplateHeaderFormat;
+  text?: string;
+  buttons?: IWhatsappTemplateButton[];
+}
+
+export interface IWhatsappTemplate {
+  id: string;
+  name: string;
+  language: string;
+  status: WhatsappTemplateStatus;
+  category: WhatsappTemplateCategory;
+  components: IWhatsappTemplateComponent[];
+}
+
+/**
+ * Parameters supplied at SEND time. These are a different shape from the
+ * template definition above: positional `{{n}}` placeholders are filled by
+ * ARRAY ORDER within each component's `parameters[]`, not by name.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-templates
+ */
+export type IWhatsappTemplateParameter =
+  | { type: 'text'; text: string }
+  | { type: 'image'; image: { link: string } }
+  | { type: 'video'; video: { link: string } }
+  | { type: 'document'; document: { link: string; filename?: string } }
+  | { type: 'payload'; payload: string };
+
+export interface IWhatsappTemplateSendComponent {
+  type: 'header' | 'body' | 'button';
+  /** Required for buttons only; identifies which button the payload targets. */
+  sub_type?: 'quick_reply' | 'url';
+  index?: string;
+  parameters: IWhatsappTemplateParameter[];
+}
+
+/**
+ * The template payload the inbox dispatches on `extraInfo.whatsappTemplate`.
+ *
+ * Deliberately mirrors the Cloud API's own `template` object so the handler
+ * forwards it rather than translating a bespoke shape, which keeps the
+ * positional-parameter contract in one place — the caller that knows the
+ * template it picked.
+ */
+export interface IWhatsappTemplateDispatch {
+  name: string;
+  languageCode: string;
+  components?: IWhatsappTemplateSendComponent[];
+}

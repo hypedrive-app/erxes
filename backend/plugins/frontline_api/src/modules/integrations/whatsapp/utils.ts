@@ -9,6 +9,10 @@ import {
   debugError,
   debugExternalRequests,
 } from '@/integrations/whatsapp/debuggers';
+import {
+  IWhatsappTemplate,
+  IWhatsappTemplateSendComponent,
+} from '@/integrations/whatsapp/@types';
 
 /**
  * A failed Cloud API call, carrying Meta's own error code so callers can react
@@ -209,6 +213,104 @@ export const sendWhatsappText = async ({
     throw new WhatsappApiError(
       200,
       'WhatsApp accepted the message but returned no message id',
+    );
+  }
+
+  return mid;
+};
+
+/**
+ * Lists the APPROVED message templates on a WhatsApp Business Account.
+ *
+ * Only approved templates can actually be sent, so the filter is applied at the
+ * API rather than locally — a PENDING or REJECTED template offered to an agent
+ * would only fail at send time.
+ *
+ * @param whatsappBusinessAccountId - the WABA id, not the phone number id
+ * https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates
+ */
+export const listWhatsappTemplates = async ({
+  accessToken,
+  whatsappBusinessAccountId,
+  limit = 200,
+}: {
+  accessToken: string;
+  whatsappBusinessAccountId: string;
+  limit?: number;
+}): Promise<IWhatsappTemplate[]> => {
+  const response = await graphRequest<{ data?: IWhatsappTemplate[] }>({
+    accessToken,
+    method: 'GET',
+    path: `/${whatsappBusinessAccountId}/message_templates?status=APPROVED&limit=${limit}`,
+  });
+
+  return response?.data || [];
+};
+
+/**
+ * Sends a pre-approved template message.
+ *
+ * This is the only thing Meta accepts outside the 24 hour customer service
+ * window, so unlike {@link sendWhatsappText} the caller must NOT gate it on
+ * that window.
+ *
+ * `components` is forwarded as given: positional `{{1}}`, `{{2}}` placeholders
+ * are resolved by ARRAY ORDER within each component's `parameters[]`, so the
+ * caller owns that ordering. A count or type mismatch against the approved
+ * template is rejected by Meta (the 132000/132001 error family) rather than
+ * silently rendering a blank.
+ *
+ * @param to - recipient in E.164 WITHOUT a leading `+`, as Meta expects
+ * @param languageCode - must match the approved template's language, e.g. `en_US`
+ * @returns the wamid Meta assigned to the sent message
+ */
+export const sendWhatsappTemplate = async ({
+  accessToken,
+  phoneNumberId,
+  to,
+  name,
+  languageCode,
+  components,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  to: string;
+  name: string;
+  languageCode: string;
+  components?: IWhatsappTemplateSendComponent[];
+}): Promise<string> => {
+  const template: Record<string, unknown> = {
+    name,
+    language: { code: languageCode },
+  };
+
+  // Meta rejects an empty `components` array on a template that takes no
+  // parameters, so the key is omitted entirely rather than sent as [].
+  if (components?.length) {
+    template.components = components;
+  }
+
+  const response = await graphRequest<{ messages?: Array<{ id: string }> }>({
+    accessToken,
+    method: 'POST',
+    path: `/${phoneNumberId}/messages`,
+    body: {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'template',
+      template,
+    },
+  });
+
+  const mid = response?.messages?.[0]?.id;
+
+  // Same reasoning as sendWhatsappText: `mid` is uniquely indexed and a send we
+  // cannot identify is a failure, not a success with a blank id.
+  if (!mid) {
+    throw new WhatsappApiError(
+      200,
+      'WhatsApp accepted the template but returned no message id',
     );
   }
 

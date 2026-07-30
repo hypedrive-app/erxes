@@ -35,10 +35,20 @@ import {
 } from '@/integrations/instagram/graphql/schema/instagram';
 
 import {
+  queries as WhatsappQueries,
+  types as WhatsappTypes,
+} from '@/integrations/whatsapp/graphql/schema/whatsapp';
+
+import {
   mutations as CallMutations,
   queries as CallQueries,
   types as CallTypes,
 } from '@/integrations/call/graphql/schema/call';
+
+import {
+  queries as PlivoQueries,
+  types as PlivoTypes,
+} from '@/integrations/plivo/graphql/schema/plivo';
 
 import {
   mutations as ImapMutations,
@@ -104,7 +114,9 @@ export const types = `
     ${FacebookTypes}
     ${DiscordTypes}
     ${InstagramTypes}
+    ${WhatsappTypes}
     ${CallTypes}
+    ${PlivoTypes}
     ${ImapTypes}
     ${TicketTypes}
     ${WidgetTypes}
@@ -123,7 +135,9 @@ export const queries = `
     ${FacebookQueries}
     ${DiscordQueries}
     ${InstagramQueries}
+    ${WhatsappQueries}
     ${CallQueries}
+    ${PlivoQueries}
     ${ImapQueries}
     ${TicketQuery}
     ${WidgetQueries}
