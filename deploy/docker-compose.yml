@@ -178,10 +178,13 @@ services:
       NODE_OPTIONS: --max-old-space-size=1024
     restart: unless-stopped
     networks: [erxes, dokploy-network]
-    # NOTE: TOP-LEVEL `labels`, not `deploy.labels`. Dokploy runs compose stacks
-    # as plain docker-compose containers (verified on the box: the baserow stack
-    # has no swarm service and carries its traefik labels in Config.Labels), so
-    # Traefik's `docker` provider reads these. deploy.labels would be ignored.
+    # ── Routing is owned by DOKPLOY, not this file ────────────────────────────
+    # Do NOT add traefik.* labels here. Dokploy generates the routers from its
+    # own Domain records (dynamic/<appName>.yml) — adding labels too creates a
+    # SECOND router for the same Host, and Traefik then refuses to bind it:
+    #   "Router erxes-gw cannot be linked automatically with multiple Services"
+    # (observed live). It also bypasses per-domain settings like middlewares.
+    # Register hostnames in Dokploy instead; see deploy/README.md.
     #
     # TWO HOSTNAMES ARE REQUIRED — do not try to collapse these onto one host
     # with PathPrefix rules. The gateway is a CATCH-ALL reverse proxy:
@@ -197,14 +200,8 @@ services:
     # `${base}/initial-setup` from it (core-ui/src/providers/apollo-provider/
     # apolloClient.ts and OrganizationProviderEffect.tsx), so that base must be
     # a host where the gateway owns `/`.
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=dokploy-network
-      - traefik.http.routers.erxes-gw.rule=Host(`${ERXES_API_DOMAIN}`)
-      - traefik.http.routers.erxes-gw.entrypoints=websecure
-      - traefik.http.routers.erxes-gw.tls=true
-      - traefik.http.routers.erxes-gw.tls.certresolver=letsencrypt
-      - traefik.http.services.erxes-gw.loadbalancer.server.port=4000
+    #   gateway -> ERXES_API_DOMAIN, port 4000
+    #   core-ui -> ERXES_UI_DOMAIN,  port 80
     deploy:
       resources:
         limits:
@@ -232,15 +229,8 @@ services:
       NGINX_PORT: "80"
     restart: unless-stopped
     networks: [erxes, dokploy-network]
-    # Top-level labels — see the note on the gateway service.
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=dokploy-network
-      - traefik.http.routers.erxes-ui.rule=Host(`${ERXES_UI_DOMAIN}`)
-      - traefik.http.routers.erxes-ui.entrypoints=websecure
-      - traefik.http.routers.erxes-ui.tls=true
-      - traefik.http.routers.erxes-ui.tls.certresolver=letsencrypt
-      - traefik.http.services.erxes-ui.loadbalancer.server.port=80
+    # No traefik.* labels here either — Dokploy owns routing. See the note on
+    # the gateway service above.
     deploy:
       resources:
         limits:
