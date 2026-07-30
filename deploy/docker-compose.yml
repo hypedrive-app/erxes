@@ -499,12 +499,13 @@ services:
   # locally. See its header.
   #
   # ── Build cost: SAFE, unlike frontline_api ────────────────────────────────
-  # Measured on this tree: peak RSS 1.88 GB, ~48 s, 13 MB of output — versus
-  # frontline_api's ~13.9 GB peak against ~9.9 GB free on the box. The two
-  # builds are NOT comparable and this one does not put the stack at OOM risk
-  # (dokploy#4461: an OOMed compose build wedges the queue with no working
-  # Cancel). They do serialise behind the same `pnpm install`, which dominates
-  # first-deploy time.
+  # MEASURED on this tree (/usr/bin/time -v pnpm nx build frontline_ui):
+  # peak RSS 1.88 GB, ~48 s, 13 MB of output. frontline_api's build is REPORTED
+  # to peak near 13.9 GB against ~9.9 GB free on the box (not re-measured here).
+  # The order-of-magnitude gap is the point: this build does not put the stack
+  # at OOM risk (dokploy#4461: an OOMed compose build wedges the queue with no
+  # working Cancel). The two do serialise behind their own `pnpm install`,
+  # which dominates first-deploy time.
   frontline-ui:
     build:
       context: ..

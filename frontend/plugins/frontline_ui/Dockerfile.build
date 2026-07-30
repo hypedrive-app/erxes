@@ -42,12 +42,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # BUILD COST (measured, not estimated)
 # ─────────────────────────────────────────────────────────────────────────────
-# `pnpm nx build frontline_ui` on this tree: peak RSS 1.88 GB, ~48 s wall,
-# 13 MB / 224 files of output. That is an order of magnitude cheaper than
-# frontline_api's ~13.9 GB peak, which matters: the Hostinger box has ~9.9 GB
-# free and an OOMed compose build wedges Dokploy's queue (dokploy#4461) with no
-# working Cancel, taking the whole stack down. This build fits comfortably.
-# The `pnpm install` it shares with frontline_api is the dominant cost.
+# MEASURED via `/usr/bin/time -v pnpm nx build frontline_ui` on this tree:
+# peak RSS 1.88 GB, ~48 s wall, 13 MB / 224 files of output. frontline_api's
+# build is REPORTED to peak near 13.9 GB against ~9.9 GB free on the Hostinger
+# box (not re-measured here). The order-of-magnitude gap is what matters: an
+# OOMed compose build wedges Dokploy's queue (dokploy#4461) with no working
+# Cancel, taking the whole stack down, and this build fits comfortably.
+# The `pnpm install` in stage 1 is the dominant cost, not the compile.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # BUILD CONTEXT IS THE REPO ROOT

@@ -208,9 +208,12 @@ HTTPS page. It is wired as `https://${ERXES_PLUGINS_DOMAIN}`, and
 `frontline-ui` is on `dokploy-network` (like `gateway` and `core-ui`) so
 Dokploy's Traefik can route to it.
 
-Unlike `plugin-frontline-api`, this build is **cheap**: measured peak RSS
-**1.88 GB**, ~48 s, 13 MB / 224 files of output. It is not an OOM risk on the
-~9.9 GB-free box the way `frontline_api`'s ~13.9 GB peak is.
+Unlike `plugin-frontline-api`, this build is **cheap**. Measured directly
+(`/usr/bin/time -v pnpm nx build frontline_ui` on this tree): **peak RSS
+1.88 GB**, ~48 s, 13 MB / 224 files of output. For contrast, `frontline_api`'s
+build has been reported to peak around 13.9 GB against ~9.9 GB free on the
+Hostinger box — that figure is *not* re-measured here, but the order-of-magnitude
+gap is what matters: this build is not an OOM risk.
 
 #### CORS
 
