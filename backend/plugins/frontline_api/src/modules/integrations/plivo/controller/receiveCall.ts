@@ -6,6 +6,7 @@ import {
   createCallMessage,
   getOrCreateCustomer,
 } from '@/integrations/plivo/controller/store';
+import { rehostPlivoRecording } from '@/integrations/plivo/rehostRecording';
 import {
   PLIVO_BUSY_HANGUP_CAUSES,
   PLIVO_FAILED_HANGUP_CAUSES,
@@ -279,14 +280,25 @@ export const registerCallHangup = async (
 };
 
 /**
- * Stores the recording URL once Plivo has finished writing the file.
+ * Stores the recording once Plivo has finished writing the file.
  *
- * Plivo stores recordings free for 90 days; past that they are billed or
- * auto-deleted depending on an account setting, so this URL has a finite
- * life; nothing here treats it as permanent.
+ * Plivo keeps recordings free for 90 days, after which the account is billed to
+ * retain them or Plivo deletes them, depending on a console setting — so the URL
+ * it reports is not durable. The file is therefore copied into erxes storage and
+ * the resulting key is what the player reads, matching what the Grandstream
+ * integration already does.
+ *
+ * The download runs inside this call, which the recording webhook only reaches
+ * AFTER it has acknowledged Plivo with a 200, so a slow copy cannot make Plivo
+ * redeliver the callback.
+ *
+ * The provider URL is always stored too, and is used as `recordUrl` when the
+ * copy fails: a recording that expires in 90 days is worth more than none.
  */
 export const registerCallRecording = async (
   models: IModels,
+  subdomain: string,
+  integration: IPlivoIntegrationDocument,
   params: IPlivoCallbackParams,
 ): Promise<void> => {
   if (!params.RecordUrl) {
@@ -320,14 +332,26 @@ export const registerCallRecording = async (
   const recordingDuration =
     recordingMs === undefined ? undefined : Math.round(recordingMs / 1000);
 
+  const { storageKey } = await rehostPlivoRecording({
+    subdomain,
+    recordUrl: params.RecordUrl,
+    callUuid: params.CallUUID,
+    authId: integration.authId,
+    authToken: integration.authToken,
+  });
+
   const updated = await models.PlivoCallSessions.updateOne(
     selector,
     {
       $set: {
-        recordUrl: params.RecordUrl,
+        // The storage key when the copy succeeded, else Plivo's URL so the
+        // recording is still playable until the provider deletes it.
+        recordUrl: storageKey || params.RecordUrl,
+        providerRecordUrl: params.RecordUrl,
         recordingUuid: params.RecordingID,
         recordingDuration,
         updatedAt: new Date(),
+        ...(storageKey ? { recordingStoredAt: new Date() } : {}),
       },
     },
   );

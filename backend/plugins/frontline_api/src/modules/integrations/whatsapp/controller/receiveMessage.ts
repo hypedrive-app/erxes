@@ -270,7 +270,6 @@ export const receiveMessage = async (
 
       const integration = await models.WhatsappIntegrations.findOne({
         phoneNumberId,
-        isActive: true,
       });
 
       if (!integration) {
