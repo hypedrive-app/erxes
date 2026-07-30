@@ -124,9 +124,12 @@ export const graphRequest = async <T = unknown>({
 /**
  * Verifies the `X-Hub-Signature-256` header Meta sends with every webhook.
  *
- * The digest is taken over the RAW request body — re-serialising the parsed
- * JSON produces different bytes and will not match, so the caller must capture
- * the raw buffer (see the `verify` hook on express.json in routes.ts).
+ * The digest is HMAC-SHA256 of the RAW request body keyed with the app secret,
+ * hex-encoded and prefixed `sha256=`. Re-serialising the parsed JSON produces
+ * different bytes and will not match, so the raw buffer is required: it comes
+ * from the `verify` hook on the host's `express.json` in
+ * erxes-api-shared/utils/start-plugin.ts, which sets `req.rawBody`.
+ * https://developers.facebook.com/docs/graph-api/webhooks/getting-started
  *
  * Returns false rather than throwing so the caller decides the response code,
  * and uses a constant-time comparison so a mismatch cannot be probed by timing.

@@ -103,8 +103,13 @@ export const getOrCreateCustomer = async (
 /**
  * Resolves the thread for a sender, creating it on first contact.
  *
- * `lastCustomerMessageAt` is refreshed on every inbound message because it is
- * what re-opens the Cloud API's 24 hour reply window.
+ * `lastCustomerMessageAt` is refreshed on every inbound CUSTOMER message
+ * because that is what restarts the Cloud API's 24 hour customer service
+ * window. Meta also restarts it on an inbound CALL, which this module does not
+ * subscribe to, so the stored value can lag behind the real window — which is
+ * why the send path treats Meta's own 131047 as the authority rather than
+ * relying on this timestamp alone.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages
  */
 export const getOrCreateConversation = async (
   models: IModels,
