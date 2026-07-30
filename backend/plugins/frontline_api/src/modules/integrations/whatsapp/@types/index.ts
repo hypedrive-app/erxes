@@ -51,16 +51,29 @@ export interface IWhatsappConversationDocument
   _id: string;
 }
 
+/** Mirrors `attachmentSchema` in erxes-api-shared/core-modules. */
+export interface IWhatsappAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size?: number;
+  duration?: number;
+}
+
 export interface IWhatsappConversationMessage {
   mid: string;
+  erxesApiMessageId?: string;
   content?: string;
-  attachments?: any[];
+  attachments?: IWhatsappAttachment[];
   conversationId: string;
   customerId?: string;
   userId?: string;
   deliveryStatus?: string;
   errorMessage?: string;
   internal?: boolean;
+  // from inbox
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface IWhatsappConversationMessageDocument
@@ -82,11 +95,33 @@ export interface IWhatsappWebhookMedia {
   filename?: string;
 }
 
+/** Message types carrying a media id; see MEDIA_MESSAGE_TYPES. */
+export type WhatsappMediaMessageType =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'document'
+  | 'sticker';
+
+/**
+ * `type` is deliberately a union of what we handle plus `string`: Meta adds new
+ * message types without notice, and an unknown one must fall through to a
+ * placeholder rather than fail to compile or be dropped.
+ */
+export type WhatsappMessageType =
+  | WhatsappMediaMessageType
+  | 'text'
+  | 'location'
+  | 'interactive'
+  | 'button'
+  | 'reaction'
+  | (string & {});
+
 export interface IWhatsappWebhookMessage {
   from: string;
   id: string;
   timestamp: string;
-  type: string;
+  type: WhatsappMessageType;
   text?: { body: string };
   image?: IWhatsappWebhookMedia;
   video?: IWhatsappWebhookMedia;
@@ -99,6 +134,12 @@ export interface IWhatsappWebhookMessage {
     name?: string;
     address?: string;
   };
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string; description?: string };
+  };
+  button?: { text?: string; payload?: string };
   reaction?: { message_id: string; emoji?: string };
   context?: { id?: string; from?: string };
 }

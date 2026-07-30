@@ -14,6 +14,9 @@ import { mongooseStringRandomId } from 'erxes-api-shared/utils';
 export const conversationMessageSchema = new Schema({
   _id: mongooseStringRandomId,
   mid: { type: String, unique: true, label: 'WhatsApp message id (wamid)' },
+  // Set once the inbox has accepted the message; its absence marks a row that
+  // was stored locally but never delivered upstream.
+  erxesApiMessageId: { type: String, label: 'Inbox message id', optional: true },
   content: { type: String },
   attachments: [attachmentSchema],
   conversationId: { type: String, index: true },

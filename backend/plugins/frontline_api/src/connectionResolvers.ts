@@ -280,6 +280,30 @@ import {
   loadInstagramConfigClass,
 } from '@/integrations/instagram/db/models/Config';
 import { IInstagramConfigDocument } from './modules/integrations/instagram/@types/config';
+
+// Whatsapp imports
+import {
+  IWhatsappIntegrationModel,
+  loadWhatsappIntegrationClass,
+} from '@/integrations/whatsapp/db/models/Integrations';
+import {
+  IWhatsappCustomerModel,
+  loadWhatsappCustomerClass,
+} from '@/integrations/whatsapp/db/models/Customers';
+import {
+  IWhatsappConversationModel,
+  loadWhatsappConversationClass,
+} from '@/integrations/whatsapp/db/models/Conversations';
+import {
+  IWhatsappConversationMessageModel,
+  loadWhatsappConversationMessageClass,
+} from '@/integrations/whatsapp/db/models/ConversationMessages';
+import {
+  IWhatsappIntegrationDocument,
+  IWhatsappCustomerDocument,
+  IWhatsappConversationDocument,
+  IWhatsappConversationMessageDocument,
+} from '@/integrations/whatsapp/@types';
 export interface IModels {
   //channel
   Channels: IChannelModel;
@@ -312,6 +336,12 @@ export interface IModels {
   InstagramPostConversations: IInstagramPostConversationModel;
   InstagramBots: IInstagramBotModel;
   InstagramConfigs: IInstagramConfigModel;
+
+  //whatsapp
+  WhatsappIntegrations: IWhatsappIntegrationModel;
+  WhatsappCustomers: IWhatsappCustomerModel;
+  WhatsappConversations: IWhatsappConversationModel;
+  WhatsappConversationMessages: IWhatsappConversationMessageModel;
 
   //call
   CallIntegrations: ICallIntegrationModel;
@@ -482,6 +512,26 @@ export const loadClasses = (
   >('facebook_configs', loadFacebookConfigClass(models));
 
   // Instagram models
+  models.WhatsappIntegrations = db.model<
+    IWhatsappIntegrationDocument,
+    IWhatsappIntegrationModel
+  >('whatsapp_integrations', loadWhatsappIntegrationClass(models));
+  models.WhatsappCustomers = db.model<
+    IWhatsappCustomerDocument,
+    IWhatsappCustomerModel
+  >('whatsapp_customers', loadWhatsappCustomerClass(models));
+  models.WhatsappConversations = db.model<
+    IWhatsappConversationDocument,
+    IWhatsappConversationModel
+  >('whatsapp_conversations', loadWhatsappConversationClass(models));
+  models.WhatsappConversationMessages = db.model<
+    IWhatsappConversationMessageDocument,
+    IWhatsappConversationMessageModel
+  >(
+    'whatsapp_conversation_messages',
+    loadWhatsappConversationMessageClass(models),
+  );
+
   models.InstagramIntegrations = db.model<
     IInstagramIntegrationDocument,
     IInstagramIntegrationModel
