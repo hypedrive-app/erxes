@@ -77,21 +77,81 @@ core-ui 7 MB, redis 6 MB — **~430 MB total**.
 cp deploy/.env.example deploy/.env
 # fill in JWT_TOKEN_SECRET, MONGO_PASSWORD, REDIS_PASSWORD
 openssl rand -hex 32   # for each
+# set the three hostnames: ERXES_UI_DOMAIN, ERXES_API_DOMAIN, ERXES_PLUGINS_DOMAIN
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
 ```
 
 Then open `https://$ERXES_UI_DOMAIN` and complete the owner signup.
 
-## Two hostnames are required
+### Operator checklist
 
-- `ERXES_UI_DOMAIN` → core-ui (nginx)
-- `ERXES_API_DOMAIN` → gateway (GraphQL + WebSocket + core-api passthrough)
+1. Set all three hostnames in `.env` (see the table below).
+2. Register **three Dokploy Domains** on the compose app, one per hostname:
+   - `ERXES_UI_DOMAIN` → service `core-ui`, port `80`
+   - `ERXES_API_DOMAIN` → service `gateway`, port `4000`
+   - `ERXES_PLUGINS_DOMAIN` → service `frontline-ui`, port `80`
 
-They cannot be collapsed onto one host: the gateway mounts `app.use('/', …)`
-onto core-api, so it serves `/initial-setup`, `/get-frontend-plugins`,
-`/core-login`, `/oauth/*`, `/upload-chunked/*` etc. from its root, and the UI
-derives every API path from the single `REACT_APP_API_URL` base. Both names
-resolve via the existing `*.sharksmarketing.com` wildcard.
+   Do **not** add `traefik.*` labels to the compose file for any of these.
+3. Deploy. Verify the plugin remote is actually being served and pointed at:
+
+   ```bash
+   # core-api must hand out OUR host, not plugins.erxes.io
+   curl -fsS https://$ERXES_API_DOMAIN/get-frontend-plugins
+   # -> [{"name":"frontline_ui","entry":"https://<ERXES_PLUGINS_DOMAIN>/latest/frontline_ui/remoteEntry.js"}]
+
+   # and that URL must return JS, not a 404 or HTML
+   curl -fsS -o /dev/null -w '%{http_code} %{content_type}\n' \
+     https://$ERXES_PLUGINS_DOMAIN/latest/frontline_ui/remoteEntry.js
+   # -> 200 application/javascript
+   ```
+
+   If the first command still shows `plugins.erxes.io`, `PLUGIN_CDN_URL` did not
+   reach core-api — recheck `ERXES_PLUGINS_DOMAIN` and redeploy.
+
+## Three hostnames are required
+
+Each needs a **Dokploy Domain** record (Dokploy owns routing — the compose file
+carries no `traefik.*` labels; adding any would create a second router for the
+same Host and Traefik would refuse to bind it).
+
+| Env var | Service | Port | Serves |
+| --- | --- | --- | --- |
+| `ERXES_UI_DOMAIN` | `core-ui` | 80 | The SPA |
+| `ERXES_API_DOMAIN` | `gateway` | 4000 | GraphQL + WebSocket + core-api passthrough |
+| `ERXES_PLUGINS_DOMAIN` | `frontline-ui` | 80 | Module Federation remotes (`remoteEntry.js`) |
+
+All three resolve via the existing `*.sharksmarketing.com` wildcard, so **no new
+DNS record is needed** — but each must still be registered in Dokploy.
+
+UI and API cannot be collapsed onto one host: the gateway mounts
+`app.use('/', …)` onto core-api, so it serves `/initial-setup`,
+`/get-frontend-plugins`, `/core-login`, `/oauth/*`, `/upload-chunked/*` etc.
+from its root, and the UI derives every API path from the single
+`REACT_APP_API_URL` base.
+
+### Why the plugin host is separate rather than a subpath
+
+A subpath on `ERXES_UI_DOMAIN` (e.g. `/plugins/latest/frontline_ui/…`) looks
+tempting but is worse here:
+
+- core-ui's nginx ends in `location / { try_files $uri $uri/ /index.html; }`, so
+  **any unmatched path returns `index.html` with a 200**. A missing chunk would
+  arrive as HTML labelled `application/javascript` — the classic
+  `Unexpected token '<'` — instead of a clean 404.
+- Routing a subpath to a *different* container means a second Dokploy Domain
+  with a PathPrefix on the same hostname, i.e. two services on one Host. That is
+  precisely the "cannot be linked automatically with multiple Services" conflict
+  the compose header documents.
+- Serving it from core-ui's *own* container would require rebuilding the
+  upstream `erxes/erxes-next-ui` image, which this stack deliberately does not
+  do (it bind-mounts branding instead).
+
+Given the wildcard already covers it, a third hostname is strictly simpler.
+**Recommendation: use the separate hostname.**
+
+> If you are not on the `*.sharksmarketing.com` wildcard, `ERXES_PLUGINS_DOMAIN`
+> is a hostname **you must create in Cloudflare yourself**. The value in
+> `.env.example` is a placeholder, not a provisioned name.
 
 ## Two footguns encoded in the compose
 
@@ -115,17 +175,66 @@ uses `backend/plugins/frontline_api/Dockerfile.build` (context = repo root),
 which compiles `erxes-api-shared` then `frontline_api`. The sibling
 `Dockerfile` cannot be used — it only copies a pre-built, gitignored `dist/`.
 
-**The frontline UI does not load yet, and no compose change can fix it.**
-`core-ui` resolves Module Federation remotes at runtime by fetching
-`/get-frontend-plugins` (`frontend/core-ui/src/bootstrap.tsx`), and core-api
-answers that with a **hardcoded** CDN URL —
-`https://plugins.erxes.io/${version}/${plugin}_ui/remoteEntry.js`
-(`backend/core-api/src/modules/organization/routes.ts:127-137`). There is no
-env var or config override; `plugins.erxes.io` appears nowhere else in the
-repo. So the browser will fetch our fork's UI from erxes' public CDN, where it
-does not exist. Making the entry host configurable in `routes.ts` is a
-prerequisite for serving `frontline_ui` ourselves. The backend (GraphQL,
-webhooks, WhatsApp/Plivo ingest) is unaffected and works through the gateway.
+### The frontline UI (Module Federation remote)
+
+`core-ui` resolves Module Federation remotes **at runtime**: it fetches
+`/get-frontend-plugins` (`frontend/core-ui/src/bootstrap.tsx`) and hands the
+response straight to MF's `init({ remotes })`. core-api answers that from
+`backend/core-api/src/modules/organization/routes.ts` with
+
+```
+${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js
+```
+
+where `version` is `getPluginVersion()` = `config?.releaseVersion || 'latest'`.
+
+That host used to be the hardcoded literal `https://plugins.erxes.io`, which
+serves **upstream's** build — not our fork's WhatsApp/Plivo one, and with a
+GraphQL schema that would not match our `frontline_api`. It is now the
+`PLUGIN_CDN_URL` env var, defaulting to the upstream CDN for compatibility.
+
+The `frontline-ui` service serves our own build at that path layout. It is built
+from source via `frontend/plugins/frontline_ui/Dockerfile.build` (context = repo
+root) — upstream never containerises a UI plugin, because
+`.github/workflows/ci-ui-frontline.yml` builds it on the runner and `aws s3 sync`s
+`dist/frontend/plugins/frontline_ui` to `s3://erxes-next/latest/frontline_ui/`.
+Our Dockerfile copies the same output to
+`/usr/share/nginx/html/latest/frontline_ui`, reproducing that shape.
+
+**So `PLUGIN_CDN_URL` must be browser-reachable.** It is dereferenced by the
+browser, not by any container, so `http://frontline-ui` (the compose DNS name)
+would fail, and any `http://` value would be blocked as mixed content on an
+HTTPS page. It is wired as `https://${ERXES_PLUGINS_DOMAIN}`, and
+`frontline-ui` is on `dokploy-network` (like `gateway` and `core-ui`) so
+Dokploy's Traefik can route to it.
+
+Unlike `plugin-frontline-api`, this build is **cheap**: measured peak RSS
+**1.88 GB**, ~48 s, 13 MB / 224 files of output. It is not an OOM risk on the
+~9.9 GB-free box the way `frontline_api`'s ~13.9 GB peak is.
+
+#### CORS
+
+**None is required for the scripts themselves, and the config sets it anyway.**
+Verified in `node_modules/@module-federation/sdk/dist/index.cjs.js` (`createScript`)
+and in the built `remoteEntry.js`: neither the MF loader nor webpack's chunk
+loader sets a `crossorigin` attribute, so both load as **classic scripts**,
+which are exempt from CORS. `Access-Control-Allow-Origin` is still emitted by
+`frontend/plugins/frontline_ui/nginx/default.conf` because:
+
+- **fonts genuinely need it** — `@font-face` fetches are made in `cors` mode and
+  silently fall back to a system font without the header (core-ui's own vhost
+  does the same);
+- anything fetched via `fetch`/`XHR` from this origin (e.g. the audio assets
+  under `assets/sound/`) needs it;
+- it costs nothing and removes a whole class of future breakage if a chunk ever
+  starts being loaded in `cors` mode.
+
+Chunk URLs resolve **relative to wherever `remoteEntry.js` was served from**
+(MF's `inferAutoPublicPath`; `frontline_ui`'s rspack config sets no
+`publicPath`), so a self-hosted origin needs no build-time change.
+
+The backend (GraphQL, webhooks, WhatsApp/Plivo ingest) is independent of all of
+this and works through the gateway regardless.
 
 ## Known gaps / risks
 
@@ -138,15 +247,154 @@ webhooks, WhatsApp/Plivo ingest) is unaffected and works through the gateway.
   writable. Running it as a non-root user would break startup.
 - **Gateway image is 2.39 GB** — first pull is slow.
 - No file uploads without S3/AWS credentials.
-- frontline's **API** is enabled and built from source; its **UI** cannot load
-  until the hardcoded plugin CDN URL is made configurable (see above). No other
-  plugin (sales, loyalty, …) is enabled.
+- frontline's **API and UI** are both enabled and built from source. No other
+  plugin (sales, loyalty, …) is enabled — and enabling one means not just adding
+  a `plugin-<name>-api` service but also serving its `<name>_ui` build under
+  `PLUGIN_CDN_URL`, or the browser 404s on that remote's `remoteEntry.js`.
+- **`frontline-ui` serves only the `latest/` version directory.** `getPluginVersion()`
+  falls back to `latest`, but if anyone sets a per-plugin `releaseVersion` in the
+  org config, core-api will emit a URL for a directory the container does not
+  have and the plugin silently stops loading. Either leave `releaseVersion`
+  unset or add a matching directory in the Dockerfile.
 - Because `ENABLED_PLUGINS` now lists `frontline`, the gateway **blocks on it**:
   `retryGetProxyTargets()` waits for every listed plugin to appear in service
   discovery *and* answer a federation introspection query before serving
   `/graphql`. If `plugin-frontline-api` fails to boot, core GraphQL goes down
-  with it. `MAX_PLUGIN_RETRY=60` bounds this to ~60s before the gateway exits
-  and restarts.
-- First deploy is **slow**: building frontline_api runs a full `pnpm install`
-  (~3700 packages) plus two Nx builds in the container.
+  with it — see the runbook below. `MAX_PLUGIN_RETRY=60` does **not** bound the
+  damage; it only bounds how quickly the failure shows up in the logs.
+- First deploy is **slow**: `frontline_api` and `frontline-ui` are separate
+  builds and each runs its own full `pnpm install` (~3700 packages) before its
+  Nx build(s). The installs dominate; the `frontline_ui` compile itself is only
+  ~48 s / 1.88 GB peak.
 - Version pinning is essential; `main` is pushed to many times a day.
+
+## RUNBOOK: frontline took down the whole stack
+
+**Symptom.** Nobody can log in. The UI loads its shell but every request fails.
+`https://$ERXES_API_DOMAIN/graphql` and even `/health` are dead. Gateway logs
+repeat `WAITING FOR: frontline graphql endpoint …` and the container restarts
+every minute or so.
+
+### Why one plugin can do this
+
+`backend/gateway/src/proxy/targets.ts`:
+
+```ts
+export async function retryGetProxyTargets(): Promise<ErxesProxyTarget[]> {
+  try {
+    const serviceNames = await getPlugins();          // ['core', 'frontline']
+    const proxyTargets = await Promise.all(serviceNames.map(retryGetProxyTarget));
+    await Promise.all(proxyTargets.map(retryEnsureGraphqlEndpointIsUp));
+    return proxyTargets;
+  } catch (e) {
+    console.log(e);
+    console.error(e);
+    process.exit(1);        // <-- the whole problem
+  }
+}
+```
+
+`main.ts` awaits this on line 226, **before** `httpServer.listen()` on line 247.
+So the failure mode is not "starts without frontline" — there is no partial
+start. Exhausting `MAX_PLUGIN_RETRY` makes `retry()` rethrow, the catch calls
+`process.exit(1)`, and `restart: unless-stopped` re-enters the identical wait.
+**A broken frontline is a permanent, self-perpetuating outage of core GraphQL**,
+including `/initial-setup` and `/core-login`, which the gateway serves by
+proxying `/` to core-api.
+
+There is no partial-supergraph path: `writeSupergraphConfig()` emits a subgraph
+entry for every target, and `rover supergraph compose` fails the whole
+composition if one subgraph is unreachable.
+
+### Recovery (≈2 minutes, no image rebuild)
+
+`ENABLED_PLUGINS` is read from the environment at gateway boot, so removing
+frontline and restarting is sufficient — nothing needs recompiling.
+
+1. **Confirm it is actually frontline**, so you do not "fix" the wrong thing:
+   ```bash
+   docker compose -f deploy/docker-compose.yml ps
+   docker compose -f deploy/docker-compose.yml logs --tail=50 plugin-frontline-api
+   ```
+   With the healthcheck in place the giveaway is `plugin-frontline-api`
+   `(unhealthy)` or restarting, and `gateway` stuck in `Created`.
+
+2. **Drop frontline from `ENABLED_PLUGINS`** in `deploy/.env`. It must end up
+   either **absent** or **non-empty** — never `ENABLED_PLUGINS=`:
+
+   ```bash
+   # CORRECT — comment the line out entirely:
+   # ENABLED_PLUGINS=frontline
+   ```
+
+   > **The empty-string trap.** `getPlugins()` does
+   > `['core', ...(process.env.ENABLED_PLUGINS?.split(',') || [])]`. The `?.`
+   > only guards `undefined`; `''` is a string, so `''.split(',')` returns
+   > `['']` — a phantom plugin whose name is the empty string. The gateway then
+   > waits on `erxes-service-` (a key nothing ever writes), logging
+   > `Waiting for plugin  to join service discovery` with a blank name, and
+   > exits after `MAX_PLUGIN_RETRY`. Setting `ENABLED_PLUGINS=` to "disable
+   > plugins" reproduces the exact outage you are trying to fix. Comment the
+   > line out or delete it.
+
+   Because the compose default is `${ENABLED_PLUGINS:-frontline}`, commenting
+   the line out yields `frontline` again. To run **core only**, set the value
+   explicitly to `core`:
+   ```bash
+   ENABLED_PLUGINS=core
+   ```
+   `getPlugins()` prepends `core` unconditionally, so the duplicate is
+   harmless — `retryGetProxyTarget('core')` resolves twice from the same Redis
+   key. This is the deliberate way to express "no plugins" without an empty
+   string.
+
+3. **Restart the gateway and core-api together.** Both must agree on the list —
+   core-api uses it to answer `/get-frontend-plugins`, so a mismatch leaves the
+   UI trying to load a remote the gateway cannot route:
+   ```bash
+   docker compose -f deploy/docker-compose.yml --env-file deploy/.env \
+     up -d --force-recreate gateway plugin-core-api
+   ```
+
+4. **Verify core is back:**
+   ```bash
+   curl -fsS https://$ERXES_API_DOMAIN/health                     # -> ok
+   curl -fsS https://$ERXES_API_DOMAIN/initial-setup              # -> {"type":"os",...}
+   ```
+   Gateway logs should show `Router started successfully` and
+   `Server is running at http://localhost:4000/`.
+
+5. **Stop the flapping plugin** so it stops consuming RAM while you debug:
+   ```bash
+   docker compose -f deploy/docker-compose.yml stop plugin-frontline-api
+   ```
+
+Re-enabling later is the same steps with `ENABLED_PLUGINS=frontline` restored.
+Fix frontline's boot failure **first** — confirm `plugin-frontline-api` reaches
+`(healthy)` on its own before putting the name back in the gateway's list.
+
+### Why the `service_healthy` gate is not a workaround
+
+The compose file gates `gateway` on
+`plugin-frontline-api: {condition: service_healthy}`. That removes the *common*
+cause of this outage — a frontline that is merely **slow** (cold mongoose model
+registration on a memory-limited box can exceed the gateway's 60-second budget)
+— by making Docker absorb the wait instead of the gateway. It does **not** make
+the gateway resilient to a frontline that is genuinely **broken**: in that case
+the gateway simply never starts, which is why this runbook exists.
+
+The failure stays attributable. `docker compose ps` names
+`plugin-frontline-api` as `(unhealthy)` and the gateway sits in `Created` — an
+operator can see exactly which service failed. Nothing here silently masks a
+broken plugin.
+
+### The real fix, if this recurs
+
+Make the gateway degrade instead of exit: compose the supergraph from the
+targets that *did* answer and add late arrivals via the existing
+`update-apollo-router` BullMQ worker (`src/mq/workers/workers.ts`), which
+already calls `restartRouter()` when `joinErxesGateway()` enqueues
+`service-discovery-updated`. That machinery means a plugin registering **late**
+is picked up **without a gateway restart** — the only gap is that the *initial*
+`retryGetProxyTargets()` is all-or-nothing. Changing it is an upstream-behaviour
+change to a vendored dependency and is deliberately **not** done here.

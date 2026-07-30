@@ -171,4 +171,30 @@ COPY --from=build /app/backend/plugins/frontline_api/dist ./dist
 
 ENV NODE_ENV=production
 USER 1000
+
+# ── HEALTHCHECK ──────────────────────────────────────────────────────────────
+# This is a LOAD-BEARING part of the deploy, not cosmetic polish. The gateway's
+# retryGetProxyTargets() blocks on EVERY name in ENABLED_PLUGINS and calls
+# process.exit(1) if any of them is still missing after MAX_PLUGIN_RETRY tries,
+# so a frontline that never becomes ready takes core GraphQL down with it. The
+# compose file gates `gateway` on `plugin-frontline-api: {condition:
+# service_healthy}` to keep the gateway from burning its finite retry budget
+# against a plugin that is merely slow. See deploy/README.md.
+#
+# Why /health is a MEANINGFUL readiness signal here and not just a liveness
+# ping: erxes-api-shared/src/utils/start-plugin.ts mounts the Apollo subgraph
+# on /graphql and only THEN calls httpServer.listen(), with joinErxesGateway()
+# after that. So the port does not accept connections until the federation
+# endpoint the gateway is about to introspect actually exists. A 200 from
+# /health therefore implies /graphql is mounted.
+#
+# Uses `node` rather than curl/wget: this is a bare node:22-alpine runtime and
+# neither is guaranteed. A non-2xx status exits 1 so Docker sees "unhealthy"
+# instead of a false pass.
+#
+# start-period 180s is deliberately generous — first boot runs mongoose model
+# registration and Redis connection setup on a cold, memory-limited box.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=180s --retries=12 \
+  CMD ["node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3304)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+
 CMD ["node", "dist/src/main.js"]

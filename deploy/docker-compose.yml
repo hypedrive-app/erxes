@@ -137,10 +137,22 @@ services:
       #
       # core-api ALSO uses this list to answer GET /get-frontend-plugins, which
       # is what tells the browser which Module Federation remotes to load
-      # (frontend/core-ui/src/bootstrap.tsx). See the frontline-ui note at the
-      # bottom of this file for why that endpoint is currently a blocker.
+      # (frontend/core-ui/src/bootstrap.tsx). Each name in this list yields one
+      # remote entry URL built from PLUGIN_CDN_URL below, so a plugin listed
+      # here MUST have its UI served from there or the browser 404s on it.
       ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
       # ENABLED_PLUGINS_ONLY_API stays ABSENT — same empty-string trap.
+      # ── PLUGIN_CDN_URL: where the BROWSER fetches plugin remotes ─────────
+      # routes.ts builds `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
+      # and core-ui hands that string to Module Federation's runtime init(),
+      # so it is dereferenced BY THE BROWSER. It must therefore be a public,
+      # TLS-terminated origin — `http://frontline-ui` (the compose DNS name)
+      # would resolve only inside the docker network and fail in the browser,
+      # and any http:// value would be blocked as mixed content on an https
+      # page. Default is upstream's CDN, which serves upstream's build and NOT
+      # our WhatsApp/Plivo fork — so this must be set for frontline to work.
+      # See the frontline-ui service and deploy/README.md.
+      PLUGIN_CDN_URL: https://${ERXES_PLUGINS_DOMAIN}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # erxes resolves storage config as `configs[CODE] ?? getEnv(CODE)`
       # (erxes-api-shared/src/utils/file/upload.ts readConfigValue), so these env
@@ -221,6 +233,24 @@ services:
       AWS_DISABLE_ACL: ${AWS_DISABLE_ACL:-}
       FILE_SYSTEM_PUBLIC: ${FILE_SYSTEM_PUBLIC:-}
       NODE_OPTIONS: --max-old-space-size=1536
+    # Defined in Dockerfile.build; restated here so it is visible at the level
+    # the `gateway` depends_on condition below actually reads, and so it still
+    # applies if the image is ever swapped for a published one.
+    #
+    # This gates the gateway (see its depends_on) and is the difference between
+    # "gateway waits for a slow frontline" and "gateway burns its 60 retries and
+    # exits". /health only answers after start-plugin.ts has mounted /graphql
+    # and called httpServer.listen(), so it is a genuine readiness signal for
+    # the federation introspection the gateway is about to perform.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3304)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # Generous: first boot registers mongoose models and connects Redis on a
+      # cold, memory-limited box. Too short here re-creates the very failure
+      # this healthcheck exists to prevent.
+      start_period: 180s
     restart: unless-stopped
     # `erxes` ONLY — deliberately NOT on dokploy-network. This plugin is never
     # addressed from the internet: the browser talks to the gateway, which
@@ -246,9 +276,40 @@ services:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
       plugin-core-api: {condition: service_started}
-      # Not a correctness requirement — the gateway retries service discovery
-      # either way — but starting frontline first avoids burning retries.
-      plugin-frontline-api: {condition: service_started}
+      # ── THIS IS A CORRECTNESS REQUIREMENT, NOT AN OPTIMISATION ─────────────
+      # (An earlier revision of this file called it "not a correctness
+      # requirement — the gateway retries either way". That was wrong, and the
+      # reason is worth spelling out, because the failure it causes is a FULL
+      # OUTAGE of core GraphQL, not a missing frontline feature.)
+      #
+      # backend/gateway/src/proxy/targets.ts:
+      #   export async function retryGetProxyTargets() {
+      #     try { ... await Promise.all(serviceNames.map(retryGetProxyTarget));
+      #           await Promise.all(proxyTargets.map(retryEnsureGraphqlEndpointIsUp));
+      #     } catch (e) { console.error(e); process.exit(1); }   <-- HERE
+      #   }
+      #
+      # The retry budget is NOT "retry then continue degraded". When
+      # MAX_PLUGIN_RETRY is exhausted, retry() rethrows, the catch runs
+      # process.exit(1), and main.ts never reaches httpServer.listen(). The
+      # gateway serves NOTHING — not /graphql, not /health, not the core-api
+      # passthrough that /initial-setup and /core-login ride on. Combined with
+      # `restart: unless-stopped` that is a permanent crash-loop, not a
+      # 60-second blip: each restart re-enters the same doomed wait.
+      #
+      # service_healthy (not service_started) is what makes the wait finite and
+      # correct. A container that has merely STARTED may still be 3 minutes from
+      # serving /graphql — the frontline image runs mongoose model registration
+      # first — and the gateway would spend its whole 60-try budget against a
+      # process that was always going to come up. Waiting for HEALTHY spends
+      # Docker's patience (start_period 180s + 12x10s) instead of the gateway's.
+      #
+      # This does NOT hide a broken frontline: if it never goes healthy, the
+      # gateway stays in `Created` and `docker compose ps` shows
+      # plugin-frontline-api as (unhealthy). The failure is attributed to the
+      # service that actually failed. To recover, drop frontline from
+      # ENABLED_PLUGINS — see the rollback runbook in deploy/README.md.
+      plugin-frontline-api: {condition: service_healthy}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -272,10 +333,17 @@ services:
       # Still never "" — see the long note on plugin-core-api.
       ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
       # Bound the service-discovery retry loop. Unset => MAX_SAFE_INTEGER, i.e.
-      # the gateway retries forever instead of failing visibly (targets.ts).
-      # With frontline in the mix this also bounds how long a broken plugin can
-      # hold the whole gateway down: 60 tries x 1s, then the gateway exits and
-      # `restart: unless-stopped` cycles it.
+      # the gateway waits forever instead of failing visibly (targets.ts).
+      #
+      # DO NOT read this as a safety valve. Exhausting the budget does NOT
+      # start the gateway without the failed plugin — retry() rethrows and
+      # retryGetProxyTargets()'s catch calls process.exit(1), so the gateway
+      # dies having served nothing at all. `restart: unless-stopped` then
+      # replays the same doomed wait: a CRASH-LOOP, not a recovery. What this
+      # value actually controls is how fast the failure becomes VISIBLE in the
+      # logs (60 x 1s) rather than hanging silently forever. The thing that
+      # keeps a slow-but-healthy frontline from tripping it is the
+      # `service_healthy` gate above, not this number.
       MAX_PLUGIN_RETRY: "60"
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # erxes resolves storage config as `configs[CODE] ?? getEnv(CODE)`
@@ -394,52 +462,66 @@ services:
         limits:
           memory: 256M
 
-  # ── frontline_ui: NOT DEPLOYABLE YET — DO NOT ADD A SERVICE HERE ──────────
+  # ── frontline_ui: the Module Federation remote ────────────────────────────
   #
-  # There is intentionally no `frontline-ui` service. Adding a container that
-  # serves remoteEntry.js would NOT make the UI load, because nothing would
-  # ever point the browser at that container.
+  # Static nginx serving our fork's built frontline_ui bundle. This is the
+  # container that makes the WhatsApp/Plivo UI actually render inside core-ui.
   #
-  # How a v3 frontend plugin actually loads:
+  # ── How a v3 frontend plugin loads (the whole chain) ─────────────────────
   #   1. frontend/core-ui/src/bootstrap.tsx, in the NODE_ENV!=='development'
   #      branch, fetches `${REACT_APP_API_URL}/get-frontend-plugins` and feeds
   #      the response straight into Module Federation's runtime `init({remotes})`.
-  #      So remotes are resolved AT RUNTIME from a server response — they are
-  #      NOT compiled into core-ui. (frontend/core-ui/module-federation.config.ts
-  #      does read ENABLED_PLUGINS into `remotes`, but that is the DEV/
-  #      build-time path; module-federation.config.prod.ts has no `remotes` key
-  #      at all, which confirms production is runtime-resolved.)
-  #   2. That endpoint is served by core-api:
-  #      backend/core-api/src/modules/organization/routes.ts:127-137. In the
-  #      VERSION=os branch it emits, for each name in ENABLED_PLUGINS:
+  #      Remotes are resolved AT RUNTIME from a server response — they are NOT
+  #      compiled into core-ui. (frontend/core-ui/module-federation.config.ts
+  #      does read ENABLED_PLUGINS into `remotes`, but that is the DEV path;
+  #      module-federation.config.prod.ts has no `remotes` key at all.)
+  #   2. core-api answers that endpoint from
+  #      backend/core-api/src/modules/organization/routes.ts, emitting for each
+  #      name in ENABLED_PLUGINS:
   #        { name: `${plugin}_ui`,
-  #          entry: `https://plugins.erxes.io/${version}/${plugin}_ui/remoteEntry.js` }
+  #          entry: `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js` }
+  #      `version` = getPluginVersion() = `config?.releaseVersion || 'latest'`.
+  #   3. The BROWSER then loads that URL. Hence PLUGIN_CDN_URL must be a
+  #      PUBLIC origin, not an internal DNS name — see the note below.
   #
-  # The `entry` host is a HARDCODED STRING LITERAL. Grepping the whole repo for
-  # `plugins.erxes.io` returns only those three lines in routes.ts — there is
-  # no env var, no config key, and no org-level override that redirects it.
+  # PLUGIN_CDN_URL previously did not exist; the host was a hardcoded
+  # `https://plugins.erxes.io` literal, which served upstream's build (or a
+  # 404) rather than our fork's. That is now an env var, and this service is
+  # what it points at.
   #
-  # Consequence for this stack: with ENABLED_PLUGINS=frontline, core-ui will
-  # request
-  #     https://plugins.erxes.io/latest/frontline_ui/remoteEntry.js
-  # from erxes' public CDN. Our fork's frontline_ui (WhatsApp + Plivo) is not
-  # published there, so that URL serves either a 404 or, worse, UPSTREAM's
-  # build — which would not match our frontline_api schema.
+  # ── Built from source, like plugin-frontline-api ──────────────────────────
+  # No published image exists: upstream never containerises a UI plugin.
+  # .github/workflows/ci-ui-frontline.yml builds it on the runner and
+  # `aws s3 sync`s dist/frontend/plugins/frontline_ui to erxes' R2 bucket
+  # behind plugins.erxes.io. UI plugins are CDN artifacts, so no UI plugin in
+  # this repo has a Dockerfile — frontline_ui/Dockerfile.build is the first,
+  # and it reproduces that same `<version>/frontline_ui/` directory shape
+  # locally. See its header.
   #
-  # Unblocking it requires a CODE CHANGE, not a compose change: make the entry
-  # host configurable in routes.ts (e.g. a PLUGIN_CDN_URL / per-plugin override
-  # env var), then add an nginx service here serving
-  # `dist/frontend/plugins/frontline_ui` on a Dokploy-routed hostname and point
-  # that new env var at it. frontend/core-ui/nginx/default.conf already carries
-  # the right `location ~ .*remoteEntry.js$` block (no-store +
-  # Access-Control-Allow-Origin *) to copy for that vhost, and frontline_ui's
-  # rspack config sets no publicPath, so its chunks resolve relative to
-  # wherever remoteEntry.js is served from — a self-hosted origin works fine
-  # once the URL can be pointed at it.
-  #
-  # Until that lands: the frontline BACKEND (GraphQL, webhooks, WhatsApp/Plivo
-  # ingest) is fully functional through the gateway, but the frontline UI will
-  # not render inside core-ui.
+  # ── Build cost: SAFE, unlike frontline_api ────────────────────────────────
+  # Measured on this tree: peak RSS 1.88 GB, ~48 s, 13 MB of output — versus
+  # frontline_api's ~13.9 GB peak against ~9.9 GB free on the box. The two
+  # builds are NOT comparable and this one does not put the stack at OOM risk
+  # (dokploy#4461: an OOMed compose build wedges the queue with no working
+  # Cancel). They do serialise behind the same `pnpm install`, which dominates
+  # first-deploy time.
+  frontline-ui:
+    build:
+      context: ..
+      dockerfile: frontend/plugins/frontline_ui/Dockerfile.build
+    restart: unless-stopped
+    # ── MUST be on dokploy-network ────────────────────────────────────────
+    # Unlike plugin-frontline-api, this one IS addressed from the internet:
+    # the browser — not the gateway — fetches remoteEntry.js. An internal-only
+    # service would be unreachable and the plugin would silently fail to load.
+    # Mirrors gateway and core-ui exactly.
+    networks: [erxes, dokploy-network]
+    # NO traefik.* labels — Dokploy owns routing, same as gateway and core-ui.
+    # Register the hostname as a Dokploy Domain (port 80). See deploy/README.md.
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
 volumes:
   mongo-data:
