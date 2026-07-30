@@ -23,6 +23,14 @@ export const plivoQueries = {
     { integrationId }: { integrationId: string },
     { models, user }: IContext,
   ): Promise<IPlivoAccessToken & { phoneNumber?: string }> => {
+    // This mints credentials that can place and receive calls on the account,
+    // so an unauthenticated caller must never reach the signing step. The
+    // endpoint username is derived from the user id as well, which would be
+    // meaningless without one.
+    if (!user?._id) {
+      throw new Error('Login required');
+    }
+
     const integration = await models.PlivoIntegrations.getIntegration({
       erxesApiId: integrationId,
     });
