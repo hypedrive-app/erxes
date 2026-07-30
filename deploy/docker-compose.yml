@@ -30,6 +30,33 @@
 # verbatim (proxy/targets.ts + proxy/middleware.ts applyProxyToCore, which uses
 # core.address when NODE_ENV=production). So DNS must resolve `plugin-core-api`.
 # Any future plugin must likewise be named `plugin-<name>-api`.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# FRONTLINE IS BUILT FROM SOURCE, NOT PULLED
+# ─────────────────────────────────────────────────────────────────────────────
+# NOT because no image exists. `erxes/erxes-next-frontline_api` DOES exist and
+# has 540 tags including 3.0.61 and 3.0.62, multi-arch amd64+arm64. Note the
+# UNDERSCORE: the other services here follow `erxes-next-<name>-api`, but the
+# plugin CI workflows publish `erxes-next-<name>_api`
+# (.github/workflows/ci-api-frontline.yml). Checking the hyphenated name gives
+# a false "does not exist" — that spelling genuinely has no repo.
+#
+# We build from source because that published image is UPSTREAM's. `origin` on
+# this repo is github.com/hypedrive-app/erxes, a FORK, and the WhatsApp + Plivo
+# integrations (merge c19464f) exist only here. erxes' own CI builds
+# erxes/erxes-next-frontline_api from erxes/erxes main, so pulling any tag of
+# it would silently ship a frontline WITHOUT our integrations — and worse, its
+# GraphQL schema would differ from what our frontline_ui expects.
+#
+# So: pinning a published tag is not an option, and `build:` is mandatory.
+# Dokploy already clones this repo to deploy the stack, so the context is local.
+#
+# BUILD CONTEXT IS THE REPO ROOT (`context: ..`), not deploy/. Nx, the pnpm
+# workspace and tsconfig.base.json aliases only resolve from the root.
+#
+# It uses Dockerfile.build, NOT the sibling Dockerfile. The latter only COPYs a
+# pre-existing dist/ (which is gitignored) and cannot build from a clean
+# checkout. See the header of backend/plugins/frontline_api/Dockerfile.build.
 
 services:
   # ── Datastores ────────────────────────────────────────────────────────────
@@ -94,14 +121,26 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      # ENABLED_PLUGINS / ENABLED_PLUGINS_ONLY_API are deliberately NOT SET.
-      # They must be absent, never "". getPlugins() does
+      # ── ENABLED_PLUGINS ──────────────────────────────────────────────────
+      # A NON-EMPTY, comma-separated list of plugin names, or ABSENT. Never "".
+      # getPlugins() (erxes-api-shared/src/utils/service-discovery.ts) does
       #   ['core', ...(process.env.ENABLED_PLUGINS?.split(',') || [])]
       # and ''.split(',') === [''], so an empty string yields ['core', ''] —
       # an unnamed phantom plugin. Verified by running this stack: the gateway
       # then logs "Waiting for plugin  to join service discovery" forever and
-      # never serves /graphql. Unset yields ['core']. Do not "helpfully" add
-      # these back as empty strings.
+      # never serves /graphql. That is why this is `${ENABLED_PLUGINS:-frontline}`
+      # with a non-empty default and NOT `${ENABLED_PLUGINS:-}`.
+      #
+      # 'frontline' must match startPlugin({name:'frontline'}) in
+      # backend/plugins/frontline_api/src/main.ts, because the gateway derives
+      # the Redis discovery key `erxes-service-frontline` from this list.
+      #
+      # core-api ALSO uses this list to answer GET /get-frontend-plugins, which
+      # is what tells the browser which Module Federation remotes to load
+      # (frontend/core-ui/src/bootstrap.tsx). See the frontline-ui note at the
+      # bottom of this file for why that endpoint is currently a blocker.
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
+      # ENABLED_PLUGINS_ONLY_API stays ABSENT — same empty-string trap.
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # erxes resolves storage config as `configs[CODE] ?? getEnv(CODE)`
       # (erxes-api-shared/src/utils/file/upload.ts readConfigValue), so these env
@@ -127,6 +166,74 @@ services:
         limits:
           memory: 1G
 
+  # ── frontline plugin api (WhatsApp + Plivo, inbox, tickets) ───────────────
+  # MUST be named plugin-frontline-api. joinErxesGateway() publishes
+  #   http://plugin-${name}-api:${port}  ->  http://plugin-frontline-api:3304
+  # into Redis under `erxes-service-frontline` when NODE_ENV=production and
+  # LOAD_BALANCER_ADDRESS is unset. The gateway proxies to that string
+  # verbatim, so the compose service name IS the DNS name it dials. Renaming
+  # this service silently breaks the gateway with no error at build time.
+  plugin-frontline-api:
+    # Built from source — no published image exists. See the header note.
+    build:
+      context: ..
+      dockerfile: backend/plugins/frontline_api/Dockerfile.build
+    depends_on:
+      mongo: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      # core-api owns the shared collections (users, orgs, permissions) and
+      # seeds them on first boot; frontline reads them immediately.
+      plugin-core-api: {condition: service_started}
+    environment:
+      NODE_ENV: production
+      VERSION: os
+      # Must equal the port in startPlugin({name:'frontline', port:3304})
+      # (backend/plugins/frontline_api/src/main.ts). The value published to
+      # Redis comes from that literal, NOT from this env var — they are wired
+      # independently, so a mismatch here yields a registered address that
+      # nothing is listening on. Keep them in lockstep.
+      PORT: "3304"
+      DOMAIN: https://${ERXES_UI_DOMAIN}
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Same secret as core-api and the gateway — frontline validates the same
+      # user JWTs, so a divergent value rejects every authenticated request.
+      JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
+      # Same non-empty rule as everywhere else in this file. frontline itself
+      # calls isEnabled()/getPlugins() for cross-plugin checks.
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
+      # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
+      # Frontline needs these in its own right, not just for parity: inbound
+      # WhatsApp media and email (imap) attachments are streamed straight to
+      # object storage by this process. Same readConfigValue fallback chain as
+      # core-api — see the note on plugin-core-api.
+      UPLOAD_SERVICE_TYPE: ${UPLOAD_SERVICE_TYPE:-}
+      AWS_BUCKET: ${AWS_BUCKET:-}
+      AWS_PREFIX: ${AWS_PREFIX:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_COMPATIBLE_SERVICE_ENDPOINT: ${AWS_COMPATIBLE_SERVICE_ENDPOINT:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_FORCE_PATH_STYLE: ${AWS_FORCE_PATH_STYLE:-}
+      # R2 rejects ACL headers outright — without this every upload 400s.
+      AWS_DISABLE_ACL: ${AWS_DISABLE_ACL:-}
+      FILE_SYSTEM_PUBLIC: ${FILE_SYSTEM_PUBLIC:-}
+      NODE_OPTIONS: --max-old-space-size=1536
+    restart: unless-stopped
+    # `erxes` ONLY — deliberately NOT on dokploy-network. This plugin is never
+    # addressed from the internet: the browser talks to the gateway, which
+    # proxies /pl:frontline to it over the internal network. Webhook callbacks
+    # from Meta/Plivo likewise arrive at the gateway host. Putting it on
+    # dokploy-network would expose it to Traefik for no reason.
+    networks: [erxes]
+    # NO traefik.* labels — Dokploy owns routing. See the gateway service.
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
   # ── gateway ───────────────────────────────────────────────────────────────
   # Embeds Apollo Router v1.59.2 as a child process and composes the supergraph
   # with rover at boot. Runs as root, which it needs: it writes router.yaml /
@@ -139,6 +246,9 @@ services:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
       plugin-core-api: {condition: service_started}
+      # Not a correctness requirement — the gateway retries service discovery
+      # either way — but starting frontline first avoids burning retries.
+      plugin-frontline-api: {condition: service_started}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -153,10 +263,19 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      # NOT SET on purpose — see the long note on plugin-core-api. An empty
-      # string here is what makes the gateway hang on a nameless plugin.
+      # MUST be the SAME value as plugin-core-api's. This is the list the
+      # gateway iterates in proxy/targets.ts retryGetProxyTargets(): for each
+      # name it blocks until `erxes-service-<name>` appears in Redis AND that
+      # address answers a federation SubgraphIntrospectQuery on /graphql. If
+      # frontline is listed here but plugin-frontline-api never starts, the
+      # gateway will not serve /graphql at all — core included.
+      # Still never "" — see the long note on plugin-core-api.
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
       # Bound the service-discovery retry loop. Unset => MAX_SAFE_INTEGER, i.e.
       # the gateway retries forever instead of failing visibly (targets.ts).
+      # With frontline in the mix this also bounds how long a broken plugin can
+      # hold the whole gateway down: 60 tries x 1s, then the gateway exits and
+      # `restart: unless-stopped` cycles it.
       MAX_PLUGIN_RETRY: "60"
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # erxes resolves storage config as `configs[CODE] ?? getEnv(CODE)`
@@ -274,6 +393,53 @@ services:
       resources:
         limits:
           memory: 256M
+
+  # ── frontline_ui: NOT DEPLOYABLE YET — DO NOT ADD A SERVICE HERE ──────────
+  #
+  # There is intentionally no `frontline-ui` service. Adding a container that
+  # serves remoteEntry.js would NOT make the UI load, because nothing would
+  # ever point the browser at that container.
+  #
+  # How a v3 frontend plugin actually loads:
+  #   1. frontend/core-ui/src/bootstrap.tsx, in the NODE_ENV!=='development'
+  #      branch, fetches `${REACT_APP_API_URL}/get-frontend-plugins` and feeds
+  #      the response straight into Module Federation's runtime `init({remotes})`.
+  #      So remotes are resolved AT RUNTIME from a server response — they are
+  #      NOT compiled into core-ui. (frontend/core-ui/module-federation.config.ts
+  #      does read ENABLED_PLUGINS into `remotes`, but that is the DEV/
+  #      build-time path; module-federation.config.prod.ts has no `remotes` key
+  #      at all, which confirms production is runtime-resolved.)
+  #   2. That endpoint is served by core-api:
+  #      backend/core-api/src/modules/organization/routes.ts:127-137. In the
+  #      VERSION=os branch it emits, for each name in ENABLED_PLUGINS:
+  #        { name: `${plugin}_ui`,
+  #          entry: `https://plugins.erxes.io/${version}/${plugin}_ui/remoteEntry.js` }
+  #
+  # The `entry` host is a HARDCODED STRING LITERAL. Grepping the whole repo for
+  # `plugins.erxes.io` returns only those three lines in routes.ts — there is
+  # no env var, no config key, and no org-level override that redirects it.
+  #
+  # Consequence for this stack: with ENABLED_PLUGINS=frontline, core-ui will
+  # request
+  #     https://plugins.erxes.io/latest/frontline_ui/remoteEntry.js
+  # from erxes' public CDN. Our fork's frontline_ui (WhatsApp + Plivo) is not
+  # published there, so that URL serves either a 404 or, worse, UPSTREAM's
+  # build — which would not match our frontline_api schema.
+  #
+  # Unblocking it requires a CODE CHANGE, not a compose change: make the entry
+  # host configurable in routes.ts (e.g. a PLUGIN_CDN_URL / per-plugin override
+  # env var), then add an nginx service here serving
+  # `dist/frontend/plugins/frontline_ui` on a Dokploy-routed hostname and point
+  # that new env var at it. frontend/core-ui/nginx/default.conf already carries
+  # the right `location ~ .*remoteEntry.js$` block (no-store +
+  # Access-Control-Allow-Origin *) to copy for that vhost, and frontline_ui's
+  # rspack config sets no publicPath, so its chunks resolve relative to
+  # wherever remoteEntry.js is served from — a self-hosted origin works fine
+  # once the URL can be pointed at it.
+  #
+  # Until that lands: the frontline BACKEND (GraphQL, webhooks, WhatsApp/Plivo
+  # ingest) is fully functional through the gateway, but the frontline UI will
+  # not render inside core-ui.
 
 volumes:
   mongo-data:

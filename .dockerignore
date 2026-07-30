@@ -1,0 +1,56 @@
+# Keep the build context to the SOURCE only.
+#
+# Without this file, `docker build ... .` from the repo root uploads the local
+# node_modules tree (~2GB of pnpm store symlinks, which also breaks COPY) and
+# the .nx cache. Both are regenerated inside the image by `pnpm install`, so
+# shipping them is pure cost — and a host node_modules built for a different
+# libc/arch than node:22-alpine would actively poison the build.
+node_modules
+**/node_modules
+
+# Compiled output. Dockerfile.build recompiles these from source on purpose:
+# leaking a host-built dist/ in would defeat the point of building from a clean
+# checkout and could mask a genuinely broken build.
+dist
+**/dist
+tmp
+**/tmp
+out-tsc
+
+# ...EXCEPT the four dist trees the SIBLING `Dockerfile` COPYs directly.
+#
+# .dockerignore is per-CONTEXT, not per-Dockerfile, so this one file also
+# governs `docker build -f backend/plugins/frontline_api/Dockerfile .` — the
+# packaging-only recipe that .github/workflows/ci-api-frontline.yml runs with
+# `context: .` AFTER building the two projects on the runner. A blanket
+# `**/dist` silently removes its inputs from the context and that build dies
+# with the un-Googleable
+#   failed to compute cache key: "/backend/erxes-api-shared/dist": not found
+# Re-including them costs Dockerfile.build nothing: its own stage-1 `COPY . .`
+# lands before `pnpm nx build`, which overwrites these paths anyway, and on a
+# clean checkout (Dokploy) they are gitignored and simply absent.
+!backend/erxes-api-shared/dist
+!backend/erxes-api-shared/utils/dist
+!backend/erxes-api-shared/core-types/dist
+!backend/erxes-api-shared/core-modules/dist
+!backend/plugins/frontline_api/dist
+
+.nx
+.git
+.github
+.agents
+.claude
+.vscode
+.idea
+
+# Docs and local-only artifacts
+*.md
+!backend/**/*.md
+.env
+.env.*
+!.env.sample
+dump.rdb
+storybook-static
+coverage
+**/coverage
+.pnpm-store

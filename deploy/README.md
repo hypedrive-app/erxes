@@ -100,11 +100,32 @@ resolve via the existing `*.sharksmarketing.com` wildcard.
    `http://plugin-${name}-api:${port}`, so core-api advertises itself as
    `http://plugin-core-api:3300`. Renaming the service breaks discovery.
    Future plugins must be named `plugin-<name>-api`.
-2. **`ENABLED_PLUGINS` must be UNSET, never `""`.** `getPlugins()` does
-   `['core', ...(process.env.ENABLED_PLUGINS?.split(',') || [])]` and
+2. **`ENABLED_PLUGINS` must be UNSET or NON-EMPTY, never `""`.** `getPlugins()`
+   does `['core', ...(process.env.ENABLED_PLUGINS?.split(',') || [])]` and
    `''.split(',') === ['']`, producing a phantom nameless plugin. Observed
    result: the gateway logs `Waiting for plugin  to join service discovery`
-   forever and never serves `/graphql`.
+   forever and never serves `/graphql`. This is why the compose defaults it to
+   `${ENABLED_PLUGINS:-frontline}` rather than `${ENABLED_PLUGINS:-}`.
+
+## frontline (WhatsApp + Plivo)
+
+The `plugin-frontline-api` service is **built from this git tree**, not pulled:
+`erxes/erxes-next-frontline-api` does not exist on Docker Hub at any tag. It
+uses `backend/plugins/frontline_api/Dockerfile.build` (context = repo root),
+which compiles `erxes-api-shared` then `frontline_api`. The sibling
+`Dockerfile` cannot be used — it only copies a pre-built, gitignored `dist/`.
+
+**The frontline UI does not load yet, and no compose change can fix it.**
+`core-ui` resolves Module Federation remotes at runtime by fetching
+`/get-frontend-plugins` (`frontend/core-ui/src/bootstrap.tsx`), and core-api
+answers that with a **hardcoded** CDN URL —
+`https://plugins.erxes.io/${version}/${plugin}_ui/remoteEntry.js`
+(`backend/core-api/src/modules/organization/routes.ts:127-137`). There is no
+env var or config override; `plugins.erxes.io` appears nowhere else in the
+repo. So the browser will fetch our fork's UI from erxes' public CDN, where it
+does not exist. Making the entry host configurable in `routes.ts` is a
+prerequisite for serving `frontline_ui` ourselves. The backend (GraphQL,
+webhooks, WhatsApp/Plivo ingest) is unaffected and works through the gateway.
 
 ## Known gaps / risks
 
@@ -117,5 +138,15 @@ resolve via the existing `*.sharksmarketing.com` wildcard.
   writable. Running it as a non-root user would break startup.
 - **Gateway image is 2.39 GB** — first pull is slow.
 - No file uploads without S3/AWS credentials.
-- No plugins enabled, so this is core CRM only (no sales/frontline/etc. UI).
+- frontline's **API** is enabled and built from source; its **UI** cannot load
+  until the hardcoded plugin CDN URL is made configurable (see above). No other
+  plugin (sales, loyalty, …) is enabled.
+- Because `ENABLED_PLUGINS` now lists `frontline`, the gateway **blocks on it**:
+  `retryGetProxyTargets()` waits for every listed plugin to appear in service
+  discovery *and* answer a federation introspection query before serving
+  `/graphql`. If `plugin-frontline-api` fails to boot, core GraphQL goes down
+  with it. `MAX_PLUGIN_RETRY=60` bounds this to ~60s before the gateway exits
+  and restarts.
+- First deploy is **slow**: building frontline_api runs a full `pnpm install`
+  (~3700 packages) plus two Nx builds in the container.
 - Version pinning is essential; `main` is pushed to many times a day.
