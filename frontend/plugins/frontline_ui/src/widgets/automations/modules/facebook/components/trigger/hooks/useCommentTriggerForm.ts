@@ -21,7 +21,10 @@ export const useCommentTriggerForm = ({
   const { t } = useTranslation('frontline');
   const form = useForm<TCommentTriggerForm>({
     resolver: zodResolver(commentTriggerSchema),
-    defaultValues: { postType: 'specific', ...(activeTrigger?.config || {}) },
+    defaultValues: {
+      postType: 'specific',
+      ...(activeTrigger?.config as Partial<TCommentTriggerForm> | undefined),
+    },
   });
 
   const { handleValidationErrors } = useFormValidationErrorHandler({

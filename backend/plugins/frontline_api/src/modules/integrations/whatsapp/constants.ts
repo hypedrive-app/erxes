@@ -1,9 +1,11 @@
 /**
  * Graph API version used for every Cloud API call.
  *
- * Meta keeps each version usable for about two years, so this is pinned rather
+ * v26.0 is the current latest version (released 2026-07-29). A version stays
+ * usable until two years after its successor ships, so this is pinned rather
  * than floating: an unannounced bump can change payload shapes underneath us.
  * https://developers.facebook.com/docs/graph-api/changelog
+ * https://developers.facebook.com/docs/graph-api/guides/versioning
  */
 export const GRAPH_API_VERSION = 'v26.0';
 
@@ -14,7 +16,11 @@ export const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
  * the customer last wrote to us (error 131047) — only a pre-approved template
  * may be sent after that. Kept here so the API layer and the UI agree on when
  * to warn an agent.
- * https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes
+ *
+ * "When a WhatsApp user messages you or calls you, a 24-hour timer called a
+ * customer service window starts. If the user messages or calls you again
+ * before the timer expires, the timer resets to 24 hours."
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages
  */
 export const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -22,19 +28,25 @@ export const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const ERROR_CODE_OUTSIDE_SERVICE_WINDOW = 131047;
 
 /**
- * Errors worth retrying after a backoff — the request was well formed and only
- * failed because we were going too fast.
+ * Errors Meta documents as transient — the request was well formed and only
+ * failed because of load or throttling, so the same payload can be sent again
+ * after a backoff.
  *
- * 130429: app-level throughput exceeded.
- * 131056: too many messages to this same recipient.
+ * 2:      temporary server issue (downtime or overload).
+ * 4:      app-level API call rate limit.
+ * 80007:  the WABA's own rate limit.
+ * 130429: Cloud API message throughput exceeded.
+ * 131000: unspecified send failure; Meta's guidance is to retry.
+ * 131056: too many messages between this sender/recipient pair.
  *
- * Everything else (131026 undeliverable, 131051 unsupported type, 100 bad
- * request, 190 expired token) is permanent for the request as sent: retrying
- * it unchanged just burns quota, so those must surface to the agent or trigger
- * re-auth instead.
- * https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes
+ * Everything else is permanent for the request as sent: 131047 needs a
+ * template instead, 131026 undeliverable, 131051 unsupported type, 100 bad
+ * request, 190 expired token, and the 132xxx template family all mean the
+ * request must change before it can succeed. Retrying those unchanged just
+ * burns quota, so they surface to the agent or trigger re-auth instead.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes
  */
-export const RETRYABLE_ERROR_CODES = [130429, 131056];
+export const RETRYABLE_ERROR_CODES = [2, 4, 80007, 130429, 131000, 131056];
 
 /** Access token expired or revoked; the integration needs reconnecting. */
 export const ERROR_CODE_INVALID_TOKEN = 190;

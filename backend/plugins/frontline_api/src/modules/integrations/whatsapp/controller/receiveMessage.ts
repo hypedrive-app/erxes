@@ -94,6 +94,30 @@ const extractContent = async (
     return { content: message.button?.text || '[button]', attachments };
   }
 
+  // A reaction carries no body of its own; `emoji` is omitted entirely when the
+  // user REMOVES their reaction, which is why the two cases read differently.
+  if (message.type === 'reaction') {
+    const emoji = message.reaction?.emoji;
+
+    return {
+      content: emoji ? `[reacted ${emoji}]` : '[removed reaction]',
+      attachments,
+    };
+  }
+
+  // Meta delivers types it cannot render (e.g. 131051) with the reason in
+  // `errors[]`, so show that rather than a bare type name.
+  const error = message.errors?.[0];
+
+  if (error) {
+    const detail = error.error_data?.details || error.title || error.message;
+
+    return {
+      content: detail ? `[unsupported message: ${detail}]` : '[unsupported message]',
+      attachments,
+    };
+  }
+
   return { content: `[${message.type}]`, attachments };
 };
 
@@ -223,8 +247,13 @@ const receiveCustomerMessage = async (
 };
 
 /**
- * Records a delivery receipt (sent / delivered / read / failed) for a message
- * we sent. Statuses for messages we never stored are ignored.
+ * Records a delivery receipt for a message we sent. Statuses for messages we
+ * never stored are ignored.
+ *
+ * Meta documents five values — sent, delivered, read, played and failed —
+ * where `played` is the first play of a voice note. They are stored verbatim
+ * rather than mapped, so a value added later is still recorded.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/status
  */
 const receiveStatusUpdate = async (
   models: IModels,
@@ -234,7 +263,14 @@ const receiveStatusUpdate = async (
     return;
   }
 
-  const errorMessage = status.errors?.[0]?.title;
+  // `error_data.details` is the specific, human-readable reason; `title` is
+  // only the generic name of the code, so it is the fallback rather than the
+  // first choice.
+  const error = status.errors?.[0];
+
+  const errorMessage = error
+    ? error.error_data?.details || error.message || error.title
+    : undefined;
 
   await models.WhatsappConversationMessages.updateOne(
     { mid: status.id },

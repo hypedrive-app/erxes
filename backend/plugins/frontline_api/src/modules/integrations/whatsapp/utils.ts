@@ -62,7 +62,12 @@ interface IGraphRequestArgs {
   body?: Record<string, unknown>;
 }
 
-const parseResponseBody = (raw: string) => {
+/** Meta's error envelope, present on any non-2xx Graph response. */
+interface IGraphErrorBody {
+  error?: { message?: string; code?: number; error_subcode?: number };
+}
+
+const parseResponseBody = (raw: string): IGraphErrorBody & Record<string, unknown> => {
   if (!raw) {
     return {};
   }
@@ -80,7 +85,7 @@ const parseResponseBody = (raw: string) => {
  * Errors are surfaced as {@link WhatsappApiError} so the caller keeps Meta's
  * numeric code; the access token is never logged.
  */
-export const graphRequest = async <T = any>({
+export const graphRequest = async <T = unknown>({
   accessToken,
   method,
   path,
@@ -362,12 +367,14 @@ export const markWhatsappMessageRead = async ({
 /**
  * Resolves a media id to a temporary download URL.
  *
- * The URL itself is short-lived and must be fetched with the same bearer
- * token, so the result is deliberately not cached. Note the id from an inbound
- * webhook is only downloadable for 7 days (shorter than the 30 days that
- * applies to media we upload ourselves), so inbound media has to be fetched
- * promptly rather than lazily on first view.
- * https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/media/media-download-api
+ * The URL expires after 5 MINUTES and the download itself still requires the
+ * same bearer token (an unauthenticated fetch fails), so the result is
+ * deliberately not cached — it has to be re-resolved rather than stored.
+ *
+ * Note the id from an inbound webhook is only downloadable for 7 days, shorter
+ * than the 30 days that applies to media we upload ourselves, so inbound media
+ * has to be fetched promptly rather than lazily on first view.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/
  */
 export const getWhatsappMediaUrl = async ({
   accessToken,

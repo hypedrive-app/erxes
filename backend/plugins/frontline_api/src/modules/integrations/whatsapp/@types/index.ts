@@ -87,12 +87,31 @@ export interface IWhatsappConversationMessageDocument
  * Shape: entry[] -> changes[] -> value -> { messages[] | statuses[] }
  * https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
  */
+/**
+ * An error Meta reports against a specific message, either on a `statuses[]`
+ * entry that failed or on an inbound `messages[]` entry it could not render.
+ * `error_data.details` is the human-readable specific — `title` is only the
+ * generic code name, so details is preferred when present.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/status
+ */
+export interface IWhatsappWebhookError {
+  code?: number;
+  title?: string;
+  message?: string;
+  error_data?: { details?: string };
+  href?: string;
+}
+
 export interface IWhatsappWebhookMedia {
   id: string;
   mime_type?: string;
   sha256?: string;
   caption?: string;
   filename?: string;
+  /** Audio only: true for a voice note, false for an uploaded audio file. */
+  voice?: boolean;
+  /** Sticker only. */
+  animated?: boolean;
 }
 
 /** Message types carrying a media id; see MEDIA_MESSAGE_TYPES. */
@@ -140,16 +159,29 @@ export interface IWhatsappWebhookMessage {
     list_reply?: { id?: string; title?: string; description?: string };
   };
   button?: { text?: string; payload?: string };
+  /** `emoji` is omitted when the user REMOVES their reaction. */
   reaction?: { message_id: string; emoji?: string };
-  context?: { id?: string; from?: string };
+  context?: { id?: string; from?: string; forwarded?: boolean };
+  /**
+   * Present when Meta could not render the inbound message (e.g. 131051 for a
+   * type the platform does not support). The message still arrives, so this is
+   * what distinguishes "unsupported" from a type we simply do not handle yet.
+   * https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/unsupported
+   */
+  errors?: IWhatsappWebhookError[];
 }
 
 export interface IWhatsappWebhookStatus {
   id: string;
-  status: 'sent' | 'delivered' | 'read' | 'failed';
+  /**
+   * `played` fires the first time a voice message is played and is documented
+   * alongside sent/delivered/read/failed, so it must not be dropped.
+   * https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/status
+   */
+  status: 'sent' | 'delivered' | 'read' | 'played' | 'failed';
   timestamp: string;
   recipient_id: string;
-  errors?: Array<{ code?: number; title?: string; message?: string }>;
+  errors?: IWhatsappWebhookError[];
 }
 
 export interface IWhatsappWebhookValue {
@@ -158,6 +190,8 @@ export interface IWhatsappWebhookValue {
   contacts?: Array<{ profile?: { name?: string }; wa_id: string }>;
   messages?: IWhatsappWebhookMessage[];
   statuses?: IWhatsappWebhookStatus[];
+  /** Account-level problems, reported without any message attached. */
+  errors?: IWhatsappWebhookError[];
 }
 
 export interface IWhatsappWebhookBody {
@@ -174,13 +208,21 @@ export interface IWhatsappWebhookBody {
  * https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates
  */
 
-/** Only `APPROVED` templates may actually be sent; the rest are informational. */
+/**
+ * Only `APPROVED` templates may actually be sent; the rest are informational.
+ * https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/message_templates/
+ */
 export type WhatsappTemplateStatus =
   | 'APPROVED'
+  | 'IN_APPEAL'
   | 'PENDING'
   | 'REJECTED'
-  | 'PAUSED'
+  | 'PENDING_DELETION'
+  | 'DELETED'
   | 'DISABLED'
+  | 'PAUSED'
+  | 'LIMIT_EXCEEDED'
+  | 'ARCHIVED'
   | (string & {});
 
 export type WhatsappTemplateCategory =
@@ -244,12 +286,25 @@ export type IWhatsappTemplateParameter =
   | { type: 'image'; image: { link: string } }
   | { type: 'video'; video: { link: string } }
   | { type: 'document'; document: { link: string; filename?: string } }
-  | { type: 'payload'; payload: string };
+  | { type: 'payload'; payload: string }
+  /**
+   * `amount_1000` is the amount multiplied by 1000 (so $230.99 is 230990);
+   * `fallback_value` is shown when the client cannot localise.
+   */
+  | {
+      type: 'currency';
+      currency: { fallback_value: string; code: string; amount_1000: number };
+    }
+  | { type: 'date_time'; date_time: { fallback_value: string } };
 
 export interface IWhatsappTemplateSendComponent {
   type: 'header' | 'body' | 'button';
-  /** Required for buttons only; identifies which button the payload targets. */
-  sub_type?: 'quick_reply' | 'url';
+  /**
+   * Required for buttons only; identifies which button the payload targets.
+   * https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/components/
+   */
+  sub_type?: 'quick_reply' | 'url' | 'copy_code' | 'flow' | 'catalog' | 'mpm';
+  /** Zero-based button position, sent as a STRING (`"0"`), not a number. */
   index?: string;
   parameters: IWhatsappTemplateParameter[];
 }

@@ -3,7 +3,9 @@ import {
   IconMessage,
   IconMessages,
   IconRocket,
+  type TablerIcon,
 } from '@tabler/icons-react';
+import { TMessageTriggerConditionType } from '../types/messageTrigger';
 
 export const DIRECT_MESSAGE_OPERATOR_TYPES = [
   { label: 'Is Equal to', value: 'isEqual' },
@@ -14,7 +16,12 @@ export const DIRECT_MESSAGE_OPERATOR_TYPES = [
   { label: 'End with', value: 'endWith' },
 ];
 
-export const MESSAGE_TRIGGER_CONDITIONS = [
+export const MESSAGE_TRIGGER_CONDITIONS: Array<{
+  type: TMessageTriggerConditionType;
+  label: string;
+  icon: TablerIcon;
+  description: string;
+}> = [
   {
     type: 'getStarted',
     label: 'Get Started',
