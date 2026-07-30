@@ -56,6 +56,14 @@ const DiscordIntegrationDetail = lazy(() =>
   ),
 );
 
+const WhatsappIntegrationDetail = lazy(() =>
+  import('@/integrations/whatsapp/components/WhatsappIntegrationDetail').then(
+    (module) => ({
+      default: module.WhatsappIntegrationDetail,
+    }),
+  ),
+);
+
 export const IntegrationDetailPage = () => {
   const { t } = useTranslation('frontline');
   const { integrationType, id } = useParams<{
@@ -117,6 +125,9 @@ export const IntegrationDetailPage = () => {
         )}
         {integrationType === IntegrationType.DISCORD_MESSENGER && (
           <DiscordIntegrationDetail />
+        )}
+        {integrationType === IntegrationType.WHATSAPP_MESSENGER && (
+          <WhatsappIntegrationDetail />
         )}
       </Suspense>
       <div className="flex-1 min-h-0 flex flex-col">

@@ -200,7 +200,19 @@ export const sendWhatsappText = async ({
     body,
   });
 
-  return response?.messages?.[0]?.id || '';
+  const mid = response?.messages?.[0]?.id;
+
+  // `mid` is uniquely indexed, so an empty string here would be stored once and
+  // then collide with every later send that also failed to get an id, silently
+  // returning an unrelated message row. A send we cannot identify is a failure.
+  if (!mid) {
+    throw new WhatsappApiError(
+      200,
+      'WhatsApp accepted the message but returned no message id',
+    );
+  }
+
+  return mid;
 };
 
 /**

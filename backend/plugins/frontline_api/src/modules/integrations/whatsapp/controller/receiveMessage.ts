@@ -12,6 +12,7 @@ import { getWhatsappMediaUrl } from '@/integrations/whatsapp/utils';
 import { MEDIA_MESSAGE_TYPES } from '@/integrations/whatsapp/constants';
 import {
   IWhatsappAttachment,
+  IWhatsappConversationMessageDocument,
   IWhatsappIntegrationDocument,
   IWhatsappWebhookBody,
   IWhatsappWebhookMessage,
@@ -113,12 +114,21 @@ const receiveCustomerMessage = async (
 ) => {
   const waId = message.from;
 
-  if (!waId) {
+  // `id` is the wamid the whole dedup scheme keys on; without it a redelivery
+  // could not be recognised, so the message is not storable.
+  if (!waId || !message.id) {
     return;
   }
 
-  // Meta timestamps are seconds since epoch, as a string.
-  const timestamp = new Date(Number(message.timestamp || 0) * 1000);
+  // Meta timestamps are seconds since epoch, as a string. A missing or
+  // unparseable one must not become 1970 — that would leave the conversation
+  // permanently outside the 24h reply window.
+  const timestampSeconds = Number(message.timestamp);
+
+  const timestamp =
+    Number.isFinite(timestampSeconds) && timestampSeconds > 0
+      ? new Date(timestampSeconds * 1000)
+      : new Date();
 
   const existingMessage = await models.WhatsappConversationMessages.findOne({
     mid: message.id,
@@ -152,20 +162,31 @@ const receiveCustomerMessage = async (
     timestamp,
   );
 
-  const created = await models.WhatsappConversationMessages.addMessage({
-    mid: message.id,
-    conversationId: conversation._id,
-    content,
-    attachments,
-    customerId: customer.erxesApiId,
-    createdAt: timestamp,
-  });
+  // Inserted directly rather than through `addMessage` so a duplicate `mid` is
+  // distinguishable from a fresh insert: only the request that actually created
+  // the row may notify the inbox or roll the row back. `addMessage` returns the
+  // pre-existing row instead, which would let a concurrent redelivery both
+  // deliver a second copy to the inbox and delete the other request's row.
+  let created: IWhatsappConversationMessageDocument;
 
-  // addMessage returns the pre-existing row when the wamid was already stored,
-  // which means a concurrent delivery of the same webhook already notified the
-  // inbox. Stop here rather than raising a duplicate.
-  if (created.mid === message.id && created.erxesApiMessageId) {
-    return;
+  try {
+    created = await models.WhatsappConversationMessages.create({
+      mid: message.id,
+      conversationId: conversation._id,
+      content,
+      attachments,
+      customerId: customer.erxesApiId,
+      createdAt: timestamp,
+    });
+  } catch (e: any) {
+    if (e.code === 11000 || e.message?.includes('duplicate')) {
+      debugWhatsapp(
+        `Concurrent delivery of message ${message.id} already stored`,
+      );
+      return;
+    }
+
+    throw e;
   }
 
   try {

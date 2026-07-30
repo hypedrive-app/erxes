@@ -16,6 +16,9 @@ import { debugError } from '@/integrations/whatsapp/debuggers';
  * fast with a message an agent can act on, but Meta remains the authority —
  * its own rejection is translated to the same wording, since our
  * `lastCustomerMessageAt` can lag behind if a webhook was missed.
+ *
+ * Internal notes never reach here: `conversationMessageAdd` stores them and
+ * returns before it dispatches to any integration.
  */
 export const handleWhatsappMessage = async (models: IModels, msg) => {
   const { payload } = msg;
@@ -24,15 +27,6 @@ export const handleWhatsappMessage = async (models: IModels, msg) => {
   const conversation = await models.WhatsappConversations.getConversation({
     erxesApiId: doc.conversationId,
   });
-
-  // An internal note is stored for the agent's own record and never sent.
-  if (doc.internal) {
-    return models.WhatsappConversationMessages.addMessage({
-      ...doc,
-      mid: `internal-${doc.conversationId}-${Date.now()}`,
-      conversationId: conversation._id,
-    });
-  }
 
   const integration = await models.WhatsappIntegrations.getIntegration({
     erxesApiId: conversation.integrationId,
@@ -80,10 +74,11 @@ export const handleWhatsappMessage = async (models: IModels, msg) => {
   }
 
   return models.WhatsappConversationMessages.addMessage({
-    ...doc,
     mid,
     conversationId: conversation._id,
     content,
+    attachments: doc.attachments,
+    userId: doc.userId,
     createdAt: new Date(),
   });
 };

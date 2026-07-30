@@ -28,6 +28,7 @@ import {
   FacebookIcon,
   InstagramIcon,
   MessengerIcon,
+  WhatsAppIcon,
 } from '@/integrations/components/Icons';
 import { MembersInline } from 'ui-modules';
 import { useNavigate } from 'react-router-dom';
@@ -58,6 +59,10 @@ const PROVIDER_META: Record<
   [IntegrationType.INSTAGRAM_POST]: {
     label: 'IG Post',
     Icon: InstagramIcon,
+  },
+  [IntegrationType.WHATSAPP_MESSENGER]: {
+    label: 'WhatsApp',
+    Icon: WhatsAppIcon,
   },
   [IntegrationType.CALL]: {
     label: 'Call',

@@ -29,8 +29,17 @@ export const getOrCreateCustomer = async (
 ): Promise<IWhatsappCustomerDocument> => {
   const existing = await models.WhatsappCustomers.findOne({ waId });
 
-  if (existing) {
+  // A row without `erxesApiId` is a half-created customer: the core call either
+  // failed or is still in flight. Using it would attach the message to
+  // `customerId: undefined`, so treat it as not yet usable.
+  if (existing?.erxesApiId) {
     return existing;
+  }
+
+  if (existing) {
+    throw new Error(
+      `WhatsApp customer ${waId} is not linked to a contact yet; retrying`,
+    );
   }
 
   // Meta sends wa_id as E.164 digits with no leading `+`.
@@ -46,9 +55,18 @@ export const getOrCreateCustomer = async (
       integrationId: integration.erxesApiId,
     });
   } catch (e: any) {
-    // A concurrent webhook for the same sender won the race; use its row.
+    // A concurrent webhook for the same sender won the race. Its row is only
+    // usable once that request has linked it to a core contact.
     if (e.message?.includes('duplicate')) {
-      return await models.WhatsappCustomers.getCustomer({ waId });
+      const winner = await models.WhatsappCustomers.getCustomer({ waId });
+
+      if (!winner.erxesApiId) {
+        throw new Error(
+          `Concurrent request is still creating WhatsApp customer ${waId}`,
+        );
+      }
+
+      return winner;
     }
 
     throw e;
@@ -105,8 +123,25 @@ export const getOrCreateConversation = async (
   const existing = await models.WhatsappConversations.findOne(selector);
 
   if (existing) {
-    existing.lastCustomerMessageAt = timestamp;
-    await existing.save();
+    // Meta gives no ordering guarantee, so a redelivered or late webhook can
+    // carry an older timestamp than one already recorded. Only ever advance
+    // this, otherwise the 24h reply window would move backwards and block
+    // replies that are actually still allowed.
+    if (
+      !existing.lastCustomerMessageAt ||
+      timestamp > new Date(existing.lastCustomerMessageAt)
+    ) {
+      existing.lastCustomerMessageAt = timestamp;
+      await existing.save();
+    }
+
+    // As with customers, a thread not yet linked to an inbox conversation
+    // cannot carry a message — `conversationId` would be undefined.
+    if (!existing.erxesApiId) {
+      throw new Error(
+        `WhatsApp conversation for ${waId} is not linked to the inbox yet; retrying`,
+      );
+    }
 
     return existing;
   }
@@ -123,8 +158,18 @@ export const getOrCreateConversation = async (
     });
   } catch (e: any) {
     // The unique (senderId, recipientId) index rejected a concurrent insert.
+    // The winning row is only usable once it has been linked to the inbox.
     if (e.message?.includes('duplicate')) {
-      return await models.WhatsappConversations.getConversation(selector);
+      const winner =
+        await models.WhatsappConversations.getConversation(selector);
+
+      if (!winner.erxesApiId) {
+        throw new Error(
+          `Concurrent request is still creating the WhatsApp conversation for ${waId}`,
+        );
+      }
+
+      return winner;
     }
 
     throw e;

@@ -13,13 +13,38 @@ describe('phone', () => {
       ['919876543210', '91', '+919876543210', 'country code present without +'],
       ['9876543210', '91', '+919876543210', 'applies default country code'],
       ['9876543210', undefined, '9876543210', 'no country code known'],
+      [
+        '+44 (0)20 7946 0958',
+        undefined,
+        '+442079460958',
+        'drops a written (0) trunk prefix',
+      ],
+      [
+        '+919876543210 x123',
+        undefined,
+        '+919876543210',
+        'drops an x extension',
+      ],
+      [
+        '+91 9876543210 ext. 45',
+        undefined,
+        '+919876543210',
+        'drops an ext. extension',
+      ],
+      [
+        '9123456789',
+        '91',
+        '+919123456789',
+        'national number starting with the country code digits',
+      ],
+      ['06 1234 5678', '39', '+39612345678', 'drops only one trunk zero'],
       ['', '91', '', 'empty string'],
       [undefined, '91', '', 'undefined'],
       [null, '91', '', 'null'],
       ['not a phone', '91', '', 'no digits at all'],
     ])(
       'normalizePhone(%p, %p) === %p — %s',
-      (raw, countryCode, expected) => {
+      (raw, countryCode, expected, _description) => {
         expect(
           normalizePhone(raw as string | null | undefined, countryCode),
         ).toBe(expected);
@@ -40,6 +65,14 @@ describe('phone', () => {
       );
     });
 
+    test('de-duplicates a national number that starts with the country code', () => {
+      // Indian mobiles beginning `91` are common, and `91` is also the country
+      // code — the national and E.164 spellings must still be one contact.
+      expect(normalizePhone('9123456789', '91')).toBe(
+        normalizePhone('919123456789', '91'),
+      );
+    });
+
     test('does not merge different subscribers', () => {
       expect(normalizePhone('09876543210', '91')).not.toBe(
         normalizePhone('09876543211', '91'),
@@ -56,7 +89,7 @@ describe('phone', () => {
       ['', '', '91', false, 'two empties are not a match'],
     ])(
       'isSamePhone(%p, %p, %p) === %p — %s',
-      (a, b, countryCode, expected) => {
+      (a, b, countryCode, expected, _description) => {
         expect(isSamePhone(a, b, countryCode)).toBe(expected);
       },
     );

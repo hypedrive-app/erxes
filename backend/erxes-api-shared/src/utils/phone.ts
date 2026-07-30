@@ -16,6 +16,28 @@
 /** Digits only, with an optional leading `+`. */
 const NON_DIAL_CHARS = /[^\d+]/g;
 
+/** `x123`, `ext 45`, `extension 45` — anything after this is not the subscriber. */
+const EXTENSION_SEPARATOR = /\s*(?:ext(?:ension)?\.?|x|#|,|;)\s*\d/i;
+
+/** A trunk `0` written in brackets inside an international number: `+44 (0)20`. */
+const WRITTEN_TRUNK_PREFIX = /\(\s*0\s*\)/g;
+
+/**
+ * National (subscriber) number length for country codes with a single fixed
+ * length. Used only to tell `<country code><number>` apart from a national
+ * number that happens to begin with the same digits — an Indian mobile may
+ * start `91`, which is also India's country code.
+ *
+ * Deliberately tiny: a country belongs here only when every national number has
+ * one length. Countries with variable-length numbering plans (UK, Germany, ...)
+ * are left out and keep the previous prefix-only behaviour, which is unchanged
+ * for them.
+ */
+const NATIONAL_NUMBER_DIGITS: Record<string, number> = {
+  91: 10, // India
+  1: 10, // NANP (US, Canada, ...)
+};
+
 /**
  * Normalises a phone number to E.164 (`+` followed by digits).
  *
@@ -46,9 +68,20 @@ export const normalizePhone = (
     return '';
   }
 
+  // An extension is a different endpoint behind the same subscriber number, and
+  // providers rarely agree on whether to send it. Drop it so `+919876543210` and
+  // `+919876543210 x123` do not become two contacts — keeping the digits would
+  // instead glue them onto the subscriber number (`+919876543210123`).
+  const withoutExtension = raw.trim().split(EXTENSION_SEPARATOR)[0];
+
+  // A `(0)` written inside an international number is the national trunk prefix
+  // shown for domestic dialling — `+44 (0)20 ...` is the same line as `+44 20
+  // ...` and the `0` must not survive into E.164.
+  const withoutWrittenTrunk = withoutExtension.replace(WRITTEN_TRUNK_PREFIX, '');
+
   // Keep a leading `+` but drop every other separator: spaces, dashes,
   // parentheses, dots, and any stray `+` that is not the first character.
-  const cleaned = raw.trim().replace(NON_DIAL_CHARS, '');
+  const cleaned = withoutWrittenTrunk.replace(NON_DIAL_CHARS, '');
   const hasPlus = cleaned.startsWith('+');
   let digits = cleaned.replace(/\+/g, '');
 
@@ -72,11 +105,29 @@ export const normalizePhone = (
   const country = (defaultCountryCode || '').replace(/\D/g, '');
 
   if (country) {
-    // A single leading `0` is a national trunk prefix and is dropped when the
-    // number is written internationally.
+    // Exactly one leading `0` is the national trunk prefix and is dropped when
+    // the number is written internationally. Only one: in several plans (Italy,
+    // for instance) the digit after it belongs to the subscriber number.
     if (digits.startsWith('0')) {
-      digits = digits.replace(/^0+/, '');
-    } else if (digits.startsWith(country)) {
+      return `+${country}${digits.slice(1)}`;
+    }
+
+    // A number that merely STARTS WITH the country-code digits is not
+    // necessarily international — plenty of national numbers legitimately do
+    // (Indian mobiles beginning `91` are common, and `91` is also India's
+    // country code). Stripping the prefix from one of those would store it a
+    // country code short, so it would never match the same person's E.164 form.
+    //
+    // The two readings are told apart by length: a national number is
+    // `nationalDigits` long, the same number with a country code is
+    // `country.length + nationalDigits`. Only the latter is already
+    // international.
+    const nationalDigits = NATIONAL_NUMBER_DIGITS[country];
+    const carriesCountryCode = nationalDigits
+      ? digits.length === country.length + nationalDigits
+      : digits.startsWith(country);
+
+    if (digits.startsWith(country) && carriesCountryCode) {
       // Already carries its country code, just without the `+`.
       return `+${digits}`;
     }

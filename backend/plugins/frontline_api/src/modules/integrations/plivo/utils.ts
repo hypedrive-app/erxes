@@ -1,0 +1,376 @@
+import * as crypto from 'crypto';
+import {
+  PLIVO_API_BASE_URL,
+  PLIVO_DEFAULT_RING_TIMEOUT_SECONDS,
+  PLIVO_DEFAULT_TIME_LIMIT_SECONDS,
+} from '@/integrations/plivo/constants';
+import {
+  debugError,
+  debugExternalRequests,
+} from '@/integrations/plivo/debuggers';
+import { IPlivoOutboundCallResponse } from '@/integrations/plivo/@types';
+
+/**
+ * A failed Plivo REST call, carrying the HTTP status so callers can tell an
+ * auth failure (401) from a bad request (400) without matching message text.
+ * https://www.plivo.com/docs/voice/api/response-codes
+ */
+export class PlivoApiError extends Error {
+  public readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'PlivoApiError';
+    this.status = status;
+  }
+
+  /** The auth id or token is wrong; the integration must be reconnected. */
+  public get isAuthError(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+
+  /**
+   * True when the request was fine and only rate limiting or a transient Plivo
+   * fault rejected it, so the same payload can be sent again after a backoff.
+   * A 4xx other than 429 is permanent for the request as written.
+   */
+  public get isRetryable(): boolean {
+    return this.status === 429 || this.status >= 500;
+  }
+}
+
+interface IPlivoRequestArgs {
+  authId: string;
+  authToken: string;
+  method: 'GET' | 'POST' | 'DELETE';
+  path: string;
+  body?: Record<string, unknown>;
+}
+
+const parseResponseBody = (raw: string) => {
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { raw };
+  }
+};
+
+/**
+ * Single entry point for Plivo REST calls.
+ *
+ * Authentication is HTTP Basic with `auth_id:auth_token`. The token is never
+ * logged — only the method and path are — because the same token is the HMAC
+ * key that verifies inbound callbacks, so leaking it into logs would let anyone
+ * forge a webhook.
+ *
+ * @param path - account-relative, e.g. `/Call/`; the account segment is added
+ */
+export const plivoRequest = async <T = Record<string, unknown>>({
+  authId,
+  authToken,
+  method,
+  path,
+  body,
+}: IPlivoRequestArgs): Promise<T> => {
+  const url = `${PLIVO_API_BASE_URL}/Account/${authId}${path}`;
+
+  debugExternalRequests(`Plivo ${method} ${url}`);
+
+  const credentials = Buffer.from(`${authId}:${authToken}`).toString('base64');
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const data = parseResponseBody(await response.text());
+
+  if (!response.ok) {
+    throw new PlivoApiError(
+      response.status,
+      `Plivo API error ${response.status}: ${
+        data?.error || data?.message || response.statusText
+      }`,
+    );
+  }
+
+  return data as T;
+};
+
+/**
+ * Builds the string Plivo signs, per the V3 algorithm.
+ *
+ * The digest is taken over the FULL request URL, then — for POST only — every
+ * parameter appended in ascending, case-sensitive key order as bare
+ * `key + value` pairs with NO separator of any kind between them, and finally
+ * `'.' + nonce`. GET requests sign the URL (query string included) and the
+ * nonce alone, because their parameters are already part of the URL.
+ * https://www.plivo.com/docs/voice/concepts/signature-validation
+ */
+const buildV3SignatureBase = (
+  method: string,
+  uri: string,
+  nonce: string,
+  params: Record<string, string>,
+): string => {
+  let base = uri;
+
+  if (method.toUpperCase() === 'POST') {
+    // Sorted with the default comparator: byte order, i.e. case-sensitive, so
+    // uppercase keys sort before lowercase ones. Plivo sorts the same way and a
+    // locale-aware sort would silently produce a different digest.
+    for (const key of Object.keys(params).sort()) {
+      base += key + params[key];
+    }
+  }
+
+  return `${base}.${nonce}`;
+};
+
+/**
+ * Verifies one candidate signature in constant time.
+ *
+ * Both values are compared as raw bytes; `timingSafeEqual` throws when the
+ * lengths differ, which itself leaks length, so the length is checked first.
+ */
+const matchesSignature = (expected: string, received: string): boolean => {
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const receivedBuffer = Buffer.from(received, 'utf8');
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+};
+
+/**
+ * Validates the `X-Plivo-Signature-V3` header sent with every callback.
+ *
+ * Returns false rather than throwing so the caller decides the response code.
+ *
+ * The header may hold SEVERAL comma-separated signatures: an account with more
+ * than one auth token gets one signature per token, and only the one matching
+ * the token we hold will verify. Rejecting because the first entry does not
+ * match would break every multi-token account, so the request is accepted if
+ * ANY entry matches.
+ *
+ * @param method - the HTTP method of the callback request
+ * @param uri - the full URL Plivo requested, exactly as configured on the
+ *   application; a proxy that rewrites scheme or host will break the digest
+ * @param nonce - value of the `X-Plivo-Signature-V3-Nonce` header
+ * @param authToken - the account auth token, used as the HMAC key
+ * @param signatureHeader - value of the signature header, possibly multi-valued
+ * @param params - the POST form parameters; ignored for GET
+ */
+export const validatePlivoSignature = (
+  method: string,
+  uri: string,
+  nonce: string | undefined,
+  authToken: string | undefined,
+  signatureHeader: string | undefined,
+  params: Record<string, string>,
+): boolean => {
+  if (!authToken || !nonce || !signatureHeader || !uri) {
+    // Nothing to verify against. Treated as a failure so a misconfigured
+    // integration cannot silently accept unauthenticated callbacks.
+    return false;
+  }
+
+  const base = buildV3SignatureBase(method, uri, nonce, params);
+
+  const expected = crypto
+    .createHmac('sha256', authToken)
+    .update(base)
+    .digest('base64');
+
+  const received = signatureHeader
+    .split(',')
+    .map((signature) => signature.trim())
+    .filter(Boolean);
+
+  // Every candidate is checked even after a match so the work done does not
+  // depend on which position matched.
+  return received.reduce(
+    (matched, signature) => matchesSignature(expected, signature) || matched,
+    false,
+  );
+};
+
+/**
+ * Reconstructs the URL Plivo signed.
+ *
+ * The digest covers the URL as PLIVO requested it, so the values behind a proxy
+ * matter: `x-forwarded-proto` and `x-forwarded-host` are preferred over the
+ * socket's own view, which behind TLS termination would always read `http` and
+ * never match. The query string is included because it is part of the URL for
+ * GET callbacks.
+ */
+export const buildCallbackUrl = (req: {
+  headers: Record<string, string | string[] | undefined>;
+  protocol?: string;
+  originalUrl?: string;
+  url?: string;
+  get?: (name: string) => string | undefined;
+}): string => {
+  const header = (name: string): string => {
+    const value = req.headers[name];
+
+    return Array.isArray(value) ? value[0] : value || '';
+  };
+
+  // A comma-separated forwarded chain lists the original client first.
+  const proto =
+    header('x-forwarded-proto').split(',')[0].trim() || req.protocol || 'https';
+  const host =
+    header('x-forwarded-host').split(',')[0].trim() || header('host');
+
+  return `${proto}://${host}${req.originalUrl || req.url || ''}`;
+};
+
+/**
+ * Escapes text destined for a PlivoXML element.
+ *
+ * Callback parameters can end up inside `<Speak>`, and an unescaped `<` or `&`
+ * from a caller id or SIP header would produce XML Plivo cannot parse — it
+ * hangs up with INVALID_ANSWER_XML rather than reporting an error.
+ */
+export const escapeXml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+/**
+ * Places an outbound call.
+ *
+ * `answerUrl` must return PlivoXML describing what to do once the callee picks
+ * up; Plivo fetches it at answer time, not now, so a broken answer URL surfaces
+ * as a dropped call rather than an error here.
+ *
+ * @returns Plivo's request uuid, which identifies the request rather than the
+ *   call — the CallUUID only exists once the call is actually created and
+ *   arrives on the first callback.
+ * https://www.plivo.com/docs/voice/api/call#create-an-outbound-call
+ */
+export const createPlivoCall = async ({
+  authId,
+  authToken,
+  from,
+  to,
+  answerUrl,
+  hangupUrl,
+  ringUrl,
+  callerName,
+  timeLimit,
+  ringTimeout,
+}: {
+  authId: string;
+  authToken: string;
+  from: string;
+  to: string;
+  answerUrl: string;
+  hangupUrl?: string;
+  ringUrl?: string;
+  callerName?: string;
+  timeLimit?: number;
+  ringTimeout?: number;
+}): Promise<string> => {
+  const body: Record<string, unknown> = {
+    from,
+    to,
+    answer_url: answerUrl,
+    answer_method: 'POST',
+    time_limit: timeLimit || PLIVO_DEFAULT_TIME_LIMIT_SECONDS,
+    ring_timeout: ringTimeout || PLIVO_DEFAULT_RING_TIMEOUT_SECONDS,
+  };
+
+  if (hangupUrl) {
+    body.hangup_url = hangupUrl;
+    body.hangup_method = 'POST';
+  }
+
+  if (ringUrl) {
+    body.ring_url = ringUrl;
+    body.ring_method = 'POST';
+  }
+
+  if (callerName) {
+    body.caller_name = callerName;
+  }
+
+  const response = await plivoRequest<IPlivoOutboundCallResponse>({
+    authId,
+    authToken,
+    method: 'POST',
+    path: '/Call/',
+    body,
+  });
+
+  return response?.request_uuid || '';
+};
+
+/**
+ * Ends a call that is still in progress.
+ *
+ * A call that already ended returns 404, which is the desired outcome here, so
+ * it is swallowed rather than surfaced as a failure to hang up.
+ * https://www.plivo.com/docs/voice/api/call#hangup-a-specific-call
+ */
+export const hangupPlivoCall = async ({
+  authId,
+  authToken,
+  callUuid,
+}: {
+  authId: string;
+  authToken: string;
+  callUuid: string;
+}): Promise<void> => {
+  try {
+    await plivoRequest({
+      authId,
+      authToken,
+      method: 'DELETE',
+      path: `/Call/${callUuid}/`,
+    });
+  } catch (e: any) {
+    if (e instanceof PlivoApiError && e.status === 404) {
+      return;
+    }
+
+    debugError(`Failed to hang up Plivo call ${callUuid}: ${e.message}`);
+
+    throw e;
+  }
+};
+
+/**
+ * Confirms credentials work by reading the account back.
+ *
+ * Used before an integration is stored so a mistyped token surfaces in the
+ * connect form instead of as calls that never connect.
+ * https://www.plivo.com/docs/account/api/account
+ */
+export const getPlivoAccount = async ({
+  authId,
+  authToken,
+}: {
+  authId: string;
+  authToken: string;
+}): Promise<{ name?: string; account_type?: string; city?: string }> =>
+  await plivoRequest<{ name?: string; account_type?: string; city?: string }>({
+    authId,
+    authToken,
+    method: 'GET',
+    path: '/',
+  });

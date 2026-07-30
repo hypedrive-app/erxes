@@ -31,6 +31,11 @@ export const INTEGRATIONS = {
     descriptionKey: 'integration-desc-discord',
     img: 'discord.svg',
   },
+  [IntegrationType.WHATSAPP_MESSENGER]: {
+    name: 'WhatsApp',
+    descriptionKey: 'integration-desc-whatsapp',
+    img: 'whatsapp.svg',
+  },
   [IntegrationType.CALL]: {
     name: 'Call',
     descriptionKey: 'integration-desc-call',

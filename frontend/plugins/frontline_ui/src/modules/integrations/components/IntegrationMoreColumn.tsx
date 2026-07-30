@@ -8,6 +8,7 @@ import { IntegrationType } from '@/types/Integration';
 import { FacebookIntegrationRepair } from '../facebook/components/FacebookIntegrationRepair';
 import { InstagramIntegrationRepair } from '../instagram/components/InstagramIntegrationRepair';
 import { DiscordIntegrationRepair } from '../discord/components/DiscordIntegrationActions';
+import { WhatsappIntegrationRepair } from '../whatsapp/components/WhatsappIntegrationActions';
 import { EMInstallScript } from '../erxes-messenger/components/EMInstallScript';
 import { lazy, Suspense } from 'react';
 
@@ -51,6 +52,12 @@ const DiscordIntegrationActions = lazy(() =>
   })),
 );
 
+const WhatsappIntegrationActions = lazy(() =>
+  import('../whatsapp/components/WhatsappIntegrationActions').then((module) => ({
+    default: module.WhatsappIntegrationActions,
+  })),
+);
+
 export const IntegrationMoreColumnCell = ({
   cell,
 }: {
@@ -89,6 +96,9 @@ export const IntegrationMoreColumnCell = ({
                 {integrationType === IntegrationType.DISCORD_MESSENGER && (
                   <DiscordIntegrationActions cell={cell} />
                 )}
+                {integrationType === IntegrationType.WHATSAPP_MESSENGER && (
+                  <WhatsappIntegrationActions cell={cell} />
+                )}
               </Suspense>
             </Command.Item>
             {integrationType === IntegrationType.ERXES_MESSENGER && (
@@ -111,6 +121,11 @@ export const IntegrationMoreColumnCell = ({
             {integrationType === IntegrationType.DISCORD_MESSENGER ? (
               <Command.Item value="repair">
                 <DiscordIntegrationRepair cell={cell} />
+              </Command.Item>
+            ) : null}
+            {integrationType === IntegrationType.WHATSAPP_MESSENGER ? (
+              <Command.Item value="repair">
+                <WhatsappIntegrationRepair cell={cell} />
               </Command.Item>
             ) : null}
             <Command.Item value="archive">

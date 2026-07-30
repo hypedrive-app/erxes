@@ -304,6 +304,25 @@ import {
   IWhatsappConversationDocument,
   IWhatsappConversationMessageDocument,
 } from '@/integrations/whatsapp/@types';
+
+// Plivo imports
+import {
+  IPlivoIntegrationModel,
+  loadPlivoIntegrationClass,
+} from '@/integrations/plivo/db/models/Integrations';
+import {
+  IPlivoCustomerModel,
+  loadPlivoCustomerClass,
+} from '@/integrations/plivo/db/models/Customers';
+import {
+  IPlivoCallSessionModel,
+  loadPlivoCallSessionClass,
+} from '@/integrations/plivo/db/models/CallSessions';
+import {
+  IPlivoIntegrationDocument,
+  IPlivoCustomerDocument,
+  IPlivoCallSessionDocument,
+} from '@/integrations/plivo/@types';
 export interface IModels {
   //channel
   Channels: IChannelModel;
@@ -342,6 +361,11 @@ export interface IModels {
   WhatsappCustomers: IWhatsappCustomerModel;
   WhatsappConversations: IWhatsappConversationModel;
   WhatsappConversationMessages: IWhatsappConversationMessageModel;
+
+  //plivo
+  PlivoIntegrations: IPlivoIntegrationModel;
+  PlivoCustomers: IPlivoCustomerModel;
+  PlivoCallSessions: IPlivoCallSessionModel;
 
   //call
   CallIntegrations: ICallIntegrationModel;
@@ -531,6 +555,20 @@ export const loadClasses = (
     'whatsapp_conversation_messages',
     loadWhatsappConversationMessageClass(models),
   );
+
+  // Plivo models
+  models.PlivoIntegrations = db.model<
+    IPlivoIntegrationDocument,
+    IPlivoIntegrationModel
+  >('plivo_integrations', loadPlivoIntegrationClass(models));
+  models.PlivoCustomers = db.model<IPlivoCustomerDocument, IPlivoCustomerModel>(
+    'plivo_customers',
+    loadPlivoCustomerClass(models),
+  );
+  models.PlivoCallSessions = db.model<
+    IPlivoCallSessionDocument,
+    IPlivoCallSessionModel
+  >('plivo_call_sessions', loadPlivoCallSessionClass(models));
 
   models.InstagramIntegrations = db.model<
     IInstagramIntegrationDocument,
