@@ -18,6 +18,7 @@ const CONFIG_SETTABLE_FIELDS = [
   'dstTrunk',
   'queues',
   'queueNames',
+  'defaultCountryCode',
 ];
 
 const callsMutations = {
@@ -55,7 +56,12 @@ const callsMutations = {
   },
   async callAddCustomer(_root, args, { models, subdomain }: IContext) {
     const callIntegration = await findIntegration(subdomain, args);
-    const customer = await getOrCreateCustomer(models, subdomain, args);
+    const customer = await getOrCreateCustomer(
+      models,
+      subdomain,
+      args,
+      callIntegration?.defaultCountryCode,
+    );
     const integration = await models.Integrations.findOne({
       _id: callIntegration?.inboxId,
     });

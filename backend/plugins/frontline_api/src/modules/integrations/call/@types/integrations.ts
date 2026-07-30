@@ -15,6 +15,7 @@ export interface ICallIntegration {
   queueNames: [string];
   srcTrunk: string;
   dstTrunk: string;
+  defaultCountryCode?: string;
 }
 
 export interface ICallIntegrationDocument extends ICallIntegration, Document {}

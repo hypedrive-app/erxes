@@ -22,7 +22,11 @@ import {
   mapSessionToCallHistory,
   sendToGrandStream,
 } from '@/integrations/call/utils';
-import { markResolvers, sendTRPCMessage } from 'erxes-api-shared/utils';
+import {
+  markResolvers,
+  normalizePhone,
+  sendTRPCMessage,
+} from 'erxes-api-shared/utils';
 import { IContext } from '~/connectionResolvers';
 import redis from '../../redlock';
 
@@ -56,18 +60,60 @@ const callQueries = {
     return res;
   },
 
-  async callsCustomerDetail(_root, { customerPhone }, { subdomain }: IContext) {
-    const customer = await sendTRPCMessage({
-      subdomain,
+  async callsCustomerDetail(
+    _root,
+    { customerPhone },
+    { models, subdomain, user }: IContext,
+  ) {
+    if (!customerPhone) {
+      return null;
+    }
 
-      pluginName: 'core',
-      method: 'query',
-      module: 'customers',
-      action: 'findOne',
-      input: { query: { customerPrimaryPhone: customerPhone } },
-    });
+    // The query takes only a phone number, so the country code is resolved from
+    // the requesting agent's own call integration rather than by widening the
+    // GraphQL contract — an agent looks up numbers on the PBX they answer for,
+    // so that integration's country code is the applicable one.
+    const integration = user?._id
+      ? await models.CallIntegrations.findOne({
+          'operators.userId': user._id,
+          defaultCountryCode: { $nin: [null, ''] },
+        }).lean()
+      : null;
 
-    return customer;
+    // `customerPhone` is the raw number from the CDR/session record while the
+    // core contact is stored normalised — and which normalised form depends on
+    // when it was written. Core matches phones as an exact string, so try every
+    // spelling this module has produced, newest first: with the country code,
+    // without it (the earlier normalisation, which left a national number's
+    // trunk `0` in place), then raw. The core `customerPrimaryPhone` filter
+    // takes a single value, hence a query per spelling rather than one `$in`.
+    const spellings = Array.from(
+      new Set(
+        [
+          normalizePhone(customerPhone, integration?.defaultCountryCode),
+          normalizePhone(customerPhone),
+          customerPhone,
+        ].filter(Boolean),
+      ),
+    );
+
+    for (const phone of spellings) {
+      const customer = await sendTRPCMessage({
+        subdomain,
+
+        pluginName: 'core',
+        method: 'query',
+        module: 'customers',
+        action: 'findOne',
+        input: { query: { customerPrimaryPhone: phone } },
+      });
+
+      if (customer?._id) {
+        return customer;
+      }
+    }
+
+    return null;
   },
 
   async callHistories(

@@ -42,6 +42,7 @@ export const CallIntegrationAdd = () => {
       websocketServer: '',
       brandId: '',
       queues: '',
+      defaultCountryCode: '',
     },
   });
   const setCallAddSheet = useSetAtom(callAddSheetAtom);
@@ -61,6 +62,7 @@ export const CallIntegrationAdd = () => {
           queues: data.queues,
           srcTrunk: data.srcTrunk,
           dstTrunk: data.dstTrunk,
+          defaultCountryCode: data.defaultCountryCode?.trim() || undefined,
           operators: data.operators,
         },
       },

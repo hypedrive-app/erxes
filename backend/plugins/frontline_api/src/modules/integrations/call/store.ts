@@ -2,20 +2,68 @@ import { IModels } from '~/connectionResolvers';
 import { cfRecordUrl, sendToGrandStream } from './utils';
 import { formatCdrApiDate } from './services/cdrUtils';
 import { receiveInboxMessage } from '@/inbox/receiveMessage';
-import { sendTRPCMessage } from 'erxes-api-shared/utils';
+import { normalizePhone, sendTRPCMessage } from 'erxes-api-shared/utils';
 
+/**
+ * Every spelling of one caller's number that may already be stored, newest
+ * first. Order matters: the caller uses `[0]` as the value to write.
+ *
+ * There are three, because normalisation landed in two steps and each step
+ * changed the canonical form:
+ *
+ *  1. `canonical`  — `normalizePhone(raw, countryCode)`, what is written now.
+ *  2. `legacy`     — `normalizePhone(raw)` with no country code, written by the
+ *                    previous fix. A national-format number kept its trunk `0`
+ *                    (`09876543210`), so it differs from `canonical`.
+ *  3. `raw`        — the untouched provider spelling, written before any
+ *                    normalisation. Differs from `legacy` whenever the number
+ *                    carried separators (`+91 98765-43210`).
+ *
+ * The three collapse to fewer entries when they coincide (a number already in
+ * clean E.164 yields one), which is why they are de-duplicated.
+ */
+const phoneSpellings = (raw: string, defaultCountryCode?: string): string[] => {
+  const canonical = normalizePhone(raw, defaultCountryCode) || raw;
+  const legacy = normalizePhone(raw) || raw;
+
+  return Array.from(new Set([canonical, legacy, raw]));
+};
+
+/**
+ * Resolves a caller's number to a core contact, creating one if needed.
+ *
+ * The number reaching core is normalised to E.164 first. Core matches
+ * `primaryPhone` as an EXACT string and has no unique index on it, so a PBX
+ * sending `09876543210` and WhatsApp sending `+919876543210` would otherwise
+ * create two contacts for one person.
+ *
+ * `defaultCountryCode` comes off the call integration and is what lets a
+ * national-format number reach E.164 at all — the trunk `0` cannot be resolved
+ * without knowing the country. It stays optional: when the integration has none
+ * configured `normalizePhone` returns the number digits-only rather than
+ * assigning a guessed, possibly wrong, country.
+ */
 export const getOrCreateCustomer = async (
   models: IModels,
   subdomain: string,
   callAccount: any,
+  defaultCountryCode?: string,
 ) => {
-  const { inboxIntegrationId, primaryPhone } = callAccount;
-  if (typeof primaryPhone !== 'string') {
+  const { inboxIntegrationId, primaryPhone: rawPrimaryPhone } = callAccount;
+  if (typeof rawPrimaryPhone !== 'string') {
     throw new Error('Invalid primaryPhone: must be a string');
   }
 
+  // Rows exist in every spelling this module has ever written. Looking up only
+  // the current canonical form would miss the older ones and create a second
+  // plugin-local row — which then creates a second core contact, the very bug
+  // this normalisation fixes. `$in` matches any of them in one query; the
+  // canonical form is what gets written for anything new.
+  const knownSpellings = phoneSpellings(rawPrimaryPhone, defaultCountryCode);
+  const primaryPhone = knownSpellings[0];
+
   let customer = await models.CallCustomers.findOne({
-    primaryPhone: { $eq: primaryPhone },
+    primaryPhone: { $in: knownSpellings },
   });
 
   let createdNow = false;
@@ -32,7 +80,7 @@ export const getOrCreateCustomer = async (
     } catch (e: any) {
       if (e.message?.includes('duplicate')) {
         customer = await models.CallCustomers.findOne({
-          primaryPhone: { $eq: primaryPhone },
+          primaryPhone: { $in: knownSpellings },
         });
         if (!customer) {
           throw new Error(

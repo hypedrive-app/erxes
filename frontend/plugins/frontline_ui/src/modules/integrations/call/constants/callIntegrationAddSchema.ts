@@ -14,6 +14,14 @@ export const CALL_INTEGRATION_FORM_SCHEMA = z.object({
   queues: z.string().optional(),
   srcTrunk: z.string().optional(),
   dstTrunk: z.string().optional(),
+  // Optional: without it a PBX number in national format (`09876543210`) cannot
+  // be resolved to E.164, so the same person calling and messaging on WhatsApp
+  // becomes two contacts.
+  defaultCountryCode: z
+    .string()
+    .regex(/^\+?\d{1,4}$/, 'Use a dialing code such as +91')
+    .optional()
+    .or(z.literal('')),
   operators: z.array(
     z.object({
       userId: z.string().optional(),

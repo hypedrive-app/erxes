@@ -54,6 +54,9 @@ export const CallIntegrationEdit = () => {
           wsServer: data.websocketServer,
           srcTrunk: data?.srcTrunk || '',
           dstTrunk: data?.dstTrunk || '',
+          // Sent even when blank so clearing the field actually unsets it: the
+          // backend only writes keys that are not `undefined`.
+          defaultCountryCode: data?.defaultCountryCode?.trim() || '',
           queues: data.queues
             ? data.queues
                 .split(',')
@@ -100,6 +103,7 @@ export const CallIntegrationEdit = () => {
         websocketServer: callsIntegrationDetail?.wsServer || '',
         srcTrunk: callsIntegrationDetail?.srcTrunk || '',
         dstTrunk: callsIntegrationDetail?.dstTrunk || '',
+        defaultCountryCode: callsIntegrationDetail?.defaultCountryCode || '',
         queues: Array.isArray(callsIntegrationDetail?.queues)
           ? callsIntegrationDetail?.queues.join(',')
           : callsIntegrationDetail?.queues || '',

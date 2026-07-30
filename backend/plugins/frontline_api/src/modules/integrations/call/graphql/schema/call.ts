@@ -7,6 +7,7 @@ const integrationCommonFields = `
     queues: [String]
     srcTrunk: String
     dstTrunk: String
+    defaultCountryCode: String
 `;
 const pageParams = `skip: Int, limit: Int`;
 
