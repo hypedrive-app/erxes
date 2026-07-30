@@ -104,7 +104,20 @@ services:
   # ── core-api ──────────────────────────────────────────────────────────────
   # MUST be named plugin-core-api (see header).
   plugin-core-api:
-    image: erxes/erxes-next-core-api:${ERXES_VERSION}
+    # Built from source, NOT `image: erxes/erxes-next-core-api:${ERXES_VERSION}`.
+    # That published image is UPSTREAM's build and predates commit 2957355,
+    # which made GET /get-frontend-plugins derive each Module Federation remote
+    # from PLUGIN_CDN_URL (see that env var below) instead of a hardcoded
+    # https://plugins.erxes.io. Verified on the live box: the env var is set
+    # correctly in the container yet /get-frontend-plugins still answered with
+    # plugins.erxes.io URLs, because the compiled code in the pulled image has
+    # the literal. Same reasoning as frontline — see the header note.
+    #
+    # Dockerfile.build, NOT the sibling Dockerfile: the latter only COPYs a
+    # pre-existing dist/ (gitignored) and cannot build from a clean checkout.
+    build:
+      context: ..
+      dockerfile: backend/core-api/Dockerfile.build
     depends_on:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
