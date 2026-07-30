@@ -158,7 +158,7 @@ const PhoneOptions = forwardRef<
   };
 
   const handleVerificationChange = (value: string) => {
-    onValidationStatusChange?.(value);
+    onValidationStatusChange?.(value as ValidationStatus);
   };
 
   const handleDeleteClick = () => {
@@ -201,12 +201,15 @@ const PhoneOptions = forwardRef<
         {isPrimary && (
           <>
             <DropdownMenu.Separator />
-            <DropdownMenu.RadioGroup onValueChange={handleVerificationChange}>
-              <DropdownMenu.RadioItem value="verified">
+            <DropdownMenu.RadioGroup
+              value={status}
+              onValueChange={handleVerificationChange}
+            >
+              <DropdownMenu.RadioItem value={ValidationStatus.Valid}>
                 <IconCircleDashedCheck className="text-success data-[state=active]:bg-muted " />
                 Verified
               </DropdownMenu.RadioItem>
-              <DropdownMenu.RadioItem value="unverified">
+              <DropdownMenu.RadioItem value={ValidationStatus.Invalid}>
                 <IconCircleDashed className="text-muted-foreground" />
                 Unverified
               </DropdownMenu.RadioItem>

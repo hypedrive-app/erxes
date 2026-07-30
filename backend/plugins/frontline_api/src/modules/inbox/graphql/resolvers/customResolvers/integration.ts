@@ -7,6 +7,8 @@ import { imapIntegrationDetails } from '@/integrations/imap/messageBroker';
 import { graphRequest as instagramGraphRequest } from '@/integrations/instagram/utils';
 import { instagramStatus } from '@/integrations/instagram/messageBroker';
 import { discordStatus } from '@/integrations/discord/messageBroker';
+import { whatsappStatus } from '@/integrations/whatsapp/messageBroker';
+import { plivoStatus } from '@/integrations/plivo/messageBroker';
 import { debugError } from '~/modules/inbox/utils';
 
 const getServiceName = (kind: string): string => {
@@ -27,6 +29,10 @@ export const integrationStatus = async (
       return instagramStatus({ subdomain, data });
     case 'discord':
       return discordStatus({ subdomain, data });
+    case 'whatsapp':
+      return whatsappStatus({ subdomain, data });
+    case 'plivo':
+      return plivoStatus({ subdomain, data });
     default:
       return null;
   }

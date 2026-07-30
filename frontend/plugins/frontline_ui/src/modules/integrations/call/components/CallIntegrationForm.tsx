@@ -66,6 +66,21 @@ export const CallIntegrationForm = ({
             )}
           />
           <Form.Field
+            name="defaultCountryCode"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>{t('call-default-country-code')}</Form.Label>
+                <Form.Control>
+                  <Input {...field} value={field.value ?? ''} />
+                </Form.Control>
+                <Form.Description>
+                  {t('call-default-country-code-description')}
+                </Form.Description>
+                <Form.Message />
+              </Form.Item>
+            )}
+          />
+          <Form.Field
             name="websocketServer"
             render={({ field }) => (
               <Form.Item>

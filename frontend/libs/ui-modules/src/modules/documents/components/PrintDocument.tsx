@@ -668,7 +668,7 @@ export const PrintDocument = (props: Props) => {
       branchId: '',
       departmentId: '',
       _id: '',
-      replacerIds: [],
+      replacerIds: [] as string[],
     },
   });
 

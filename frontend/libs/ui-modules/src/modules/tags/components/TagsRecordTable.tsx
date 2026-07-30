@@ -2,7 +2,7 @@ import { RecordTable, RecordTableTree, useMultiQueryState } from 'erxes-ui';
 import React from 'react';
 import { useTagContext } from 'ui-modules/modules/tags/components/TagProvider';
 import { createTagsColumns } from './TagsColumns';
-import { ITag } from 'ui-modules/modules/tags/types/Tag';
+import { TTagTreeRow } from 'ui-modules/modules/tags/types/Tag';
 import { useTags } from 'ui-modules/modules/tags/hooks/useTags';
 import { useTranslation } from 'react-i18next';
 
@@ -26,12 +26,13 @@ export const TagsRecordTable: React.FC<TagsRecordTableProps> = ({
   });
 
   const transformedData = React.useMemo(() => {
-    const result: ITag[] = [];
+    const result: TTagTreeRow[] = [];
 
     if (mode === 'adding-tag' || mode === 'adding-group') {
       result.push({
         _id: 'new-item-temp',
         name: '',
+        type: tagType,
         hasChildren: false,
         isGroup: mode === 'adding-group',
         colorCode: '',
@@ -50,7 +51,7 @@ export const TagsRecordTable: React.FC<TagsRecordTableProps> = ({
       result.push({
         ...tag,
         hasChildren:
-          existingTags.some((t) => t.parentId === tag._id) && tag.isGroup,
+          existingTags.some((t) => t.parentId === tag._id) && !!tag.isGroup,
       });
 
       if (
@@ -61,6 +62,7 @@ export const TagsRecordTable: React.FC<TagsRecordTableProps> = ({
         result.push({
           _id: 'new-item-temp',
           name: '',
+          type: tagType,
           hasChildren: false,
           isGroup: false,
           colorCode: '',

@@ -34,6 +34,8 @@ export const getIntegrationsKinds = async () => {
     'instagram-messenger': 'Instagram messenger',
     'instagram-post': 'Instagram post',
     'discord-messenger': 'Discord',
+    'whatsapp-messenger': 'WhatsApp',
+    'plivo-call': 'Plivo call',
     calls: 'Phone call',
     client: 'Client Portal',
     vendor: 'Vendor Portal',

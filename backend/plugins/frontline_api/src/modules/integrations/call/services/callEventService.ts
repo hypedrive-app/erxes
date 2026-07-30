@@ -110,10 +110,15 @@ const ensureConversation = async (
 
   let customerId = session.customerId;
   if (!customerId) {
-    const customer = await getOrCreateCustomer(models, subdomain, {
-      primaryPhone: session.customerPhone,
-      inboxIntegrationId: integration.inboxId,
-    });
+    const customer = await getOrCreateCustomer(
+      models,
+      subdomain,
+      {
+        primaryPhone: session.customerPhone,
+        inboxIntegrationId: integration.inboxId,
+      },
+      integration.defaultCountryCode,
+    );
     customerId = customer?.erxesApiId;
   }
 

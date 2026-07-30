@@ -31,6 +31,16 @@ export const INTEGRATIONS = {
     descriptionKey: 'integration-desc-discord',
     img: 'discord.svg',
   },
+  [IntegrationType.WHATSAPP_MESSENGER]: {
+    name: 'WhatsApp',
+    descriptionKey: 'integration-desc-whatsapp',
+    img: 'whatsapp.svg',
+  },
+  [IntegrationType.PLIVO_CALL]: {
+    name: 'Plivo',
+    descriptionKey: 'integration-desc-plivo',
+    img: 'plivo.svg',
+  },
   [IntegrationType.CALL]: {
     name: 'Call',
     descriptionKey: 'integration-desc-call',

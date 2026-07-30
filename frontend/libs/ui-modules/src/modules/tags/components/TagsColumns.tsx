@@ -27,7 +27,10 @@ import {
 } from 'erxes-ui';
 import React, { useState } from 'react';
 import { useTags } from 'ui-modules/modules/tags/hooks/useTags';
-import { ITag, ITagQueryResponse } from 'ui-modules/modules/tags/types/Tag';
+import {
+  TTagQueryResponse,
+  TTagTreeRow,
+} from 'ui-modules/modules/tags/types/Tag';
 import { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
@@ -128,7 +131,7 @@ const NewItemCell: React.FC<NewItemCellProps> = ({ tagType }) => {
 
   const handleSave = () => {
     if (value.trim()) {
-      const newTag: ITagQueryResponse = {
+      const newTag: TTagQueryResponse = {
         name: value,
         type: tagType,
         isGroup: mode === 'adding-group',
@@ -183,7 +186,7 @@ const NewItemCell: React.FC<NewItemCellProps> = ({ tagType }) => {
 };
 
 interface TagMoreColumnCellProps {
-  cell: Cell<ITag, unknown>;
+  cell: Cell<TTagTreeRow, unknown>;
   tagType: string;
 }
 
@@ -299,7 +302,7 @@ export const TagMoreColumnCell: React.FC<TagMoreColumnCellProps> = ({
   );
 };
 
-const NameCell: React.FC<{ cell: Cell<ITag, unknown>; tagType: string }> = ({
+const NameCell: React.FC<{ cell: Cell<TTagTreeRow, unknown>; tagType: string }> = ({
   cell,
   tagType,
 }) => {
@@ -385,7 +388,7 @@ const NameCell: React.FC<{ cell: Cell<ITag, unknown>; tagType: string }> = ({
   );
 };
 
-const DescriptionCell: React.FC<{ cell: Cell<ITag, unknown> }> = ({ cell }) => {
+const DescriptionCell: React.FC<{ cell: Cell<TTagTreeRow, unknown> }> = ({ cell }) => {
   const { _id, description, name, isGroup } = cell.row.original;
   const [open, setOpen] = useState<boolean>(false);
   const [_description, setDescription] = useState<string>(description ?? '');
@@ -433,7 +436,7 @@ const DescriptionCell: React.FC<{ cell: Cell<ITag, unknown> }> = ({ cell }) => {
 export const createTagsColumns = (
   tagType: string,
   t: TFunction,
-): ColumnDef<ITag>[] => [
+): ColumnDef<TTagTreeRow>[] => [
   {
     id: 'name',
     header: t('name'),

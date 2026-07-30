@@ -11,17 +11,16 @@ export type TMessageTriggerDirectConditions = NonNullable<
   TMessageTriggerCondition['conditions']
 >;
 
+export type TMessageTriggerConditionType = TMessageTriggerCondition['type'];
+
 export type TMessageTriggerPersistentMenuIds = NonNullable<
-  Extract<
-    TMessageTriggerCondition,
-    { type: 'persistentMenu' }
-  >['persistentMenuIds']
+  TMessageTriggerCondition['persistentMenuIds']
 >;
 
 export type TMessageTriggerSourceMode = NonNullable<
-  Extract<TMessageTriggerCondition, { type: 'open_thread' }>['sourceMode']
+  TMessageTriggerCondition['sourceMode']
 >;
 
 export type TMessageTriggerSourceIds = NonNullable<
-  Extract<TMessageTriggerCondition, { type: 'open_thread' }>['sourceIds']
+  TMessageTriggerCondition['sourceIds']
 >;

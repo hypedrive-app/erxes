@@ -767,6 +767,7 @@ const SETTABLE_INTEGRATION_FIELDS = [
   'srcTrunk',
   'dstTrunk',
   'queueNames',
+  'defaultCountryCode',
 ];
 
 export const updateIntegrationQueues = async (

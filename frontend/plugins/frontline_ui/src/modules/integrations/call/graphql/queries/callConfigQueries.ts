@@ -17,6 +17,7 @@ export const CALL_INTEGRATION_DETAIL = gql`
       queues
       srcTrunk
       dstTrunk
+      defaultCountryCode
     }
   }
 `;

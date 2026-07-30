@@ -23,7 +23,7 @@ export const ChannelForm = ({
               <Form.Control>
                 <IconPicker
                   onValueChange={field.onChange}
-                  value={field.value}
+                  value={field.value ?? undefined}
                   className="w-min"
                 />
               </Form.Control>

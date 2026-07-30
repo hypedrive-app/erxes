@@ -19,6 +19,14 @@ export interface TTag {
   totalObjectCount?: number;
 }
 
+/**
+ * A tag row as rendered by the tags record table. `hasChildren` is derived on
+ * the client from the sibling list, it is not returned by the tags query.
+ */
+export type TTagTreeRow = ITag & {
+  hasChildren: boolean;
+};
+
 export interface TTagQueryResponse {
   name: string;
   type?: string;

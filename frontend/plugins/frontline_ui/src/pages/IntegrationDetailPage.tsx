@@ -56,6 +56,22 @@ const DiscordIntegrationDetail = lazy(() =>
   ),
 );
 
+const WhatsappIntegrationDetail = lazy(() =>
+  import('@/integrations/whatsapp/components/WhatsappIntegrationDetail').then(
+    (module) => ({
+      default: module.WhatsappIntegrationDetail,
+    }),
+  ),
+);
+
+const PlivoIntegrationDetail = lazy(() =>
+  import('@/integrations/plivo/components/PlivoIntegrationDetail').then(
+    (module) => ({
+      default: module.PlivoIntegrationDetail,
+    }),
+  ),
+);
+
 export const IntegrationDetailPage = () => {
   const { t } = useTranslation('frontline');
   const { integrationType, id } = useParams<{
@@ -93,7 +109,7 @@ export const IntegrationDetailPage = () => {
         <div className="flex flex-col gap-1">
           <h6 className="font-semibold text-sm">{integration?.name}</h6>
           <span className="text-sm text-muted-foreground font-medium">
-            {integration?.description}
+            {integration?.descriptionKey ? t(integration.descriptionKey) : null}
           </span>
         </div>
       </div>
@@ -117,6 +133,12 @@ export const IntegrationDetailPage = () => {
         )}
         {integrationType === IntegrationType.DISCORD_MESSENGER && (
           <DiscordIntegrationDetail />
+        )}
+        {integrationType === IntegrationType.WHATSAPP_MESSENGER && (
+          <WhatsappIntegrationDetail />
+        )}
+        {integrationType === IntegrationType.PLIVO_CALL && (
+          <PlivoIntegrationDetail />
         )}
       </Suspense>
       <div className="flex-1 min-h-0 flex flex-col">

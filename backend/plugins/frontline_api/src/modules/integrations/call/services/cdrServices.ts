@@ -69,10 +69,15 @@ const processCdrLocked = async (
   const primaryPhone = determinePrimaryPhone(params);
   const extension = determineExtension(params);
 
-  const customer = await getOrCreateCustomer(models, subdomain, {
-    primaryPhone,
-    inboxIntegrationId: inboxId,
-  });
+  const customer = await getOrCreateCustomer(
+    models,
+    subdomain,
+    {
+      primaryPhone,
+      inboxIntegrationId: inboxId,
+    },
+    integration.defaultCountryCode,
+  );
 
   const content = await getConversationContent(models, params);
 
