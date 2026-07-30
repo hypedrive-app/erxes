@@ -169,13 +169,18 @@ const receiveCustomerMessage = async (
   }
 
   try {
+    // `create-conversation-message` both stores the message and publishes the
+    // conversationMessageInserted event the open inbox subscribes to, so no
+    // separate publish is needed here.
     const response = await receiveInboxMessage(subdomain, {
-      action: 'create-or-update-conversation-message',
+      action: 'create-conversation-message',
+      metaInfo: 'replaceContent',
       payload: JSON.stringify({
         content,
         attachments,
         conversationId: conversation.erxesApiId,
         customerId: customer.erxesApiId,
+        createdAt: timestamp,
       }),
     });
 

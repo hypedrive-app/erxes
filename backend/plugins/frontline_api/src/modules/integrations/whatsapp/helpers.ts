@@ -151,6 +151,52 @@ export const whatsappUpdateIntegration = async (
   return { status: 'success' };
 };
 
+/**
+ * Revalidates stored credentials and clears the error state when they work.
+ *
+ * An expired access token is the usual way a WhatsApp integration breaks, so
+ * repairing means proving the token again — there is no page subscription to
+ * re-establish as there is for facebook.
+ */
+export const whatsappRepairIntegration = async (
+  subdomain: string,
+  integrationId: string,
+) => {
+  const models = await generateModels(subdomain);
+
+  const integration = await models.WhatsappIntegrations.getIntegration({
+    erxesApiId: integrationId,
+  });
+
+  try {
+    const details = await verifyCredentials(
+      integration.accessToken,
+      integration.phoneNumberId,
+    );
+
+    await models.WhatsappIntegrations.updateOne(
+      { erxesApiId: integrationId },
+      {
+        $set: {
+          displayPhoneNumber: details?.display_phone_number,
+          healthStatus: 'healthy',
+          error: '',
+        },
+      },
+    );
+
+    return { status: 'success' };
+  } catch (e) {
+    // Record why it is still broken so the settings screen can show it.
+    await models.WhatsappIntegrations.updateOne(
+      { erxesApiId: integrationId },
+      { $set: { healthStatus: 'error', error: e.message } },
+    );
+
+    throw e;
+  }
+};
+
 export const whatsappRemoveIntegration = async (
   subdomain: string,
   integrationId: string,

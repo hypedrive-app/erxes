@@ -14,6 +14,7 @@ import { handleFacebookIntegration } from '@/integrations/facebook/messageBroker
 import { sendReply } from '@/integrations/facebook/utils';
 import { handleInstagramIntegration } from '@/integrations/instagram/messageBroker';
 import { handleDiscordIntegration } from '@/integrations/discord/messageBroker';
+import { handleWhatsappIntegration } from '@/integrations/whatsapp/messageBroker';
 import { IUserDocument } from 'erxes-api-shared/core-types';
 import {
   graphqlPubsub,
@@ -83,6 +84,9 @@ export const dispatchConversationToService = async (
 
       case 'discord':
         return await handleDiscordIntegration({ subdomain, data });
+
+      case 'whatsapp':
+        return await handleWhatsappIntegration({ subdomain, data });
 
       case 'calls':
         break;

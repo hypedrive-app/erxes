@@ -1,7 +1,9 @@
 import * as crypto from 'crypto';
 import {
+  ERROR_CODE_INVALID_TOKEN,
   ERROR_CODE_OUTSIDE_SERVICE_WINDOW,
   GRAPH_API_URL,
+  RETRYABLE_ERROR_CODES,
 } from '@/integrations/whatsapp/constants';
 import {
   debugError,
@@ -32,6 +34,20 @@ export class WhatsappApiError extends Error {
    */
   public get isOutsideServiceWindow(): boolean {
     return this.code === ERROR_CODE_OUTSIDE_SERVICE_WINDOW;
+  }
+
+  /**
+   * True when the request was fine and only rate limiting rejected it, so the
+   * same payload can be sent again after a backoff. Anything else is permanent
+   * for the request as written and retrying it unchanged only burns quota.
+   */
+  public get isRetryable(): boolean {
+    return RETRYABLE_ERROR_CODES.includes(this.code ?? -1);
+  }
+
+  /** The token expired or was revoked; the integration must be reconnected. */
+  public get isAuthError(): boolean {
+    return this.code === ERROR_CODE_INVALID_TOKEN;
   }
 }
 
@@ -188,10 +204,55 @@ export const sendWhatsappText = async ({
 };
 
 /**
+ * Marks an inbound message as read, optionally showing a typing indicator.
+ *
+ * Both are the same call: the indicator rides along with the read receipt.
+ * Meta clears it once our reply is sent or after 25 seconds, whichever comes
+ * first, so it is only worth setting when a reply is actually imminent.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/typing-indicators/
+ */
+export const markWhatsappMessageRead = async ({
+  accessToken,
+  phoneNumberId,
+  messageId,
+  showTyping,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  messageId: string;
+  showTyping?: boolean;
+}): Promise<void> => {
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    status: 'read',
+    message_id: messageId,
+  };
+
+  if (showTyping) {
+    body.typing_indicator = { type: 'text' };
+  }
+
+  try {
+    await graphRequest({
+      accessToken,
+      method: 'POST',
+      path: `/${phoneNumberId}/messages`,
+      body,
+    });
+  } catch (e: any) {
+    // A read receipt is cosmetic; never fail the surrounding work over it.
+    debugError(`Failed to mark WhatsApp message ${messageId} read: ${e.message}`);
+  }
+};
+
+/**
  * Resolves a media id to a temporary download URL.
  *
- * Meta expires these URLs after five minutes and they must be fetched with the
- * same bearer token, so the result is deliberately not cached anywhere.
+ * The URL itself is short-lived and must be fetched with the same bearer
+ * token, so the result is deliberately not cached. Note the id from an inbound
+ * webhook is only downloadable for 7 days (shorter than the 30 days that
+ * applies to media we upload ourselves), so inbound media has to be fetched
+ * promptly rather than lazily on first view.
  * https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/media/media-download-api
  */
 export const getWhatsappMediaUrl = async ({

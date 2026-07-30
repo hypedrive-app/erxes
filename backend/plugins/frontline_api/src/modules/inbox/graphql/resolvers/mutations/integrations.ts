@@ -25,6 +25,12 @@ import {
   facebookUpdateIntegrations,
 } from '@/integrations/facebook/messageBroker';
 import {
+  whatsappCreateIntegrations,
+  whatsappRemoveIntegrations,
+  whatsappRepairIntegrations,
+  whatsappUpdateIntegrations,
+} from '@/integrations/whatsapp/messageBroker';
+import {
   instagramCreateIntegrations,
   instagramRemoveIntegrations,
   instagramRemoveAccount,
@@ -87,6 +93,9 @@ export const sendCreateIntegration = async (
       case 'discord':
         return await discordCreateIntegrations({ subdomain, data });
 
+      case 'whatsapp':
+        return await whatsappCreateIntegrations({ subdomain, data });
+
       case 'mobinetSms':
         break;
 
@@ -115,6 +124,9 @@ export const sendUpdateIntegration = async (
         return await instagramUpdateIntegrations({ subdomain, data });
       case 'imap':
         return await imapUpdateIntegration({ subdomain, data });
+
+      case 'whatsapp':
+        return await whatsappUpdateIntegrations({ subdomain, data });
 
       case 'mobinetSms':
         break;
@@ -147,6 +159,9 @@ export const sendRemoveIntegration = async (
 
       case 'discord':
         return await discordRemoveIntegrations({ subdomain, data });
+
+      case 'whatsapp':
+        return await whatsappRemoveIntegrations({ subdomain, data });
 
       case 'mobinetSms':
         break;
@@ -202,6 +217,9 @@ export const sendRepairIntegration = async (
 
       case 'discord':
         return await discordRepairIntegrations({ subdomain, data });
+
+      case 'whatsapp':
+        return await whatsappRepairIntegrations({ subdomain, data });
 
       case 'mobinetSms':
         break;
