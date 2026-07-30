@@ -102,6 +102,23 @@ services:
       # then logs "Waiting for plugin  to join service discovery" forever and
       # never serves /graphql. Unset yields ['core']. Do not "helpfully" add
       # these back as empty strings.
+      # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
+      # erxes resolves storage config as `configs[CODE] ?? getEnv(CODE)`
+      # (erxes-api-shared/src/utils/file/upload.ts readConfigValue), so these env
+      # vars act as the fallback when the org Configs collection has nothing set.
+      # Using the AWS_* S3-compatible path rather than CLOUDFLARE_*: it needs only
+      # an endpoint + path-style and no Cloudflare API token / account hash.
+      UPLOAD_SERVICE_TYPE: ${UPLOAD_SERVICE_TYPE:-}
+      AWS_BUCKET: ${AWS_BUCKET:-}
+      AWS_PREFIX: ${AWS_PREFIX:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_COMPATIBLE_SERVICE_ENDPOINT: ${AWS_COMPATIBLE_SERVICE_ENDPOINT:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_FORCE_PATH_STYLE: ${AWS_FORCE_PATH_STYLE:-}
+      # R2 rejects ACL headers outright — without this every upload 400s.
+      AWS_DISABLE_ACL: ${AWS_DISABLE_ACL:-}
+      FILE_SYSTEM_PUBLIC: ${FILE_SYSTEM_PUBLIC:-}
       NODE_OPTIONS: --max-old-space-size=1536
     restart: unless-stopped
     networks: [erxes]
@@ -141,6 +158,23 @@ services:
       # Bound the service-discovery retry loop. Unset => MAX_SAFE_INTEGER, i.e.
       # the gateway retries forever instead of failing visibly (targets.ts).
       MAX_PLUGIN_RETRY: "60"
+      # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
+      # erxes resolves storage config as `configs[CODE] ?? getEnv(CODE)`
+      # (erxes-api-shared/src/utils/file/upload.ts readConfigValue), so these env
+      # vars act as the fallback when the org Configs collection has nothing set.
+      # Using the AWS_* S3-compatible path rather than CLOUDFLARE_*: it needs only
+      # an endpoint + path-style and no Cloudflare API token / account hash.
+      UPLOAD_SERVICE_TYPE: ${UPLOAD_SERVICE_TYPE:-}
+      AWS_BUCKET: ${AWS_BUCKET:-}
+      AWS_PREFIX: ${AWS_PREFIX:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_COMPATIBLE_SERVICE_ENDPOINT: ${AWS_COMPATIBLE_SERVICE_ENDPOINT:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_FORCE_PATH_STYLE: ${AWS_FORCE_PATH_STYLE:-}
+      # R2 rejects ACL headers outright — without this every upload 400s.
+      AWS_DISABLE_ACL: ${AWS_DISABLE_ACL:-}
+      FILE_SYSTEM_PUBLIC: ${FILE_SYSTEM_PUBLIC:-}
       NODE_OPTIONS: --max-old-space-size=1024
     restart: unless-stopped
     networks: [erxes, dokploy-network]
