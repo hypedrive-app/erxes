@@ -83,6 +83,21 @@ router.get('/get-frontend-plugins', async (_req: Request, res: Response) => {
   const remoteName = (pluginName: string): string =>
     `${pluginName.replace(/-/g, '_')}_ui`;
 
+  // Where the browser fetches plugin remoteEntry.js from. Defaults to erxes'
+  // own CDN, so an unset value behaves exactly as before.
+  //
+  // A self-hosted deployment running a FORK has to override this: the CDN
+  // serves upstream's build of each plugin, so a locally modified plugin UI
+  // would silently be replaced by upstream's — the browser loads a remote that
+  // does not contain the local changes, with no error anywhere to explain it.
+  const PLUGIN_CDN_URL = getEnv({
+    name: 'PLUGIN_CDN_URL',
+    defaultValue: 'https://plugins.erxes.io',
+  }).replace(/\/+$/, '');
+
+  const remoteEntry = (pluginName: string, version: string): string =>
+    `${PLUGIN_CDN_URL}/${version}/${pluginName}_ui/remoteEntry.js`;
+
   if (VERSION === 'saas') {
     const remotes: { name: string; entry: string }[] = [];
     const subdomain = getSubdomain(_req);
@@ -106,7 +121,7 @@ router.get('/get-frontend-plugins', async (_req: Request, res: Response) => {
           const version = await getPluginVersion(pluginName);
           remotes.push({
             name: remoteName(pluginName),
-            entry: `https://plugins.erxes.io/${version}/${pluginName}_ui/remoteEntry.js`,
+            entry: remoteEntry(pluginName, version),
           });
         }
       }
@@ -118,7 +133,7 @@ router.get('/get-frontend-plugins', async (_req: Request, res: Response) => {
       const agentVersion = await getPluginVersion('agent');
       remotes.push({
         name: 'agent_ui',
-        entry: `https://plugins.erxes.io/${agentVersion}/agent_ui/remoteEntry.js`,
+        entry: remoteEntry('agent', agentVersion),
       });
     }
 
@@ -131,7 +146,7 @@ router.get('/get-frontend-plugins', async (_req: Request, res: Response) => {
         const version = await getPluginVersion(plugin);
         remotes.push({
           name: remoteName(plugin),
-          entry: `https://plugins.erxes.io/${version}/${plugin}_ui/remoteEntry.js`,
+          entry: remoteEntry(plugin, version),
         });
       }
     }
