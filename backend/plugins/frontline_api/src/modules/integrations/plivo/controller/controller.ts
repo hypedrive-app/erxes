@@ -1,4 +1,4 @@
-import { getSubdomain, isDev } from 'erxes-api-shared/utils';
+import { getSubdomain, isDev, normalizePhone } from 'erxes-api-shared/utils';
 import { generateModels, IModels } from '~/connectionResolvers';
 import { debugError, debugPlivo } from '@/integrations/plivo/debuggers';
 import {
@@ -22,27 +22,58 @@ import {
 } from '@/integrations/plivo/@types';
 
 /**
- * Plivo posts callbacks as `application/x-www-form-urlencoded`, and the plugin
- * host only installs a JSON body parser — so `req.body` is empty for these
- * requests and the parameters have to be read out of the raw body.
+ * Reads the callback parameters Plivo sent.
  *
- * That is also the correct source for signature validation: the digest covers
- * the parameters exactly as sent, and re-serialising a parsed object can change
- * them.
+ * The raw body is preferred because the V3 digest is built from the parameters
+ * exactly as sent. A Plivo application can be configured to post JSON instead
+ * of the default `application/x-www-form-urlencoded`, so both encodings are
+ * accepted; `req.body` is the last resort for when a parser upstream already
+ * consumed the stream and left nothing raw behind.
+ *
+ * Only scalar values are kept. Plivo repeats a key rather than sending arrays,
+ * and `URLSearchParams` yields each repeat separately — the LAST wins, matching
+ * how `express.urlencoded({ extended: false })` collapses the same input, so
+ * the parsed view and the signed view cannot disagree.
  */
-const parseCallbackParams = (
-  rawBody: Buffer | string | undefined,
-): IPlivoCallbackParams => {
-  if (!rawBody) {
-    return {};
-  }
-
+const parseCallbackParams = (req): IPlivoCallbackParams => {
   const params: IPlivoCallbackParams = {};
 
-  const search = new URLSearchParams(rawBody.toString());
+  const rawBody: Buffer | string | undefined = req.rawBody;
+  const raw = rawBody === undefined ? '' : rawBody.toString();
+  const trimmed = raw.trim();
 
-  for (const [key, value] of search.entries()) {
-    params[key] = value;
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      for (const [key, value] of Object.entries(parsed)) {
+        if (value !== null && typeof value !== 'object') {
+          params[key] = String(value);
+        }
+      }
+
+      return params;
+    } catch {
+      // Not the JSON it looked like; fall through to the form reading below.
+    }
+  }
+
+  if (trimmed) {
+    for (const [key, value] of new URLSearchParams(raw).entries()) {
+      params[key] = value;
+    }
+
+    return params;
+  }
+
+  const body = req.body;
+
+  if (body && typeof body === 'object') {
+    for (const [key, value] of Object.entries(body)) {
+      if (value !== null && value !== undefined && typeof value !== 'object') {
+        params[key] = String(value);
+      }
+    }
   }
 
   return params;
@@ -125,7 +156,18 @@ const resolveVerifiedIntegration = async (
   res,
   params: IPlivoCallbackParams,
 ): Promise<IPlivoIntegrationDocument | null> => {
-  const candidates = [params.To, params.From].filter(Boolean);
+  // `plivoPhoneNumber` is stored normalised (`+919876543210`), but Plivo sends
+  // `To`/`From` without the leading `+` on many callbacks. Matching only the
+  // raw value would find nothing and silently drop every call, so both the raw
+  // and the normalised form of each candidate are tried. No default country
+  // code is available before the integration is known, so normalisation here
+  // can only add the `+` that E.164 input already implies.
+  const candidates = [...new Set(
+    [params.To, params.From]
+      .filter((value): value is string => Boolean(value))
+      .flatMap((value) => [value, normalizePhone(value)])
+      .filter(Boolean),
+  )];
 
   if (!candidates.length) {
     // Nothing addressable; ack so Plivo stops retrying.
@@ -172,7 +214,7 @@ export const plivoAnswerWebhook = async (req, res, next) => {
     const subdomain = isDev ? 'localhost' : getSubdomain(req);
     const models = await generateModels(subdomain);
 
-    const params = parseCallbackParams(req.rawBody);
+    const params = parseCallbackParams(req);
 
     const integration = await resolveVerifiedIntegration(
       models,
@@ -222,7 +264,12 @@ const buildAnswerXml = (
   const elements: string[] = [];
 
   if (integration.recordCalls) {
-    const callbackUrl = buildCallbackUrl(req).replace(/\/answer$/, '/recording');
+    // The query string has to come off before `/answer` is swapped out: an
+    // anchored replace would not match `/answer?x=1` and the recording would
+    // POST back to the answer webhook, which re-registers the call and replies
+    // with XML the recording callback never expects.
+    const [path] = buildCallbackUrl(req).split('?');
+    const callbackUrl = path.replace(/\/answer$/, '/recording');
 
     elements.push(
       `<Record action="${escapeXml(
@@ -237,6 +284,13 @@ const buildAnswerXml = (
     elements.push(
       '<Speak>Please hold while we connect you to an agent.</Speak>',
     );
+  } else {
+    // An outbound call's answer XML drives the leg that was just picked up. A
+    // `<Response>` carrying no verb makes Plivo hang up immediately, so the
+    // callee would never hear anything and every outbound call would drop the
+    // instant it connected. `<Speak>` keeps the leg up until the agent leg is
+    // bridged.
+    elements.push('<Speak>Connecting you now.</Speak>');
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${elements.join(
@@ -257,7 +311,7 @@ export const plivoHangupWebhook = async (req, res, next) => {
     const subdomain = isDev ? 'localhost' : getSubdomain(req);
     const models = await generateModels(subdomain);
 
-    const params = parseCallbackParams(req.rawBody);
+    const params = parseCallbackParams(req);
 
     const integration = await resolveVerifiedIntegration(
       models,
@@ -293,7 +347,7 @@ export const plivoRecordingWebhook = async (req, res, next) => {
     const subdomain = isDev ? 'localhost' : getSubdomain(req);
     const models = await generateModels(subdomain);
 
-    const params = parseCallbackParams(req.rawBody);
+    const params = parseCallbackParams(req);
 
     const integration = await resolveVerifiedIntegration(
       models,

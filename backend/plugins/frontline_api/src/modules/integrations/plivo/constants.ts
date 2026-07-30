@@ -65,4 +65,4 @@ export const PLIVO_DEFAULT_TIME_LIMIT_SECONDS = 3600;
 export const PLIVO_DEFAULT_RING_TIMEOUT_SECONDS = 45;
 
 /** Plivo deletes recordings this many days after they are created. */
-export const PLIVO_RECORDING_RETENTION_DAYS = 30;
+export const PLIVO_RECORDING_RETENTION_DAYS = 90;

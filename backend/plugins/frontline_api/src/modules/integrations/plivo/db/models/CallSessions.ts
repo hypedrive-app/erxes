@@ -40,7 +40,9 @@ export const loadPlivoCallSessionClass = (models: IModels) => {
           updatedAt: new Date(),
         });
       } catch (e: any) {
-        if (e.message?.includes('duplicate')) {
+        // `code` is the reliable signal — the driver's message text is not a
+        // contract, and mongoose surfaces the raw MongoServerError here.
+        if (e.code === 11000 || e.message?.includes('duplicate')) {
           return await models.PlivoCallSessions.getCallSession({
             callUuid: doc.callUuid,
           });

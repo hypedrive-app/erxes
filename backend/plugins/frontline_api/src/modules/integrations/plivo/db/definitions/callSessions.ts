@@ -11,7 +11,15 @@ import { mongooseStringRandomId } from 'erxes-api-shared/utils';
  */
 export const callSessionSchema = new Schema({
   _id: mongooseStringRandomId,
-  callUuid: { type: String, unique: true, label: 'Plivo CallUUID' },
+  // `sparse` so a row that somehow reaches the collection without a CallUUID
+  // does not collide with every other such row on a shared `null` key — the
+  // classic empty-key collision that makes unrelated calls echo each other.
+  callUuid: {
+    type: String,
+    unique: true,
+    sparse: true,
+    label: 'Plivo CallUUID',
+  },
 
   // Set once the inbox has accepted the call; its absence marks a row stored
   // locally but never delivered upstream.
@@ -55,7 +63,8 @@ export const callSessionSchema = new Schema({
     optional: true,
   },
 
-  // Plivo deletes recordings 30 days after creation, so this URL expires.
+  // Plivo stores recordings free for 90 days; past that they are billed or
+  // auto-deleted depending on an account setting, so this URL expires.
   recordUrl: { type: String, label: 'Recording URL', optional: true },
   recordingUuid: { type: String, label: 'Plivo recording id', optional: true },
   recordingDuration: {

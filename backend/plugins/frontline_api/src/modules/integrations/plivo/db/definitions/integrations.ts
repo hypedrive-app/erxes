@@ -23,9 +23,12 @@ export const integrationSchema = new Schema({
     label: 'Plivo auth token — also the callback HMAC key',
   },
 
+  // `sparse` so an integration stored without a number does not claim the
+  // shared `null` key and block every other one from being created.
   plivoPhoneNumber: {
     type: String,
     unique: true,
+    sparse: true,
     label: 'Rented Plivo number in E.164',
   },
   appId: {

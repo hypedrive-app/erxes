@@ -52,7 +52,9 @@ export const getOrCreateCustomer = async (
     });
   } catch (e: any) {
     // A concurrent callback for the same caller won the race; use its row.
-    if (e.message?.includes('duplicate')) {
+    // `code` is the reliable signal — the driver's message text is not a
+    // contract, and mongoose surfaces the raw MongoServerError here.
+    if (e.code === 11000 || e.message?.includes('duplicate')) {
       return await models.PlivoCustomers.getCustomer({ phoneNumber });
     }
 
@@ -74,7 +76,18 @@ export const getOrCreateCustomer = async (
       throw new Error(`Customer creation failed: ${JSON.stringify(response)}`);
     }
 
-    customer.erxesApiId = response.data._id;
+    // The handler reports success even when core returned no contact, so the
+    // id is checked rather than trusted — storing `undefined` here would leave
+    // a local row that can never be matched to a contact again.
+    const erxesApiId = response.data?._id;
+
+    if (!erxesApiId) {
+      throw new Error(
+        `Customer creation returned no id: ${JSON.stringify(response)}`,
+      );
+    }
+
+    customer.erxesApiId = erxesApiId;
     await customer.save();
   } catch (e: any) {
     await models.PlivoCustomers.deleteOne({ _id: customer._id });
@@ -97,7 +110,6 @@ export const getOrCreateCustomer = async (
  * callbacks can update the same conversation instead of raising a new one.
  */
 export const createCallConversation = async (
-  models: IModels,
   subdomain: string,
   integration: IPlivoIntegrationDocument,
   customer: IPlivoCustomerDocument,
@@ -121,7 +133,19 @@ export const createCallConversation = async (
     );
   }
 
-  return response.data._id;
+  const conversationId = response.data?._id;
+
+  // Without an id the session row would point at nothing and every later
+  // callback would silently skip the inbox, so this fails loudly instead.
+  if (!conversationId) {
+    throw new Error(
+      `Conversation creation returned no id for call ${callUuid}: ${JSON.stringify(
+        response,
+      )}`,
+    );
+  }
+
+  return conversationId;
 };
 
 /**
@@ -155,7 +179,7 @@ export const createCallMessage = async (
       throw new Error(JSON.stringify(response));
     }
 
-    return response.data._id;
+    return response.data?._id || '';
   } catch (e: any) {
     debugError(
       `Failed to write call message for conversation ${conversationId}: ${e.message}`,

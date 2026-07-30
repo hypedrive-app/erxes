@@ -69,7 +69,8 @@ export interface IPlivoCallSession {
   totalCost?: number;
   hangupCause?: string;
   /**
-   * Plivo deletes recordings 30 days after creation, so this URL has a finite
+   * Plivo stores recordings free for 90 days; past that an account either pays
+   * to keep them or has them deleted, so this URL has a finite
    * life — anything needing permanent audio must copy the file elsewhere.
    */
   recordUrl?: string;

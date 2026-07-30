@@ -163,15 +163,17 @@ export const registerIncomingCall = async (
   });
 
   // addCallSession returns the pre-existing row when a concurrent delivery of
-  // the same callback already registered the call; that delivery owns the
-  // conversation, so stop rather than raising a duplicate.
-  if (session.erxesApiConversationId) {
+  // the same callback already registered the call. That delivery owns the
+  // conversation, so stop rather than raising a duplicate — and never roll the
+  // row back below, because deleting it would destroy the winner's record.
+  const isOurs = session.startedAt?.getTime() === startedAt.getTime();
+
+  if (!isOurs || session.erxesApiConversationId) {
     return session;
   }
 
   try {
     const conversationId = await createCallConversation(
-      models,
       subdomain,
       integration,
       customer,
@@ -219,39 +221,47 @@ export const registerCallHangup = async (
     return;
   }
 
-  const session = await models.PlivoCallSessions.findOne({ callUuid });
-
-  if (!session) {
-    debugPlivo(`Hangup callback for unknown call ${callUuid}`);
-    return;
-  }
-
-  if (session.endedAt) {
-    debugPlivo(`Ignoring repeated hangup callback for call ${callUuid}`);
-    return;
-  }
-
   const duration = readNumber(params.Duration);
   const status = readFinalStatus(params.HangupCause, duration);
   const endedAt = new Date();
 
-  session.status = status;
-  session.duration = duration;
-  session.billDuration = readNumber(params.BillDuration);
-  session.totalCost = readNumber(params.TotalCost);
-  session.hangupCause = params.HangupCause;
-  session.endedAt = endedAt;
-  session.updatedAt = endedAt;
+  const answeredAtValue = params.AnswerTime
+    ? new Date(params.AnswerTime)
+    : undefined;
+  const answeredAt =
+    answeredAtValue && !Number.isNaN(answeredAtValue.getTime())
+      ? answeredAtValue
+      : undefined;
 
-  if (params.AnswerTime) {
-    const answeredAt = new Date(params.AnswerTime);
+  // A hangup can overtake the answer callback, which is still writing the row
+  // when this arrives. Claiming the outcome with a conditional update rather
+  // than a read-then-save means the last writer cannot lose it, and `endedAt`
+  // being unset is what makes a redelivered hangup a no-op.
+  const claimed = await models.PlivoCallSessions.findOneAndUpdate(
+    { callUuid, endedAt: { $exists: false } },
+    {
+      $set: {
+        status,
+        duration,
+        billDuration: readNumber(params.BillDuration),
+        totalCost: readNumber(params.TotalCost),
+        hangupCause: params.HangupCause,
+        endedAt,
+        updatedAt: endedAt,
+        ...(answeredAt ? { answeredAt } : {}),
+      },
+    },
+    { new: true },
+  );
 
-    if (!Number.isNaN(answeredAt.getTime())) {
-      session.answeredAt = answeredAt;
-    }
+  if (!claimed) {
+    // Either the call was never registered, or another delivery already
+    // recorded the outcome. Both are no-ops rather than errors.
+    debugPlivo(`No open Plivo call to hang up for ${callUuid}`);
+    return;
   }
 
-  await session.save();
+  const session = claimed;
 
   if (!session.erxesApiConversationId) {
     return;
@@ -271,32 +281,60 @@ export const registerCallHangup = async (
 /**
  * Stores the recording URL once Plivo has finished writing the file.
  *
- * Plivo deletes recordings 30 days after creation, so this URL has a finite
+ * Plivo stores recordings free for 90 days; past that they are billed or
+ * auto-deleted depending on an account setting, so this URL has a finite
  * life; nothing here treats it as permanent.
  */
 export const registerCallRecording = async (
   models: IModels,
   params: IPlivoCallbackParams,
 ): Promise<void> => {
-  const callUuid = params.CallUUID;
-
-  if (!callUuid || !params.RecordUrl) {
+  if (!params.RecordUrl) {
     return;
   }
 
+  // Plivo's documented parameter table for this callback lists RecordUrl,
+  // RecordingID and the timing fields but does NOT clearly list CallUUID.
+  // Keying on CallUUID alone would mean that if it is absent, every recording
+  // silently fails to attach and only a debug line records the loss. So the
+  // session is matched on whichever identifier actually arrived, preferring
+  // CallUUID when present.
+  const selector = params.CallUUID
+    ? { callUuid: params.CallUUID }
+    : params.RecordingID
+      ? { recordingUuid: params.RecordingID }
+      : undefined;
+
+  if (!selector) {
+    debugError(
+      `Recording callback carried neither CallUUID nor RecordingID; cannot attach ${params.RecordUrl}`,
+    );
+    return;
+  }
+
+  // Plivo reports `RecordingDuration` in MILLISECONDS — it ships alongside
+  // `RecordingStartMs`/`RecordingEndMs` — while every other duration on the
+  // session is in seconds. Storing it unconverted would render a 30 second
+  // recording as 30000.
+  const recordingMs = readNumber(params.RecordingDuration);
+  const recordingDuration =
+    recordingMs === undefined ? undefined : Math.round(recordingMs / 1000);
+
   const updated = await models.PlivoCallSessions.updateOne(
-    { callUuid },
+    selector,
     {
       $set: {
         recordUrl: params.RecordUrl,
         recordingUuid: params.RecordingID,
-        recordingDuration: readNumber(params.RecordingDuration),
+        recordingDuration,
         updatedAt: new Date(),
       },
     },
   );
 
   if (!updated.matchedCount) {
-    debugError(`Recording callback for unknown call ${callUuid}`);
+    debugError(
+      `Recording callback matched no call session (${JSON.stringify(selector)})`,
+    );
   }
 };

@@ -144,15 +144,19 @@ export const plivoUpdateIntegration = async (
 
   await verifyCredentials(authId, authToken);
 
+  // Only the fields this form owns are written. `config` is parsed from a
+  // caller-supplied JSON string, so spreading it whole would let an unexpected
+  // key — `erxesApiId` or `kind` — overwrite the identity of the integration.
   await models.PlivoIntegrations.updateOne(
     { erxesApiId: integrationId },
     {
       $set: {
-        ...config,
         authId,
         authToken,
         plivoPhoneNumber,
         defaultCountryCode,
+        appId: config.appId ?? integration.appId,
+        recordCalls: config.recordCalls ?? integration.recordCalls,
         // Credentials were just proven to work; clear any prior failure.
         healthStatus: 'healthy',
         error: '',
