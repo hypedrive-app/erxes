@@ -37,7 +37,7 @@ const getImageStyle = (value?: string): ImageStyle =>
     : 'normal';
 
 const getEditorMaxImageWidth = (
-  editor: FileBlockRenderProps['editor'],
+  editor: ImageRenderProps['editor'],
   imageStyle: ImageStyle,
 ) => {
   const editorWidth =
@@ -74,16 +74,22 @@ type ImageRenderProps = ReactCustomBlockRenderProps<
   DefaultStyleSchema
 >;
 
-type FileBlockWrapperProps = Parameters<typeof ResizableFileBlockWrapper>[0];
-type FileBlockRenderProps = Omit<
-  FileBlockWrapperProps,
-  'buttonText' | 'buttonIcon' | 'children'
->;
+// `ResizableFileBlockWrapper` declares its editor against the abstract
+// `FileBlockConfig`, whose block schema is an index signature
+// (`{ [k: string]: FileBlockConfig }`). A concretely keyed schema such as
+// `{ image: typeof customImageBlockConfig }` can never satisfy that
+// structurally, so the editor has to be re-stated at this boundary.
+type ResizableWrapperEditor = Parameters<
+  typeof ResizableFileBlockWrapper
+>[0]['editor'];
 
-const toFileBlockProps = (props: ImageRenderProps): FileBlockRenderProps =>
-  props as unknown as FileBlockRenderProps;
+const toWrapperEditor = (editor: ImageRenderProps['editor']) =>
+  editor as unknown as ResizableWrapperEditor;
 
-const CustomImagePreview: FC<FileBlockRenderProps> = ({ block, editor }) => {
+const CustomImagePreview: FC<Pick<ImageRenderProps, 'block' | 'editor'>> = ({
+  block,
+  editor,
+}) => {
   const { loadingState, downloadUrl } = useResolveUrl(block.props.url ?? '');
   const [imgLoaded, setImgLoaded] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -236,7 +242,6 @@ const ExternalImageHtml: FC<ImageRenderProps> = ({ block }) => {
 
 const CustomImageBlockContent: FC<ImageRenderProps> = (props) => {
   const loading = useUploadLoading(props.block.id);
-  const fileProps = toFileBlockProps(props);
   const imageStyle = getImageStyle(
     (props.block.props as { imageStyle?: string }).imageStyle,
   );
@@ -285,12 +290,12 @@ const CustomImageBlockContent: FC<ImageRenderProps> = (props) => {
 
   return (
     <ResizableFileBlockWrapper
-      block={fileProps.block}
-      editor={fileProps.editor}
+      block={props.block}
+      editor={toWrapperEditor(props.editor)}
       buttonText={props.editor.dictionary.file_blocks.image.add_button_text}
       buttonIcon={<IconPhoto size={24} />}
     >
-      <CustomImagePreview block={fileProps.block} editor={fileProps.editor} />
+      <CustomImagePreview block={props.block} editor={props.editor} />
     </ResizableFileBlockWrapper>
   );
 };

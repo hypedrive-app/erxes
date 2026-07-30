@@ -23,9 +23,9 @@ export const setAutomationVariableDragData = (
 };
 
 export const getAutomationVariableDragData = (
-  dataTransfer: DataTransfer,
+  dataTransfer: DataTransfer | null,
 ): TAutomationVariableDragPayload | null => {
-  const serialized = dataTransfer.getData(AUTOMATION_VARIABLE_DRAG_MIME);
+  const serialized = dataTransfer?.getData(AUTOMATION_VARIABLE_DRAG_MIME);
 
   if (!serialized) {
     return null;

@@ -158,7 +158,7 @@ const PhoneOptions = forwardRef<
   };
 
   const handleVerificationChange = (value: string) => {
-    onValidationStatusChange?.(value);
+    onValidationStatusChange?.(value as ValidationStatus);
   };
 
   const handleDeleteClick = () => {

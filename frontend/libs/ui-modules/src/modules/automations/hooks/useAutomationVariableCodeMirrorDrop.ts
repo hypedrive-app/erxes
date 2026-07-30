@@ -21,7 +21,9 @@ export const useAutomationVariableCodeMirrorDrop = ({
 
           event.preventDefault();
           event.stopPropagation();
-          event.dataTransfer.dropEffect = 'copy';
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'copy';
+          }
           setIsDragActive(true);
 
           return true;

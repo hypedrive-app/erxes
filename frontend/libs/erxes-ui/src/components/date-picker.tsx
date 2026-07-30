@@ -105,12 +105,6 @@ export const DatePicker = ({
       <Popover.Content className="w-auto p-0" align="start">
         <Calendar
           {...props}
-          disabled={(date: Date) =>
-            withPresent
-              ? date > new Date() || date < new Date('1900-01-01')
-              : Boolean(disabled)
-          }
-          mode={mode as any}
           disabled={(date: Date) => {
             if (withPresent) {
               return date > new Date() || date < new Date('1900-01-01');

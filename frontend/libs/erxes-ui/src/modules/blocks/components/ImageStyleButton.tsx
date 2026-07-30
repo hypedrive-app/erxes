@@ -9,16 +9,19 @@ import {
   IconArrowsMaximize,
   IconCheck,
   IconPhoto,
-  TablerIconsProps,
+  TablerIcon,
 } from '@tabler/icons-react';
+import type { BLOCK_SCHEMA } from '../constant/blockEditorSchema';
 import { IMAGE_STYLE_PRESETS, ImageStyle } from './CustomImageBlock';
 
-type IconComponent = (props: TablerIconsProps) => JSX.Element;
+// Type-only reference to the editor schema so the BlockNote hooks resolve the
+// custom block props (e.g. `imageStyle`) instead of the default schema.
+type BlockEditorSchema = typeof BLOCK_SCHEMA;
 
 const IMAGE_STYLE_OPTIONS: Array<{
   label: string;
   value: ImageStyle;
-  Icon: IconComponent;
+  Icon: TablerIcon;
 }> = [
   { label: 'Normal',      value: 'normal',      Icon: IconPhoto },
   { label: 'Wide',        value: 'wide',        Icon: IconArrowsMaximize },
@@ -37,7 +40,11 @@ type ImageBlock = {
 const ALL_STYLES: ImageStyle[] = ['normal', 'wide', 'float-left', 'float-right'];
 
 export const ImageStyleButton = () => {
-  const editor = useBlockNoteEditor();
+  const editor = useBlockNoteEditor<
+    BlockEditorSchema['blockSchema'],
+    BlockEditorSchema['inlineContentSchema'],
+    BlockEditorSchema['styleSchema']
+  >();
   const Components = useComponentsContext();
   const selectedBlocks = useSelectedBlocks(editor);
   const selectedBlock =

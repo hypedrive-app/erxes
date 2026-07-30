@@ -1,7 +1,6 @@
 import {
   DefaultInlineContentSchema,
   DefaultStyleSchema,
-  BlockNoteEditor,
 } from '@blocknote/core';
 import {
   createReactBlockSpec,
@@ -29,7 +28,8 @@ const galleryBlockConfig = {
     },
   },
   content: 'none' as const,
-  isFileBlock: false,
+  // `CustomBlockConfig` requires the literal `false`, not a widened `boolean`.
+  isFileBlock: false as const,
 };
 
 type GalleryRenderProps = ReactCustomBlockRenderProps<
@@ -53,11 +53,11 @@ const GalleryBlockContent: FC<GalleryRenderProps> = ({ block, editor }) => {
 
   const images = parseImages(block.props.images);
   const columns = Math.max(2, Math.min(4, parseInt(block.props.columns) || 3));
-  const readonly = !(editor as BlockNoteEditor).isEditable;
-  const canUpload = !!(editor as BlockNoteEditor).uploadFile;
+  const readonly = !editor.isEditable;
+  const canUpload = !!editor.uploadFile;
 
   const updateBlock = (patch: Partial<typeof block.props>) => {
-    (editor as BlockNoteEditor).updateBlock(block, { props: patch });
+    editor.updateBlock(block, { props: patch });
   };
 
   const handleFiles = async (files: FileList | null) => {
@@ -66,7 +66,7 @@ const GalleryBlockContent: FC<GalleryRenderProps> = ({ block, editor }) => {
     try {
       const uploaded = await Promise.all(
         Array.from(files).map((f) =>
-          (editor as BlockNoteEditor).uploadFile!(f).then((url) => ({ url })),
+          editor.uploadFile!(f).then((url) => ({ url })),
         ),
       );
       updateBlock({ images: JSON.stringify([...images, ...uploaded]) });

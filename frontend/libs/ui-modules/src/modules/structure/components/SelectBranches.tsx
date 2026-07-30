@@ -26,6 +26,14 @@ import {
   SelectBranchCreateContainer,
 } from './CreateBranchForm';
 
+const getBranchIds = (value?: string[] | string) => {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
+};
+
 const cacheSelectedBranch = (
   branch: IBranch | undefined,
   selectedBranchIds: string[],
@@ -226,7 +234,7 @@ export const BranchesList = ({
   const { value, selectedBranches, setSelectedBranches, onSelect } =
     useSelectBranchesContext();
 
-  const selectedBranchIds = Array.isArray(value) ? value : [value];
+  const selectedBranchIds = getBranchIds(value);
 
   if (!value?.length) {
     return <Combobox.Value placeholder={placeholder || ''} />;

@@ -21,11 +21,17 @@ export const AutomationRemoteEntryWrapper = <
 }) => {
   const { componentType } = props;
 
+  // `T` is still unresolved inside this component, and TS cannot spread an
+  // unresolved generic into JSX. Resolving the lookup to the union of every
+  // remote entry's props keeps the check meaningful while staying assignable;
+  // the caller-facing generic signature above is unaffected.
   const RemoteEntryComponent = remoteEntries[componentType] as
-    | React.ComponentType<AutomationRemoteEntryTypes[T]>
+    | React.ComponentType<
+        AutomationRemoteEntryTypes[AutomationRemoteEntryComponentType]
+      >
     | undefined;
 
   if (!RemoteEntryComponent) return null;
 
-  return <RemoteEntryComponent {...(props as AutomationRemoteEntryTypes[T])} />;
+  return <RemoteEntryComponent {...props} />;
 };

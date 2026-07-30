@@ -100,10 +100,24 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
+// Recharts does not re-export `ValueType`/`NameType`/`Payload` from its package
+// root, so derive them from the exported `DefaultTooltipContentProps`.
+type ChartValueType = number | string | Array<number | string>;
+type ChartNameType = number | string;
+type ChartTooltipProps = RechartsPrimitive.DefaultTooltipContentProps<
+  ChartValueType,
+  ChartNameType
+>;
+
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-    React.ComponentProps<'div'> & {
+  RechartsPrimitive.TooltipProps<ChartValueType, ChartNameType> &
+    // Recharts v3 reads `active`, `payload` and `label` from chart context and
+    // injects them into custom tooltip content, so they are absent from
+    // `TooltipProps` and must be declared here.
+    Pick<ChartTooltipProps, 'label' | 'payload'> & {
+      active?: boolean;
+    } & React.ComponentProps<'div'> & {
       hideLabel?: boolean;
       hideIndicator?: boolean;
       indicator?: 'line' | 'dot' | 'dashed';
@@ -190,7 +204,7 @@ const ChartTooltipContent = React.forwardRef<
 
             return (
               <div
-                key={item.dataKey}
+                key={item.dataKey?.toString()}
                 className={cn(
                   'flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground',
                   indicator === 'dot' && 'items-center',
@@ -259,7 +273,10 @@ const ChartLegend = RechartsPrimitive.Legend;
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<'div'> &
-    Pick<RechartsPrimitive.LegendProps, 'payload' | 'verticalAlign'> & {
+    Pick<RechartsPrimitive.LegendProps, 'verticalAlign'> & {
+      // Recharts v3 omits `payload` from `LegendProps` (it is supplied by the
+      // chart to custom legend content), so it is declared explicitly here.
+      payload?: ReadonlyArray<RechartsPrimitive.LegendPayload>;
       hideIcon?: boolean;
       nameKey?: string;
     }

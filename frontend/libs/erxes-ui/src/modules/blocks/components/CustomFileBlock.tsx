@@ -20,14 +20,14 @@ type FileRenderProps = ReactCustomBlockRenderProps<
   DefaultStyleSchema
 >;
 
-type FileBlockWrapperProps = Parameters<typeof FileBlockWrapper>[0];
-type FileWrapperRenderProps = Omit<
-  FileBlockWrapperProps,
-  'buttonText' | 'buttonIcon' | 'children'
->;
+// `FileBlockWrapper` declares its editor against the abstract `FileBlockConfig`,
+// whose block schema is an index signature (`{ [k: string]: FileBlockConfig }`).
+// A concretely keyed schema such as `{ file: typeof fileBlockConfig }` can never
+// satisfy that structurally, so the editor has to be re-stated at this boundary.
+type FileWrapperEditor = Parameters<typeof FileBlockWrapper>[0]['editor'];
 
-const toFileWrapperProps = (props: FileRenderProps): FileWrapperRenderProps =>
-  props;
+const toWrapperEditor = (editor: FileRenderProps['editor']) =>
+  editor as unknown as FileWrapperEditor;
 
 const CustomFilePreview: FC<Pick<FileRenderProps, 'block'>> = ({ block }) => {
   const url = readImage(block.props.url, undefined, true);
@@ -56,7 +56,6 @@ const CustomFilePreview: FC<Pick<FileRenderProps, 'block'>> = ({ block }) => {
 
 const CustomFileBlockContent: FC<FileRenderProps> = (props) => {
   const loading = useUploadLoading(props.block.id);
-  const wrapperProps = toFileWrapperProps(props);
 
   if (loading) {
     return (
@@ -71,7 +70,8 @@ const CustomFileBlockContent: FC<FileRenderProps> = (props) => {
 
   return (
     <FileBlockWrapper
-      {...wrapperProps}
+      block={props.block}
+      editor={toWrapperEditor(props.editor)}
       buttonText={props.editor.dictionary.file_blocks.file.add_button_text}
       buttonIcon={<IconFile size={24} />}
     >

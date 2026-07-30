@@ -29,6 +29,14 @@ import {
   SelectDepartmentsCreateContainer,
 } from './CreateDepartmentForm';
 
+const getDepartmentIds = (value?: string[] | string) => {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
+};
+
 const cacheSelectedDepartment = (
   department: IDepartment | undefined,
   selectedDepartmentIds: string[],
@@ -234,7 +242,7 @@ export const DepartmentsList = ({
   const { value, selectedDepartments, setSelectedDepartments, onSelect } =
     useSelectDepartmentsContext();
 
-  const selectedDepartmentIds = Array.isArray(value) ? value : [value];
+  const selectedDepartmentIds = getDepartmentIds(value);
 
   if (!value?.length) {
     return <Combobox.Value placeholder={placeholder || ''} />;
