@@ -1,8 +1,16 @@
+import { randomBytes } from 'crypto';
 import { normalizePhone } from 'erxes-api-shared/utils';
 import { generateModels } from '~/connectionResolvers';
-import { getPlivoAccount } from '@/integrations/plivo/utils';
+import {
+  createPlivoEndpoint,
+  findPlivoEndpointByAlias,
+  getPlivoAccount,
+} from '@/integrations/plivo/utils';
 import { debugError } from '@/integrations/plivo/debuggers';
-import { IPlivoIntegration } from '@/integrations/plivo/@types';
+import {
+  IPlivoEndpoint,
+  IPlivoIntegration,
+} from '@/integrations/plivo/@types';
 
 interface IPlivoIntegrationConfig {
   authId?: string;
@@ -239,22 +247,82 @@ export const plivoRemoveIntegration = async (
 };
 
 /**
- * Deterministic SIP endpoint username for one agent on one integration.
+ * Stable identity of the SIP endpoint belonging to one agent on one
+ * integration.
  *
- * Deterministic rather than stored so a token can be minted without
- * provisioning state, and scoped by integration so an agent working two numbers
- * registers twice instead of having one registration steal the other's calls.
+ * This is the endpoint's ALIAS, not its username. Plivo appends a 12-digit
+ * number to whatever username it is given, so a username cannot be derived and
+ * relied upon — but the alias is stored verbatim, which makes it the only field
+ * that can identify an endpoint we provisioned earlier.
  *
- * Plivo endpoint usernames allow only letters, digits and underscores, so both
- * ids are stripped to that set; they are erxes random ids, which are already
- * alphanumeric, and the prefix keeps the name valid if an id ever starts with a
- * digit.
+ * Scoped by integration so an agent working two numbers gets two endpoints
+ * rather than one registration stealing the other's calls. Aliases allow
+ * letters, digits, hyphens and underscores.
+ * https://www.plivo.com/docs/voice/api/endpoints
  */
-export const buildPlivoEndpointUsername = (
+export const buildPlivoEndpointAlias = (
   integrationId: string,
   userId: string,
 ): string => {
   const safe = (value: string) => value.replace(/[^a-zA-Z0-9]/g, '');
 
   return `erxes_${safe(integrationId)}_${safe(userId)}`;
+};
+
+/**
+ * The username requested when creating an endpoint.
+ *
+ * Plivo requires alphanumeric only, 1-25 characters, starting with a letter,
+ * and then appends a 12-digit number of its own — so this only has to be a
+ * valid, collision-tolerant stem. The agent's id is truncated to keep the
+ * requested name inside the limit; uniqueness comes from Plivo's suffix, and
+ * the alias is what we match on afterwards.
+ */
+export const buildPlivoEndpointUsernameStem = (userId: string): string =>
+  `erxes${userId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)}`;
+
+/**
+ * Returns the SIP endpoint for one agent, creating it the first time.
+ *
+ * A JWT alone does not make a browser reachable: `<Dial><User>` can only ring a
+ * SIP endpoint that exists, and registration fails without one. The endpoint is
+ * therefore provisioned on demand and looked up by alias on every later call,
+ * because Plivo's generated username is not derivable.
+ *
+ * The generated password is never stored or returned — the browser authenticates
+ * with the access token, so the password only has to exist to satisfy the API.
+ */
+export const ensurePlivoEndpoint = async ({
+  authId,
+  authToken,
+  integrationId,
+  userId,
+  appId,
+}: {
+  authId: string;
+  authToken: string;
+  integrationId: string;
+  userId: string;
+  appId?: string;
+}): Promise<IPlivoEndpoint> => {
+  const alias = buildPlivoEndpointAlias(integrationId, userId);
+
+  const existing = await findPlivoEndpointByAlias({
+    authId,
+    authToken,
+    alias,
+  });
+
+  if (existing?.username) {
+    return existing;
+  }
+
+  return await createPlivoEndpoint({
+    authId,
+    authToken,
+    username: buildPlivoEndpointUsernameStem(userId),
+    password: randomBytes(24).toString('hex'),
+    alias,
+    appId,
+  });
 };

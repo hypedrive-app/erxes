@@ -16,7 +16,7 @@ const IndexPage = () => {
   const [isTopicDrawerOpen, setIsTopicDrawerOpen] = useState(false);
   const [isArticleDrawerOpen, setIsArticleDrawerOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState<any>(undefined);
-  const [editingArticle, setEditingArticle] = useState<any>(null);
+  const [editingArticle, setEditingArticle] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const { topics, refetch } = useTopics();
   const [removeTopic] = useMutation(REMOVE_TOPIC);
@@ -152,7 +152,7 @@ const IndexPage = () => {
       />
 
       <ArticleDrawer
-        article={editingArticle}
+        articleId={editingArticle}
         categoryId={categoryId}
         isOpen={isArticleDrawerOpen}
         onClose={handleCloseArticleDrawer}

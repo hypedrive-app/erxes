@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { IconPlus } from '@tabler/icons-react';
-import { Button, Form, Input, Sheet } from 'erxes-ui';
+import { Button, Form, Input, Sheet, Spinner } from 'erxes-ui';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
@@ -261,6 +261,7 @@ export const WhatsappIntegrationDetail = () => {
                   </Button>
                 </Sheet.Close>
                 <Button type="submit" disabled={loading}>
+                  {loading && <Spinner size="sm" />}
                   {t('save')}
                 </Button>
               </Sheet.Footer>

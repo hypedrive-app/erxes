@@ -92,10 +92,9 @@ const defaultDependencies: IRehostDependencies = {
 /**
  * Copies a Plivo recording into erxes storage and returns its storage key.
  *
- * Plivo keeps recordings free for 90 days, after which the account is either
- * billed to retain them or Plivo deletes them, depending on a console setting —
- * so the URL Plivo reports is not a durable reference and the audio has to be
- * re-hosted the way the Grandstream integration already does.
+ * Plivo stores recordings free for the first 90 days and bills for storage after
+ * that, so the audio is re-hosted the way the Grandstream integration already
+ * does rather than leaving erxes dependent on Plivo's copy.
  *
  * Recording URLs are unguessable and public by default, but an account can turn
  * on Basic auth for them. The credentials are therefore sent whenever the

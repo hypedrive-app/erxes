@@ -223,7 +223,10 @@ export const registerCallHangup = async (
   }
 
   const duration = readNumber(params.Duration);
-  const status = readFinalStatus(params.HangupCause, duration);
+  // Plivo names the reason `HangupCause` on some flows and `HangupCauseName` on
+  // others; whichever arrived is the one to classify on.
+  const hangupCause = params.HangupCause || params.HangupCauseName;
+  const status = readFinalStatus(hangupCause, duration);
   const endedAt = new Date();
 
   const answeredAtValue = params.AnswerTime
@@ -246,7 +249,7 @@ export const registerCallHangup = async (
         duration,
         billDuration: readNumber(params.BillDuration),
         totalCost: readNumber(params.TotalCost),
-        hangupCause: params.HangupCause,
+        hangupCause,
         endedAt,
         updatedAt: endedAt,
         ...(answeredAt ? { answeredAt } : {}),
@@ -282,18 +285,16 @@ export const registerCallHangup = async (
 /**
  * Stores the recording once Plivo has finished writing the file.
  *
- * Plivo keeps recordings free for 90 days, after which the account is billed to
- * retain them or Plivo deletes them, depending on a console setting — so the URL
- * it reports is not durable. The file is therefore copied into erxes storage and
- * the resulting key is what the player reads, matching what the Grandstream
- * integration already does.
+ * Plivo stores recordings free for 90 days and bills for storage after that, so
+ * the file is copied into erxes storage and the resulting key is what the player
+ * reads, matching what the Grandstream integration already does.
  *
  * The download runs inside this call, which the recording webhook only reaches
  * AFTER it has acknowledged Plivo with a 200, so a slow copy cannot make Plivo
  * redeliver the callback.
  *
  * The provider URL is always stored too, and is used as `recordUrl` when the
- * copy fails: a recording that expires in 90 days is worth more than none.
+ * copy fails: a recording still hosted by Plivo is worth more than none.
  */
 export const registerCallRecording = async (
   models: IModels,
@@ -324,13 +325,20 @@ export const registerCallRecording = async (
     return;
   }
 
-  // Plivo reports `RecordingDuration` in MILLISECONDS — it ships alongside
-  // `RecordingStartMs`/`RecordingEndMs` — while every other duration on the
-  // session is in seconds. Storing it unconverted would render a 30 second
-  // recording as 30000.
-  const recordingMs = readNumber(params.RecordingDuration);
+  // `RecordingDuration` is already in SECONDS, matching every other duration on
+  // the session; the millisecond value is a separate `RecordingDurationMs`
+  // parameter that ships alongside `RecordingStartMs`/`RecordingEndMs`. It is
+  // used as the fallback so a callback that only carries the millisecond form
+  // still records a duration.
+  // https://www.plivo.com/docs/voice/xml/record
+  const recordingSeconds = readNumber(params.RecordingDuration);
+  const recordingMs = readNumber(params.RecordingDurationMs);
   const recordingDuration =
-    recordingMs === undefined ? undefined : Math.round(recordingMs / 1000);
+    recordingSeconds !== undefined
+      ? recordingSeconds
+      : recordingMs === undefined
+        ? undefined
+        : Math.round(recordingMs / 1000);
 
   const { storageKey } = await rehostPlivoRecording({
     subdomain,

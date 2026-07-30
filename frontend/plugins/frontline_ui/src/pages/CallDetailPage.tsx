@@ -371,10 +371,7 @@ export const CallDetailCard = ({
   );
 };
 
-type WaitingCall = {
-  callerid: string;
-  callerchannel: string;
-};
+type WaitingCall = ICallQueueRealtimeSnapshot['waiting'][number];
 
 export const useWaitingColumns = (): ColumnDef<WaitingCall>[] => {
   const { t } = useTranslation('frontline');
@@ -433,11 +430,7 @@ export const CallDetailWaiting = ({
   );
 };
 
-type TalkingCall = {
-  callerid: string;
-  calleeid?: string;
-  bridge_time?: Date;
-};
+type TalkingCall = ICallQueueRealtimeSnapshot['talking'][number];
 
 export const useTalkingColumns = (): ColumnDef<TalkingCall>[] => {
   const { t } = useTranslation('frontline');

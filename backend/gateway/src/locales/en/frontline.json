@@ -1237,5 +1237,12 @@
   "ringtone-blocked": "Ringtone is muted by the browser. Click anywhere on the page to enable sound.",
   "mic-permission-denied": "Microphone access is blocked. Allow microphone access in your browser settings.",
   "hold": "Hold",
-  "unhold": "Resume"
+  "unhold": "Resume",
+  "plivo-call-ended": "Call ended",
+  "plivo-delete-digit": "Delete digit",
+  "plivo-number-to-dial": "Number to dial",
+  "whatsapp-template-required": "Select a template",
+  "whatsapp-template-variable-required": "Required",
+  "whatsapp-template-header-incomplete": "Fill every header variable",
+  "whatsapp-template-body-incomplete": "Fill every message variable"
 }

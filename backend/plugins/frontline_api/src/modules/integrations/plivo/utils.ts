@@ -8,7 +8,12 @@ import {
   debugError,
   debugExternalRequests,
 } from '@/integrations/plivo/debuggers';
-import { IPlivoOutboundCallResponse } from '@/integrations/plivo/@types';
+import {
+  IPlivoEndpoint,
+  IPlivoEndpointCreateResponse,
+  IPlivoEndpointListResponse,
+  IPlivoOutboundCallResponse,
+} from '@/integrations/plivo/@types';
 
 /**
  * A failed Plivo REST call, carrying the HTTP status so callers can tell an
@@ -352,6 +357,94 @@ export const hangupPlivoCall = async ({
 
     throw e;
   }
+};
+
+/**
+ * Creates a SIP endpoint.
+ *
+ * A browser client can only register — and only be reached by
+ * `<Dial><User>` — when an endpoint exists, so one has to be provisioned before
+ * an access token for it is worth minting.
+ *
+ * Plivo APPENDS a 12-digit number to the username it is given, so the name that
+ * actually registers is the one in the response, never the one requested. The
+ * requested part must be alphanumeric, 1-25 characters, and start with a letter.
+ * https://www.plivo.com/docs/voice/api/endpoints
+ *
+ * @returns the endpoint as Plivo created it, with its real username
+ */
+export const createPlivoEndpoint = async ({
+  authId,
+  authToken,
+  username,
+  password,
+  alias,
+  appId,
+}: {
+  authId: string;
+  authToken: string;
+  username: string;
+  password: string;
+  alias: string;
+  appId?: string;
+}): Promise<IPlivoEndpoint> => {
+  const body: Record<string, unknown> = { username, password, alias };
+
+  if (appId) {
+    body.app_id = appId;
+  }
+
+  const response = await plivoRequest<IPlivoEndpointCreateResponse>({
+    authId,
+    authToken,
+    method: 'POST',
+    path: '/Endpoint/',
+    body,
+  });
+
+  return {
+    endpointId: response.endpoint_id || '',
+    username: response.username || username,
+    alias: response.alias || alias,
+  };
+};
+
+/**
+ * Finds an existing endpoint by its alias.
+ *
+ * The alias is the only field we control that survives creation unchanged —
+ * Plivo rewrites the username — so it is what identifies an endpoint we already
+ * provisioned for a given agent and integration.
+ */
+export const findPlivoEndpointByAlias = async ({
+  authId,
+  authToken,
+  alias,
+}: {
+  authId: string;
+  authToken: string;
+  alias: string;
+}): Promise<IPlivoEndpoint | null> => {
+  const response = await plivoRequest<IPlivoEndpointListResponse>({
+    authId,
+    authToken,
+    method: 'GET',
+    path: '/Endpoint/',
+  });
+
+  const match = (response.objects || []).find(
+    (endpoint) => endpoint.alias === alias,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    endpointId: match.endpoint_id || '',
+    username: match.username || '',
+    alias: match.alias || alias,
+  };
 };
 
 /**

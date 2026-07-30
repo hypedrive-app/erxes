@@ -11,6 +11,7 @@ import {
   IconMessageFilled,
   IconMessageReply,
   IconPhone,
+  IconPhoneCall,
   IconPlugConnected,
   IconTrash,
   IconUsers,
@@ -63,6 +64,11 @@ const PROVIDER_META: Record<
   [IntegrationType.WHATSAPP_MESSENGER]: {
     label: 'WhatsApp',
     Icon: WhatsAppIcon,
+  },
+  [IntegrationType.PLIVO_CALL]: {
+    label: 'Plivo',
+    Icon: IconPhoneCall,
+    iconClass: 'text-blue-600',
   },
   [IntegrationType.CALL]: {
     label: 'Call',

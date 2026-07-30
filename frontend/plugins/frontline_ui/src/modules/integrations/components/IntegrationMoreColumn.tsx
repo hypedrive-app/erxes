@@ -9,6 +9,7 @@ import { FacebookIntegrationRepair } from '../facebook/components/FacebookIntegr
 import { InstagramIntegrationRepair } from '../instagram/components/InstagramIntegrationRepair';
 import { DiscordIntegrationRepair } from '../discord/components/DiscordIntegrationActions';
 import { WhatsappIntegrationRepair } from '../whatsapp/components/WhatsappIntegrationActions';
+import { PlivoIntegrationRepair } from '../plivo/components/PlivoIntegrationActions';
 import { EMInstallScript } from '../erxes-messenger/components/EMInstallScript';
 import { lazy, Suspense } from 'react';
 
@@ -58,6 +59,12 @@ const WhatsappIntegrationActions = lazy(() =>
   })),
 );
 
+const PlivoIntegrationActions = lazy(() =>
+  import('../plivo/components/PlivoIntegrationActions').then((module) => ({
+    default: module.PlivoIntegrationActions,
+  })),
+);
+
 export const IntegrationMoreColumnCell = ({
   cell,
 }: {
@@ -99,6 +106,9 @@ export const IntegrationMoreColumnCell = ({
                 {integrationType === IntegrationType.WHATSAPP_MESSENGER && (
                   <WhatsappIntegrationActions cell={cell} />
                 )}
+                {integrationType === IntegrationType.PLIVO_CALL && (
+                  <PlivoIntegrationActions cell={cell} />
+                )}
               </Suspense>
             </Command.Item>
             {integrationType === IntegrationType.ERXES_MESSENGER && (
@@ -126,6 +136,11 @@ export const IntegrationMoreColumnCell = ({
             {integrationType === IntegrationType.WHATSAPP_MESSENGER ? (
               <Command.Item value="repair">
                 <WhatsappIntegrationRepair cell={cell} />
+              </Command.Item>
+            ) : null}
+            {integrationType === IntegrationType.PLIVO_CALL ? (
+              <Command.Item value="repair">
+                <PlivoIntegrationRepair cell={cell} />
               </Command.Item>
             ) : null}
             <Command.Item value="archive">

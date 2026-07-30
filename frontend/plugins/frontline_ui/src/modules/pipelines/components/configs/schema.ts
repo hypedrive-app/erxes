@@ -13,6 +13,9 @@ export const PIPELINE_CONFIG_SCHEMA = z.object({
   pipelineId: z.string().min(1, 'Pipeline is required'),
   selectedStatusId: z.string().min(1, 'Status is required'),
   parentId: z.string().optional(),
+  contactType: z.enum(['customer', 'company']).optional(),
+  customer: z.string().optional(),
+  company: z.string().optional(),
   formFields: z
     .object({
       name: ticketFormFieldsSchema.optional().nullable(),

@@ -1237,5 +1237,12 @@
   "ringtone-blocked": "Хөтөч дуут дохиог хаасан байна. Дууг идэвхжүүлэхийн тулд хуудсан дээр дарна уу.",
   "mic-permission-denied": "Микрофоны зөвшөөрөл хаалттай байна. Хөтчийн тохиргооноос микрофон ашиглахыг зөвшөөрнө үү.",
   "hold": "Хүлээлгэх",
-  "unhold": "Үргэлжлүүлэх"
+  "unhold": "Үргэлжлүүлэх",
+  "plivo-call-ended": "Дуудлага дууслаа",
+  "plivo-delete-digit": "Цифр устгах",
+  "plivo-number-to-dial": "Залгах дугаар",
+  "whatsapp-template-required": "Загвар сонгоно уу",
+  "whatsapp-template-variable-required": "Заавал бөглөнө",
+  "whatsapp-template-header-incomplete": "Гарчгийн бүх хувьсагчийг бөглөнө үү",
+  "whatsapp-template-body-incomplete": "Мессежийн бүх хувьсагчийг бөглөнө үү"
 }

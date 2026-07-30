@@ -13,6 +13,7 @@ import {
 } from 'erxes-ui';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { SelectBrands } from 'ui-modules';
 import { z } from 'zod';
@@ -44,6 +45,7 @@ const WhatsappIntegrationEditForm = ({
   id: string;
   setOpen: (open: boolean) => void;
 }) => {
+  const { t } = useTranslation('frontline');
   const { loading, integrationDetail } = useIntegrationDetail({
     integrationId: id,
   });
@@ -73,7 +75,7 @@ const WhatsappIntegrationEditForm = ({
       },
       onCompleted: () => {
         setOpen(false);
-        toast({ title: 'Integration updated' });
+        toast({ title: t('integration-updated') });
       },
       onError: (error: { message: string }) => {
         toast({ title: error.message, variant: 'destructive' });
@@ -97,7 +99,7 @@ const WhatsappIntegrationEditForm = ({
               name="name"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label>Name</Form.Label>
+                  <Form.Label>{t('name')}</Form.Label>
                   <Form.Control>
                     <Input {...field} />
                   </Form.Control>
@@ -109,7 +111,7 @@ const WhatsappIntegrationEditForm = ({
               name="brandId"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label>Brand</Form.Label>
+                  <Form.Label>{t('brand')}</Form.Label>
                   <SelectBrands.FormItem
                     value={field.value}
                     onValueChange={field.onChange}
@@ -123,11 +125,12 @@ const WhatsappIntegrationEditForm = ({
           <Dialog.Footer className="flex justify-end py-4 px-6">
             <Dialog.Close asChild>
               <Button disabled={loading || editLoading} variant="ghost">
-                Close
+                {t('close')}
               </Button>
             </Dialog.Close>
             <Button type="submit" disabled={loading || editLoading}>
-              Save
+              {editLoading && <Spinner size="sm" />}
+              {t('save')}
             </Button>
           </Dialog.Footer>
         </form>
@@ -142,6 +145,7 @@ export const WhatsappIntegrationActions = ({
 }: {
   cell: CellContext<IIntegrationDetail, unknown>;
 }) => {
+  const { t } = useTranslation('frontline');
   const [open, setOpen] = useState(false);
 
   return (
@@ -149,7 +153,7 @@ export const WhatsappIntegrationActions = ({
       <Dialog.Trigger asChild>
         <div className="flex items-center gap-2 w-full">
           <IconEdit size={16} />
-          Edit
+          {t('edit')}
         </div>
       </Dialog.Trigger>
       <Dialog.Content className="p-0 gap-0 border-0 shadow-lg">
@@ -168,6 +172,7 @@ export const WhatsappIntegrationRepair = ({
 }: {
   cell: CellContext<IIntegrationDetail, unknown>;
 }) => {
+  const { t } = useTranslation('frontline');
   const { integrationType } = useParams();
   const [repairIntegration, { loading }] = useMutation(
     WHATSAPP_REPAIR_INTEGRATION,
@@ -179,7 +184,7 @@ export const WhatsappIntegrationRepair = ({
 
     repairIntegration({
       variables: { _id: cell.row.original._id, kind: integrationType },
-      onCompleted: () => toast({ title: 'Repaired successfully' }),
+      onCompleted: () => toast({ title: t('repaired-successfully') }),
       onError: (error) =>
         toast({ title: error.message, variant: 'destructive' }),
     });
@@ -203,7 +208,7 @@ export const WhatsappIntegrationRepair = ({
       ) : (
         <IconTool size={16} />
       )}
-      Repair
+      {t('repair')}
     </div>
   );
 };

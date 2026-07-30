@@ -9,4 +9,5 @@ export enum IntegrationType {
   INSTAGRAM_POST = 'instagram-post',
   DISCORD_MESSENGER = 'discord-messenger',
   WHATSAPP_MESSENGER = 'whatsapp-messenger',
+  PLIVO_CALL = 'plivo-call',
 }

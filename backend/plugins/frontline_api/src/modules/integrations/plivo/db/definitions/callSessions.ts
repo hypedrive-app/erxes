@@ -65,11 +65,10 @@ export const callSessionSchema = new Schema({
 
   // What the player reads: an erxes storage key once the recording has been
   // re-hosted, or Plivo's own URL when re-hosting failed. The frontend accepts
-  // either, so the fallback still plays until the provider deletes the file.
+  // either, so the fallback still plays from Plivo's copy.
   recordUrl: { type: String, label: 'Recording URL', optional: true },
-  // Plivo stores recordings free for 90 days; past that they are billed or
-  // auto-deleted depending on an account setting, so this URL expires. It is
-  // kept alongside the durable copy so a failed re-host can be retried by hand.
+  // Plivo stores recordings free for 90 days and bills for storage after that.
+  // It is kept alongside the durable copy so a failed re-host can be retried.
   providerRecordUrl: {
     type: String,
     label: 'Recording URL as Plivo reported it',

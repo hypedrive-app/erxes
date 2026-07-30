@@ -29,26 +29,32 @@ import {
  * two non-empty values, and Meta rejects any other count outright.
  */
 const TEMPLATE_FORM_SCHEMA = z.object({
-  templateId: z.string().min(1, 'Select a template'),
+  templateId: z.string(),
   headerValues: z.array(z.string()),
   bodyValues: z.array(z.string()),
 });
 
 type WhatsappTemplateFormValues = z.infer<typeof TEMPLATE_FORM_SCHEMA>;
 
-const buildSchema = (template: IWhatsappTemplate | undefined) => {
+/** Messages are injected so the resolver can be built with translated copy. */
+const buildSchema = (
+  template: IWhatsappTemplate | undefined,
+  messages: {
+    template: string;
+    required: string;
+    header: string;
+    body: string;
+  },
+) => {
   const headerCount = getHeaderPlaceholders(template).length;
   const bodyCount = getBodyPlaceholders(template).length;
 
-  const required = (message: string) => z.string().trim().min(1, message);
+  const required = z.string().trim().min(1, messages.required);
 
   return TEMPLATE_FORM_SCHEMA.extend({
-    headerValues: z
-      .array(required('Required'))
-      .length(headerCount, 'Fill every header variable'),
-    bodyValues: z
-      .array(required('Required'))
-      .length(bodyCount, 'Fill every message variable'),
+    templateId: z.string().min(1, messages.template),
+    headerValues: z.array(required).length(headerCount, messages.header),
+    bodyValues: z.array(required).length(bodyCount, messages.body),
   });
 };
 
@@ -65,7 +71,14 @@ export const WhatsappTemplatePicker = () => {
     resolver: (values, context, options) => {
       const selected = templates.find((item) => item.id === values.templateId);
 
-      return zodResolver(buildSchema(selected))(values, context, options);
+      return zodResolver(
+        buildSchema(selected, {
+          template: t('whatsapp-template-required'),
+          required: t('whatsapp-template-variable-required'),
+          header: t('whatsapp-template-header-incomplete'),
+          body: t('whatsapp-template-body-incomplete'),
+        }),
+      )(values, context, options);
     },
   });
 
@@ -259,7 +272,7 @@ export const WhatsappTemplatePicker = () => {
         )}
 
         <Button type="submit" disabled={sending || !selectedTemplate}>
-          <IconSend />
+          {sending ? <Spinner size="sm" /> : <IconSend />}
           {t('whatsapp-template-send')}
         </Button>
       </form>

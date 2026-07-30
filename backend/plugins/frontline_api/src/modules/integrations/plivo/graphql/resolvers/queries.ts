@@ -3,7 +3,7 @@ import {
   generatePlivoAccessToken,
   IPlivoAccessToken,
 } from '@/integrations/plivo/accessToken';
-import { buildPlivoEndpointUsername } from '@/integrations/plivo/helpers';
+import { ensurePlivoEndpoint } from '@/integrations/plivo/helpers';
 
 export const plivoQueries = {
   /**
@@ -43,14 +43,25 @@ export const plivoQueries = {
       );
     }
 
-    // One endpoint per agent per integration: two browsers sharing a username
-    // would race for the same registration and only the last one would ring.
-    const username = buildPlivoEndpointUsername(integrationId, user._id);
+    // A token on its own does not make the browser reachable — `<Dial><User>`
+    // can only ring a SIP endpoint that exists — so one is provisioned before
+    // the token is minted. One endpoint per agent per integration: two browsers
+    // sharing a username would race for the same registration and only the last
+    // one would ring.
+    const endpoint = await ensurePlivoEndpoint({
+      authId,
+      authToken,
+      integrationId,
+      userId: user._id,
+      appId,
+    });
 
+    // Plivo appends a 12-digit number to the requested username, so the token's
+    // `sub` and the SIP URI must both use the name Plivo actually assigned.
     const accessToken = generatePlivoAccessToken({
       authId,
       authToken,
-      username,
+      username: endpoint.username,
       appId,
     });
 
