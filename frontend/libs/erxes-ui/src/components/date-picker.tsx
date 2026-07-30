@@ -78,10 +78,6 @@ export const DatePicker = ({
       }
     }
 
-    onChange && onChange(selectedDate);
-    if (mode === 'single') {
-      setIsOpen(false);
-    }
     onChange?.(selectedDate);
   };
 

@@ -77,7 +77,8 @@
       "cache": true
     },
     "@nx/js:tsc": {
-      "cache": true
+      "cache": true,
+      "dependsOn": ["^build"]
     },
     "@nx/rspack:rspack": {
       "dependsOn": ["^build"],
