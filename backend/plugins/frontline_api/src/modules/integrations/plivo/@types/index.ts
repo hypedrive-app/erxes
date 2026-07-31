@@ -9,6 +9,10 @@ export interface IPlivoIntegration {
   appId?: string;
   defaultCountryCode?: string;
   recordCalls?: boolean;
+  /** E.164 number an inbound call is bridged to; empty means announce only. */
+  forwardToNumber?: string;
+  /** Seconds to ring the agent before giving up. */
+  forwardTimeout?: number;
   healthStatus?: string;
   error?: string;
 }

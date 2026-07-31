@@ -279,11 +279,39 @@ const buildAnswerXml = (
   }
 
   if (direction === 'inbound') {
-    // No agent leg is bridged from here yet, so the caller is told what is
-    // happening rather than left listening to silence.
-    elements.push(
-      '<Speak>Please hold while we connect you to an agent.</Speak>',
+    const agent = normalizePhone(
+      integration.forwardToNumber,
+      integration.defaultCountryCode,
     );
+
+    if (agent) {
+      // Bridge the caller to the agent's handset. `callerId` stays the Plivo
+      // number rather than the caller's: an Indian mobile will not display an
+      // arbitrary spoofed CLI, and Plivo rejects a callerId the account does
+      // not own, which would fail the whole call.
+      //
+      // `<Dial>` blocks until the leg ends, so anything after it only runs when
+      // the agent did not pick up — which is where the voicemail-style message
+      // belongs.
+      elements.push(
+        `<Dial timeout="${
+          integration.forwardTimeout || 30
+        }" callerId="${escapeXml(
+          integration.plivoPhoneNumber.replace(/^\+/, ''),
+        )}">` +
+          `<Number>${escapeXml(agent.replace(/^\+/, ''))}</Number>` +
+          `</Dial>`,
+      );
+      elements.push(
+        '<Speak>Sorry, nobody is available right now. Please try again later.</Speak>',
+      );
+    } else {
+      // No agent configured. The caller is told what is happening rather than
+      // left listening to silence until the carrier drops the line.
+      elements.push(
+        '<Speak>Please hold while we connect you to an agent.</Speak>',
+      );
+    }
   } else {
     // An outbound call's answer XML drives the leg that was just picked up. A
     // `<Response>` carrying no verb makes Plivo hang up immediately, so the

@@ -51,6 +51,26 @@ export const integrationSchema = new Schema({
     optional: true,
   },
 
+  // Where an inbound call is actually bridged. Without it the caller hears the
+  // hold prompt and then nothing — the call is logged but nobody is rung, which
+  // reads as a dropped call to whoever dialled in.
+  //
+  // A plain phone number in E.164 (agents answer on their handset). Left empty,
+  // the previous announce-only behaviour is kept rather than failing the call.
+  forwardToNumber: {
+    type: String,
+    label: 'Forward inbound calls to this number (E.164)',
+    optional: true,
+  },
+
+  // How long to ring the agent before giving up, in seconds. Plivo's own
+  // default is 30, which is short for a mobile that may be in a pocket.
+  forwardTimeout: {
+    type: Number,
+    label: 'Seconds to ring the agent before giving up',
+    optional: true,
+  },
+
   healthStatus: String,
   error: String,
 });
