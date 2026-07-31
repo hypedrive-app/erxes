@@ -57,12 +57,19 @@ export const plivoCreateIntegrations = async ({ subdomain, data }) => {
   }
 };
 
+/**
+ * `doc` is the envelope `sendUpdateIntegration` builds, not the config itself —
+ * the JSON string the update expects is `doc.data`. Passing `doc` straight
+ * through reached `parseConfig` as an object and failed every update with
+ * `Invalid payload format: "[object Object]" is not valid JSON`, so a Plivo
+ * integration's routing settings could not be changed once it existed.
+ */
 export const plivoUpdateIntegrations = async ({
   subdomain,
   data: { integrationId, doc },
 }): Promise<{ status: string; errorMessage?: string }> => {
   try {
-    return await plivoUpdateIntegration(subdomain, integrationId, doc);
+    return await plivoUpdateIntegration(subdomain, integrationId, doc?.data);
   } catch (e) {
     return {
       status: 'error',

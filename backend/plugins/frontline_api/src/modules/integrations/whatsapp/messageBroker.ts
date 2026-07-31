@@ -50,12 +50,19 @@ export const whatsappCreateIntegrations = async ({ subdomain, data }) => {
   }
 };
 
+/**
+ * `doc` is the envelope `sendUpdateIntegration` builds, not the config itself —
+ * the JSON string the update expects is `doc.data`. Passing `doc` straight
+ * through reached `parseConfig` as an object and failed every update with
+ * `Invalid payload format: "[object Object]" is not valid JSON`, which is how a
+ * WhatsApp integration became uneditable once created.
+ */
 export const whatsappUpdateIntegrations = async ({
   subdomain,
   data: { integrationId, doc },
 }): Promise<{ status: string; errorMessage?: string }> => {
   try {
-    return await whatsappUpdateIntegration(subdomain, integrationId, doc);
+    return await whatsappUpdateIntegration(subdomain, integrationId, doc?.data);
   } catch (e) {
     return {
       status: 'error',
