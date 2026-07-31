@@ -1286,5 +1286,10 @@
   "plivo-call-missed": "Аваагүй",
   "plivo-call-busy": "Завгүй",
   "plivo-call-failed-status": "Амжилтгүй",
-  "plivo-call-in-progress": "Үргэлжилж байна"
+  "plivo-call-in-progress": "Үргэлжилж байна",
+  "plivo-not-registered": "Хөтчийн утас холбогдоогүй байна. Асаагаад дахин оролдоно уу.",
+  "plivo-cannot-call-offline": "Хөтчийн утас офлайн байна",
+  "plivo-cannot-call-busy": "Дуудлага аль хэдийн үргэлжилж байна",
+  "plivo-cannot-call-empty": "Залгах дугаараа оруулна уу",
+  "plivo-cannot-call-invalid": "Энэ дугаар буруу байна"
 }

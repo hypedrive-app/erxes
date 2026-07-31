@@ -1286,5 +1286,10 @@
   "plivo-call-missed": "Missed",
   "plivo-call-busy": "Busy",
   "plivo-call-failed-status": "Failed",
-  "plivo-call-in-progress": "In progress"
+  "plivo-call-in-progress": "In progress",
+  "plivo-not-registered": "The browser phone is not connected. Turn it on and try again.",
+  "plivo-cannot-call-offline": "Browser phone is offline",
+  "plivo-cannot-call-busy": "A call is already in progress",
+  "plivo-cannot-call-empty": "Enter a number to call",
+  "plivo-cannot-call-invalid": "This number is not valid"
 }

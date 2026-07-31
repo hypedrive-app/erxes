@@ -307,10 +307,35 @@ services:
   # Embeds Apollo Router v1.59.2 as a child process and composes the supergraph
   # with rover at boot. Runs as root, which it needs: it writes router.yaml /
   # supergraph.graphql into dist/src/apollo-router/temp and downloads plugin
-  # subscription bundles into dist/src/subscription/plugins/downloads — both
-  # inside a tree the Dockerfile copied with --chmod=0555.
+  # subscription bundles into dist/src/subscription/plugins/downloads. (The
+  # sibling Dockerfile copies that tree --chmod=0555 and relies on root to
+  # write it anyway; Dockerfile.build below copies it writable instead, but
+  # still runs as root because both paths must create directories.)
   gateway:
-    image: erxes/erxes-next-gateway:${ERXES_VERSION}
+    # Built from source, NOT `image: erxes/erxes-next-gateway:${ERXES_VERSION}`.
+    # That published image is UPSTREAM's build, and the gateway is the process
+    # that serves GET /locales/:lng/:file — src/util/locales.ts readLocalLocale
+    # reads `path.join(__dirname, '../locales')` off THIS container's own disk,
+    # so every translated string the whole UI renders comes out of this image.
+    # Our fork's backend/gateway/src/locales/en/frontline.json has 1288 keys
+    # including "plivo-softphone": "Browser phone"; the pulled 3.0.61 image has
+    # 1173 and lacks that key entirely — verified by running it:
+    #   docker run --rm erxes/erxes-next-gateway:3.0.61 node -e \
+    #     "console.log(Object.keys(require('/app/backend/gateway/dist/src/locales/en/frontline.json')).length)"
+    #   -> 1173
+    # so the softphone launcher's accessible label rendered as the raw key
+    # `plivo-softphone` in production (i18next echoes the key when the bundle
+    # has no entry, which is why it surfaced as literal text, not an error).
+    # Same class of bug as core-api's PLUGIN_CDN_URL above — see that note.
+    #
+    # Dockerfile.build, NOT the sibling Dockerfile. Unlike core-api's and
+    # frontline's siblings, this one CAN compile from a clean checkout, but it
+    # COPYs a curated file list (the nx inference-plugin trap), omits
+    # NX_SOCKET_DIR, and runs a bare `pnpm install` instead of
+    # --frozen-lockfile. See the header of backend/gateway/Dockerfile.build.
+    build:
+      context: ..
+      dockerfile: backend/gateway/Dockerfile.build
     depends_on:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}

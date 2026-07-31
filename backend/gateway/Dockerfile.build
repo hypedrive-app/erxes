@@ -1,0 +1,316 @@
+# gateway — self-contained build from a CLEAN GIT CHECKOUT.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHY THIS FILE EXISTS ALONGSIDE ./Dockerfile
+# ─────────────────────────────────────────────────────────────────────────────
+# Unlike backend/core-api/Dockerfile and backend/plugins/frontline_api/
+# Dockerfile — both PACKAGING-ONLY recipes that COPY a gitignored, prebuilt
+# dist/ — the sibling `Dockerfile` here DOES compile from source, so it is not
+# broken on a clean checkout the way those two are. This file is therefore NOT
+# fixing a "cannot build" problem. It exists for a different reason:
+#
+#   1. It COPYs a CURATED SUBSET of the tree:
+#        package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
+#        nx.json backend/gateway backend/erxes-api-shared
+#      That is exactly the trap documented at length in
+#      backend/core-api/Dockerfile.build and
+#      backend/plugins/frontline_api/Dockerfile.build: nx.json registers the
+#      @nx/eslint and @nx/jest inference plugins, which load the ROOT
+#      eslint.config.js, jest.config.ts and jest.preset.js while crawling the
+#      project graph. Omitting them yields the generic, cause-free
+#        NX  Failed to process project graph. Run "nx reset" to fix this.
+#      The curated list happens to survive today only because the gateway's
+#      build target shells out to `pnpm build` (plain tsc) rather than leaning
+#      on the graph the way the other two do — one nx.json edit away from
+#      breaking. `COPY . .` removes the whole failure class.
+#
+#   2. It sets NX_DAEMON=false but NOT NX_SOCKET_DIR. See the long note on that
+#      ENV below — NX_DAEMON=false alone is NOT sufficient.
+#
+#   3. It runs a bare `pnpm install`, so a stale pnpm-lock.yaml resolves
+#      different versions than were tested instead of failing the deploy.
+#
+# This file is ADDITIVE rather than a rewrite of `Dockerfile` because that file
+# is what `project.json`'s `docker-build` target (dependsOn: ["build"]) invokes.
+# Two recipes, two audiences. It mirrors backend/core-api/Dockerfile.build and
+# backend/plugins/frontline_api/Dockerfile.build — read those too; the three are
+# meant to stay in sync.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHY THE DEPLOY NEEDS THIS AT ALL
+# ─────────────────────────────────────────────────────────────────────────────
+# deploy/docker-compose.yml used to pull erxes/erxes-next-gateway:<tag>, which
+# is UPSTREAM's build of UPSTREAM's code. The gateway is the process that serves
+#   GET /locales/:lng/:file
+# (main.ts -> src/util/locales.ts readLocalLocale, which reads
+# `path.join(__dirname, '../locales')` off its OWN disk), so every translation
+# string the whole UI renders comes out of THIS image's dist/src/locales. Our
+# fork's backend/gateway/src/locales/en/frontline.json carries 1288 keys
+# including "plivo-softphone": "Browser phone"; the published 3.0.61 image
+# carries 1173 and does not have that key at all — verified by running it:
+#   docker run --rm erxes/erxes-next-gateway:3.0.61 \
+#     node -e "console.log(Object.keys(require('/app/backend/gateway/dist/src/locales/en/frontline.json')).length)"
+#   -> 1173
+# so the softphone launcher's aria-label rendered as the raw i18n key
+# `plivo-softphone` in production. i18next falls back to echoing the key when
+# the bundle has no entry for it, which is why this surfaced as literal text
+# rather than an error. Building from source is the only way our locales — and
+# any other gateway-side change — reach the runtime.
+#
+# NOTE ON BUILD ASSETS: the locales need NO `assets` entry in project.json.
+# tsconfig.json has `resolveJsonModule: true` and `include: ["src/**/*.ts",
+# "src/**/*.tsx", "src/**/*.json"]`, so `tsc -p tsconfig.build.json` emits
+# src/locales/**/*.json to dist/src/locales/**/*.json itself. Verified with
+# `tsc --listEmittedFiles`:
+#   TSFILE: .../backend/gateway/dist/src/locales/en/frontline.json
+# copy-files.js only handles apollo-router/{dummy,rhai}, which tsc does NOT
+# emit because they are .graphql/.yaml/.rhai rather than .json. The assertion
+# below pins both facts so a future tsconfig `include` edit fails the build
+# instead of silently shipping an untranslated UI again.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHY THIS ONE IS NOT ON ALPINE
+# ─────────────────────────────────────────────────────────────────────────────
+# The two sibling Dockerfile.build recipes use node:22-alpine3.22. This one must
+# stay on node:22-bookworm (glibc), because the gateway embeds Apollo Router as
+# a CHILD PROCESS (src/apollo-router/index.ts spawns dist/src/apollo-router/
+# temp/router) and that binary is dynamically linked against glibc:
+#   $ ldd .../temp/router
+#     libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+#     /lib64/ld-linux-x86-64.so.2
+# router.apollo.dev publishes no musl build, so on alpine the download succeeds
+# and the spawn then dies at runtime with a bare "no such file or directory"
+# from the missing interpreter — a failure that appears only after deploy.
+# Same reason the platform is pinned linux/amd64: that download URL is
+# arch-specific.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD CONTEXT IS THE REPO ROOT
+# ─────────────────────────────────────────────────────────────────────────────
+#   docker build -f backend/gateway/Dockerfile.build .
+# Nx, the pnpm workspace, and tsconfig.base.json path aliases all resolve from
+# the root, so the whole monorepo has to be in context.
+#
+# The runtime stage below is deliberately the same LAYOUT the sibling Dockerfile
+# produces (flattened node_modules + a hand-assembled node_modules/
+# erxes-api-shared + dist at /app/backend/gateway/dist, WORKDIR on that dist),
+# so the two images are drop-in interchangeable and `CMD node src/main.js` is
+# unchanged.
+
+# ── Stage 1: compile the workspace ───────────────────────────────────────────
+FROM --platform=linux/amd64 node:22-bookworm AS build
+WORKDIR /app
+
+# Nx's daemon adds no value in a single-shot container build and is a known
+# source of flaky "project graph" races; disable it outright.
+#
+# NX_SOCKET_DIR is NOT redundant with NX_DAEMON=false. Nx asserts every IPC
+# socket path is <= 95 chars (daemon/socket-utils.js assertValidSocketPath) and
+# derives the default from a hash under $TMPDIR. pnpm's virtual store produces
+# paths like
+#   /app/node_modules/.pnpm/nx@20.4.0_@swc-node+register@1.9.2_@swc+core@1.5.29_...
+# and the assertion blows up with
+#   Error: Attempted to open socket that exceeds the maximum socket length.
+# Two of the three callers — getForkedProcessOsSocketPath and, critically,
+# getPluginOsSocketPath — are on the PLUGIN-WORKER path, which nx.json's four
+# inference plugins (@nx/eslint, @nx/jest, @nx/webpack, @nx/storybook) exercise
+# while building the project graph EVEN WITH THE DAEMON OFF. The thrown error is
+# then reported as the generic, cause-free
+#   NX  Failed to process project graph. Run "nx reset" to fix this.
+# Pinning a short dir removes the whole failure class. Upstream: nrwl/nx#27725,
+# nrwl/nx#31280.
+ENV NX_DAEMON=false \
+    NX_SOCKET_DIR=/tmp/nx-sock \
+    NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
+    CI=true
+
+RUN npm install -g pnpm@9
+
+# Full dev install: the build needs typescript, tsc-alias, preconstruct and the
+# Nx toolchain, none of which survive a --prod install. This whole stage is
+# discarded — only the compiled dist/ is carried forward.
+#
+# COPY THE WHOLE TREE, not a curated subset — see point 1 in the header.
+# .dockerignore already strips node_modules/dist/.git/.nx, which is what made
+# the curated list tempting in the first place.
+COPY . .
+
+# --frozen-lockfile: a deploy must fail loudly on a stale pnpm-lock.yaml rather
+# than silently resolving different versions than were tested. This is the one
+# behavioural difference from the sibling Dockerfile's bare `pnpm install`.
+RUN pnpm install --frozen-lockfile
+
+# erxes-api-shared FIRST and as its own layer. The gateway's build only
+# type-checks against it via tsconfig paths, so Nx's `dependsOn: ["^build"]`
+# has historically been able to interleave the two; forcing the order here
+# removes that race from the deploy path entirely.
+RUN pnpm nx build erxes-api-shared
+
+# build:packageJson BEFORE build, matching project.json's
+# `"build": { "dependsOn": ["^build", "build:packageJson"] }`. It runs the
+# @nx/js:tsc executor to write dist/package.json with the workspace deps
+# resolved to real versions; `pnpm build` (tsc + tsc-alias + copy-files.js)
+# then emits the compiled sources over the top.
+RUN pnpm nx build:packageJson gateway \
+    && pnpm nx build gateway
+
+# Fail loudly HERE rather than shipping an image that boots into an
+# untranslated UI — the exact bug this file exists to fix, and one that is
+# invisible until a human looks at a rendered page.
+#
+# The locale assertion is the important one: main.ts's GET /locales/:lng/:file
+# reads these files off disk at request time, so if tsc ever stops emitting
+# them (a tsconfig `include` edit would do it) the gateway still starts, still
+# answers /health, and silently serves raw i18n keys to every user. The key
+# count is asserted as a FLOOR, not an equality, so adding translations does not
+# break the build while a regression to upstream's 1173 does.
+RUN test -f backend/gateway/dist/src/main.js \
+    && node -e "\
+const locale = require('/app/backend/gateway/dist/src/locales/en/frontline.json'); \
+const count = Object.keys(locale).length; \
+if (!('plivo-softphone' in locale)) { \
+  throw new Error('locale assets missing our keys: plivo-softphone absent'); \
+} \
+if (count < 1288) { \
+  throw new Error('frontline.json has ' + count + ' keys, expected >= 1288'); \
+} \
+console.log('gateway build OK — frontline.json ' + count + ' keys'); \
+"
+
+# ── Stage 2: production dependency tree, flattened ───────────────────────────
+# Identical technique to the sibling Dockerfile and to the two other
+# Dockerfile.build recipes: synthesise a single-package manifest that unions the
+# shared library's deps with the service's own, drop the `workspace:^`
+# self-reference, and --shamefully-hoist so node's plain CommonJS resolver can
+# walk a real flat node_modules with no pnpm symlink store in the runtime image.
+FROM --platform=linux/amd64 node:22-bookworm AS installer
+WORKDIR /app
+RUN npm install -g pnpm@9
+
+COPY pnpm-lock.yaml ./
+COPY backend/gateway/package.json backend/gateway/
+COPY backend/erxes-api-shared/package.json backend/erxes-api-shared/
+RUN node -e "\
+const fs = require('fs'); \
+const shared = require('./backend/erxes-api-shared/package.json'); \
+const service = require('./backend/gateway/package.json'); \
+const dependencies = { \
+  ...(shared.dependencies || {}), \
+  ...(service.dependencies || {}), \
+}; \
+delete dependencies['erxes-api-shared']; \
+fs.writeFileSync( \
+  'package.json', \
+  JSON.stringify( \
+    { name: 'runtime-deps', version: '1.0.0', private: true, dependencies }, \
+    null, \
+    2, \
+  ), \
+); \
+" \
+    && pnpm install --prod --shamefully-hoist --no-frozen-lockfile \
+    && find node_modules -type f \( \
+         -name "*.d.ts" -o -name "*.map" -o -name "*.md" \
+         -o -name "LICENSE*" -o -name "LICENCE*" \
+         -o -name "CHANGELOG*" -o -name "README*" \
+         -o -name "CONTRIBUTING*" -o -name "AUTHORS*" \
+         -o -name ".npmignore" -o -name ".eslintrc*" -o -name "Makefile" \
+       \) -delete \
+    && find node_modules -mindepth 2 -maxdepth 3 -type d \( \
+         -name "test" -o -name "tests" -o -name "__tests__" -o -name "spec" \
+         -o -name "docs" -o -name "doc" -o -name "examples" -o -name "example" \
+         -o -name ".github" -o -name "coverage" \
+       \) -prune -exec rm -rf {} \; 2>/dev/null || true
+
+# ── Stage 3: minimal runtime ─────────────────────────────────────────────────
+FROM --platform=linux/amd64 node:22-bookworm
+WORKDIR /app
+
+# curl fetches the Apollo Router tarball below; ca-certificates makes that TLS
+# fetch (and the gateway's own outbound fetch() to plugin /locales endpoints in
+# util/locales.ts fetchPluginLocale) verify.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=installer /app/node_modules ./node_modules
+
+# The flat install above may have pulled a REGISTRY copy of erxes-api-shared
+# (the name is published). Replace it wholesale with the workspace build so the
+# gateway cannot silently link against a stale published version.
+RUN rm -rf ./node_modules/erxes-api-shared
+COPY --from=build /app/backend/erxes-api-shared/dist ./node_modules/erxes-api-shared/dist
+COPY --from=build /app/backend/erxes-api-shared/utils ./node_modules/erxes-api-shared/utils
+COPY --from=build /app/backend/erxes-api-shared/core-types ./node_modules/erxes-api-shared/core-types
+COPY --from=build /app/backend/erxes-api-shared/core-modules ./node_modules/erxes-api-shared/core-modules
+COPY --from=build /app/backend/erxes-api-shared/package.json ./node_modules/erxes-api-shared/
+
+# Carries dist/src/locales/**/*.json — the whole point of this file — plus
+# dist/src/apollo-router/{dummy,rhai} that copy-files.js placed there.
+#
+# NOT copied with --chmod=0555, unlike the sibling Dockerfile. The gateway
+# WRITES into this tree at runtime: apollo-router/paths.ts mkdirs
+# dist/src/apollo-router/temp and index.ts writes router.yaml +
+# supergraph.graphql into it, and subscription/plugins/downloadPlugins.ts
+# writes into dist/src/subscription/plugins/downloads. The sibling only gets
+# away with 0555 because it runs as root, and root ignores the write bit on
+# files — but not on directories it must create entries in. Copying writable
+# and staying root keeps both paths working with no chmod dance.
+COPY --from=build /app/backend/gateway/dist ./backend/gateway/dist
+
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+# Rover composes the supergraph at BOOT (apollo-router/supergraph-compose.ts
+# shells out to `rover supergraph compose`), so it must be on PATH in the
+# runtime image, not just the build stage.
+#
+# The `rover supergraph compose` against dummy/supergraph.yaml is a WARM-UP, not
+# a no-op: @apollo/rover ships a stub that lazily downloads the real binary plus
+# an ELv2-licensed composition plugin on first use. Doing it here means the
+# gateway's first boot does not race a network fetch while the compose it
+# actually needs is already in flight.
+#
+# Router version is pinned to v1.59.2 to match what the published image ships;
+# `curl | sh` unpacks ./router into the cwd, which is why the cd is into the
+# temp dir paths.ts will later resolve.
+RUN npm install -g pnpm@9 \
+    && pnpm add -g @apollo/rover@0.22.0 \
+    && pnpm cache clean \
+    && rover supergraph compose \
+      --config /app/backend/gateway/dist/src/apollo-router/dummy/supergraph.yaml \
+      --elv2-license=accept \
+    && mkdir -p /app/backend/gateway/dist/src/apollo-router/temp \
+    && cd /app/backend/gateway/dist/src/apollo-router/temp \
+    && curl -sSL https://router.apollo.dev/download/nix/v1.59.2 | sh \
+    && test -x /app/backend/gateway/dist/src/apollo-router/temp/router
+
+WORKDIR /app/backend/gateway/dist
+
+ENV NODE_ENV=production
+
+# Runs as ROOT, deliberately — the two sibling recipes drop to USER 1000 but
+# this one cannot. See the COPY note above: the gateway creates and writes
+# apollo-router/temp and subscription/plugins/downloads inside its own dist
+# tree at boot. deploy/docker-compose.yml documents the same constraint.
+
+# ── HEALTHCHECK ──────────────────────────────────────────────────────────────
+# Written the same way as the two sibling Dockerfile.build recipes'. main.ts
+# serves GET /health from the same express app it hands to http.createServer,
+# and httpServer.listen() is what opens the port — and critically, listen()
+# happens only AFTER retryGetProxyTargets(), initMQWorkers() and startRouter()
+# have all resolved. So a 200 here means the Apollo Router child process is up
+# and every subgraph in ENABLED_PLUGINS answered introspection: a genuine
+# readiness signal, not a liveness ping.
+#
+# Uses `node` rather than curl: consistent with the siblings and independent of
+# the apt layer above. A non-2xx status exits 1 so Docker sees "unhealthy"
+# instead of a false pass.
+#
+# start-period 180s is deliberately generous — first boot composes the
+# supergraph with rover and blocks on service discovery for every plugin on a
+# cold, memory-limited box.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=180s --retries=12 \
+  CMD ["node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||4000)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+
+CMD ["node", "src/main.js"]
