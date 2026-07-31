@@ -126,10 +126,11 @@ const readHeader = (req, name: string): string | undefined => {
  */
 const isVerifiedCallback = (
   req,
+  subdomain: string,
   integration: IPlivoIntegrationDocument,
   params: IPlivoCallbackParams,
 ): boolean => {
-  const uri = buildCallbackUrl(req);
+  const uri = buildCallbackUrl(req, subdomain);
   const nonce = readHeader(req, PLIVO_NONCE_HEADER);
   const signatureParams = toSignatureParams(params);
 
@@ -233,6 +234,7 @@ const resolveVerifiedIntegration = async (
   models: IModels,
   req,
   res,
+  subdomain: string,
   params: IPlivoCallbackParams,
   onUnresolved: () => void,
 ): Promise<IResolvedPlivoCallback | null> => {
@@ -281,9 +283,16 @@ const resolveVerifiedIntegration = async (
     return null;
   }
 
-  if (!isVerifiedCallback(req, integration, params)) {
-    debugError(
-      `Rejected Plivo callback with invalid signature for ${integration.plivoPhoneNumber}`,
+  if (!isVerifiedCallback(req, subdomain, integration, params)) {
+    // Logged at error level rather than through a `debug` namespace: a rejected
+    // callback silently kills a live call, and `debug` writes nothing unless the
+    // DEBUG env var happens to enable this namespace — which is how this failure
+    // stayed invisible in production. The reconstructed URI is included because a
+    // mismatch against the registered answer_url is the usual cause.
+    console.error(
+      `[plivo] Rejected callback with invalid signature for ${
+        integration.plivoPhoneNumber
+      }; verified against ${buildCallbackUrl(req, subdomain)}`,
     );
     // Not a Plivo request at all, so there is no call waiting on XML — a bare
     // 403 is the right answer on every one of these webhooks.
@@ -372,6 +381,7 @@ export const plivoAnswerWebhook = async (req, res, next) => {
       models,
       req,
       res,
+      subdomain,
       params,
       // The call is live and waiting on XML. Anything else — including the bare
       // 200 Express sends as the body `OK` — is what Plivo reports as
@@ -407,7 +417,13 @@ export const plivoAnswerWebhook = async (req, res, next) => {
 
     return sendAnswerXml(
       res,
-      await buildAnswerXml(req, integration, params, Boolean(credential)),
+      await buildAnswerXml(
+        req,
+        subdomain,
+        integration,
+        params,
+        Boolean(credential),
+      ),
     );
   } catch (e) {
     next(e);
@@ -423,8 +439,12 @@ export const plivoAnswerWebhook = async (req, res, next) => {
  * answer webhook, which re-registers the call and replies with XML the other
  * handlers never expect.
  */
-const buildSiblingCallbackUrl = (req, route: string): string => {
-  const [path] = buildCallbackUrl(req).split('?');
+const buildSiblingCallbackUrl = (
+  req,
+  subdomain: string,
+  route: string,
+): string => {
+  const [path] = buildCallbackUrl(req, subdomain).split('?');
 
   return path.replace(/\/answer$/, route);
 };
@@ -474,13 +494,14 @@ const buildAgentDialElement = (
  */
 const buildVoicemailElements = (
   req,
+  subdomain: string,
   integration: IPlivoIntegrationDocument,
 ): string[] => [
   `<Speak>${escapeXml(
     integration.voicemailGreeting || PLIVO_DEFAULT_VOICEMAIL_GREETING,
   )}</Speak>`,
   `<Record action="${escapeXml(
-    buildSiblingCallbackUrl(req, '/voicemail'),
+    buildSiblingCallbackUrl(req, subdomain, '/voicemail'),
   )}" method="POST" maxLength="${
     integration.voicemailMaxLength || PLIVO_DEFAULT_VOICEMAIL_MAX_SECONDS
   }" timeout="${PLIVO_VOICEMAIL_SILENCE_TIMEOUT_SECONDS}" playBeep="true" finishOnKey="#" />`,
@@ -508,6 +529,7 @@ const buildVoicemailElements = (
  */
 const buildAnswerXml = async (
   req,
+  subdomain: string,
   integration: IPlivoIntegrationDocument,
   params: IPlivoCallbackParams,
   isFromSoftphone: boolean,
@@ -523,7 +545,7 @@ const buildAnswerXml = async (
   if (integration.recordCalls) {
     elements.push(
       `<Record action="${escapeXml(
-        buildSiblingCallbackUrl(req, '/recording'),
+        buildSiblingCallbackUrl(req, subdomain, '/recording'),
       )}" method="POST" redirect="false" maxLength="3600" recordSession="true" />`,
     );
   }
@@ -576,14 +598,14 @@ const buildAnswerXml = async (
           : '<Speak>Please hold while we connect you to an agent.</Speak>',
       );
     } else if (canReachSomeone) {
-      elements.push(...buildVoicemailElements(req, integration));
+      elements.push(...buildVoicemailElements(req, subdomain, integration));
     } else {
       // Nothing at all is configured and no agent is online. Announce-only is
       // kept rather than failing the call, but the caller is still offered a
       // voicemail so the contact is not lost.
       elements.push(
         '<Speak>Please hold while we connect you to an agent.</Speak>',
-        ...buildVoicemailElements(req, integration),
+        ...buildVoicemailElements(req, subdomain, integration),
       );
     }
   } else if (isFromSoftphone) {
@@ -646,6 +668,7 @@ export const plivoHangupWebhook = async (req, res, next) => {
       models,
       req,
       res,
+      subdomain,
       params,
       // A status callback, not a call waiting on XML: a bare 200 is exactly the
       // right ack and stops Plivo retrying something we cannot place.
@@ -691,6 +714,7 @@ export const plivoVoicemailWebhook = async (req, res, next) => {
       models,
       req,
       res,
+      subdomain,
       params,
       // A status callback, not a call waiting on XML: a bare 200 is exactly the
       // right ack and stops Plivo retrying something we cannot place.
@@ -733,6 +757,7 @@ export const plivoRecordingWebhook = async (req, res, next) => {
       models,
       req,
       res,
+      subdomain,
       params,
       // A status callback, not a call waiting on XML: a bare 200 is exactly the
       // right ack and stops Plivo retrying something we cannot place.

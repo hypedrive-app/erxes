@@ -245,6 +245,16 @@ services:
       # nothing is listening on. Keep them in lockstep.
       PORT: "3304"
       DOMAIN: https://${ERXES_UI_DOMAIN}
+      # ── PLIVO_CALLBACK_PUBLIC_URL: the origin Plivo is told to call ──────
+      # Plivo signs its callbacks over the URL it was REGISTERED with, and we
+      # verify by rebuilding that URL — so the two must be the same string or
+      # every callback 403s and the call dies with "Error Reaching Answer URL".
+      #
+      # DOMAIN cannot serve here: it is the UI origin (see the CORS note on the
+      # gateway), which answers 405 on the webhook paths. The webhooks are
+      # reached through the gateway on the API origin, under the plugin's
+      # `/pl:frontline` mount, and that prefix is part of what Plivo signs.
+      PLIVO_CALLBACK_PUBLIC_URL: https://${ERXES_API_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
       REDIS_HOST: redis
       REDIS_PORT: "6379"

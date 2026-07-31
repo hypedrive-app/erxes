@@ -6,6 +6,20 @@
 export const PLIVO_API_BASE_URL = 'https://api.plivo.com/v1';
 
 /**
+ * Public path the Plivo webhooks are reachable on, below the API host.
+ *
+ * The gateway mounts every plugin under `/pl:<service>` and rewrites that prefix
+ * away before proxying, so the plugin's own router sees a bare `/plivo/...` and
+ * the request carries no trace of the prefix. Plivo, however, signs the URL it
+ * was configured with — the one INCLUDING this prefix — so the public shape has
+ * to be stated here rather than read back off the request.
+ *
+ * The colon is a literal path character and is deliberately NOT percent-encoded:
+ * it is what Plivo has registered, and `%3A` would produce a different digest.
+ */
+export const PLIVO_CALLBACK_MOUNT_PATH = '/pl:frontline/plivo';
+
+/**
  * Header carrying the V3 signature for a sub-account request.
  * https://www.plivo.com/docs/voice/concepts/signature-validation
  */

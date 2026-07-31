@@ -1,31 +1,7 @@
-import { getEnv, normalizePhone } from 'erxes-api-shared/utils';
+import { normalizePhone } from 'erxes-api-shared/utils';
 import { IModels } from '~/connectionResolvers';
+import { getPlivoCallbackBaseUrl } from '@/integrations/plivo/callbackUrl';
 import { createPlivoCall, hangupPlivoCall } from '@/integrations/plivo/utils';
-
-/**
- * Base URL Plivo calls back on.
- *
- * It has to be the address Plivo can reach from the public internet, and it
- * must match what the signature is computed over — the digest covers the full
- * URL, so a value that disagrees with the deployed hostname makes every
- * callback fail verification rather than fail loudly here.
- */
-const getCallbackBaseUrl = (subdomain: string): string => {
-  const domain = getEnv({ name: 'DOMAIN', subdomain, defaultValue: '' });
-
-  if (!domain) {
-    throw new Error(
-      'DOMAIN must be configured so Plivo can reach the call webhooks',
-    );
-  }
-
-  // The gateway prefix is only present in a deployed stack; outside production
-  // the plugin is addressed directly. Mirrors the instagram module.
-  const prefix =
-    process.env.NODE_ENV === 'production' ? '/gateway/pl:frontline' : '/pl:frontline';
-
-  return `${domain.replace(/\/$/, '')}${prefix}/plivo`;
-};
 
 /**
  * Places an outbound call from the inbox.
@@ -52,7 +28,7 @@ export const handlePlivoCall = async (
     throw new Error(`Cannot call an unusable number: ${to}`);
   }
 
-  const baseUrl = getCallbackBaseUrl(subdomain);
+  const baseUrl = getPlivoCallbackBaseUrl(subdomain);
 
   const requestUuid = await createPlivoCall({
     authId: integration.authId,

@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import { getPlivoCallbackBaseUrl } from '@/integrations/plivo/callbackUrl';
 import {
   PLIVO_API_BASE_URL,
   PLIVO_DEFAULT_RING_TIMEOUT_SECONDS,
@@ -214,32 +215,42 @@ export const validatePlivoSignature = (
 /**
  * Reconstructs the URL Plivo signed.
  *
- * The digest covers the URL as PLIVO requested it, so the values behind a proxy
- * matter: `x-forwarded-proto` and `x-forwarded-host` are preferred over the
- * socket's own view, which behind TLS termination would always read `http` and
- * never match. The query string is included because it is part of the URL for
- * GET callbacks.
+ * The digest covers the URL as PLIVO requested it, which is the address
+ * registered on the application — NOT the address this process was reached on.
+ * The two differ in a deployed stack: the gateway proxies
+ * `/pl:frontline/plivo/answer` after rewriting the path down to `/plivo/answer`,
+ * and forwards neither the stripped prefix nor `x-forwarded-host`. Rebuilding
+ * the URL from the request therefore yields `https://<internal-host>/plivo/answer`,
+ * whose digest cannot match, and every genuine callback is rejected as a forgery.
+ *
+ * So the public base is taken from configuration — the very value registered
+ * with Plivo — and only the webhook's own sub-path and query string are taken
+ * from the request. The query string is included because it is part of the URL
+ * for GET callbacks.
+ *
+ * @param subdomain - tenant the callback arrived for; selects that tenant's
+ *   configured public URL
  */
-export const buildCallbackUrl = (req: {
-  headers: Record<string, string | string[] | undefined>;
-  protocol?: string;
-  originalUrl?: string;
-  url?: string;
-  get?: (name: string) => string | undefined;
-}): string => {
-  const header = (name: string): string => {
-    const value = req.headers[name];
+export const buildCallbackUrl = (
+  req: {
+    path?: string;
+    originalUrl?: string;
+    url?: string;
+  },
+  subdomain: string,
+): string => {
+  const requestUrl = req.originalUrl || req.url || '';
+  // Only the FIRST `?` separates the query string; a later one is part of it.
+  const queryStart = requestUrl.indexOf('?');
+  const query = queryStart === -1 ? '' : requestUrl.slice(queryStart + 1);
 
-    return Array.isArray(value) ? value[0] : value || '';
-  };
+  // `req.path` is the route below the router's mount point, e.g. `/answer`,
+  // with the query string already removed by Express.
+  const route = req.path || requestUrl.split('?')[0];
 
-  // A comma-separated forwarded chain lists the original client first.
-  const proto =
-    header('x-forwarded-proto').split(',')[0].trim() || req.protocol || 'https';
-  const host =
-    header('x-forwarded-host').split(',')[0].trim() || header('host');
+  const base = getPlivoCallbackBaseUrl(subdomain).replace(/\/+$/, '');
 
-  return `${proto}://${host}${req.originalUrl || req.url || ''}`;
+  return `${base}${route}${query ? `?${query}` : ''}`;
 };
 
 /**
