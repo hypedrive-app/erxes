@@ -134,6 +134,32 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
+
+      # ── OIDC login (optional) ────────────────────────────────────────────
+      # Lets an external OpenID Connect provider log users in, which erxes has
+      # no supported path for on a self-hosted instance: its own SSO is
+      # WorkOS-brokered and hard-gated behind VERSION=saas.
+      #
+      # The three values below are the switch -- leave any of them empty and
+      # `/auth/oidc/*` answers 404, so an unconfigured deployment is unchanged
+      # and password login is untouched either way. Sign-in starts at
+      #   https://<api domain>/auth/oidc/login
+      # OIDC_REDIRECT_URI must match a redirect URI registered with the
+      # provider EXACTLY, and points at the API host (this service), not the UI.
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+      # Where to send the browser after login. Defaults to DOMAIN (the UI).
+      OIDC_APP_DOMAIN: ${OIDC_APP_DOMAIN:-}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email}
+      # Off by default: with a shared identity provider, auto-creating users
+      # would hand an erxes seat to anyone who can log in there, and they would
+      # arrive with no permission groups at all. Turning it on REQUIRES
+      # OIDC_ALLOWED_EMAIL_DOMAINS -- an empty list refuses every address.
+      OIDC_ALLOW_JIT_PROVISION: ${OIDC_ALLOW_JIT_PROVISION:-false}
+      OIDC_ALLOWED_EMAIL_DOMAINS: ${OIDC_ALLOWED_EMAIL_DOMAINS:-}
+
       # ── ENABLED_PLUGINS ──────────────────────────────────────────────────
       # A NON-EMPTY, comma-separated list of plugin names, or ABSENT. Never "".
       # getPlugins() (erxes-api-shared/src/utils/service-discovery.ts) does

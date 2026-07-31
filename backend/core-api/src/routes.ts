@@ -5,6 +5,7 @@ import { router as organizationRoutes } from '~/modules/organization/routes';
 import { router as fileRoutes } from '~/routes/fileRoutes';
 import { router as importExportRoutes } from '~/modules/import-export/routes';
 import { router as oauthRoutes } from '~/modules/auth/routes/oauth/routes';
+import { router as oidcRoutes } from '~/modules/auth/routes/oidc/routes';
 import { router as templateRoutes } from '~/modules/template/routes';
 
 const router: Router = Router();
@@ -16,5 +17,6 @@ router.use(broadcastRoutes);
 router.use(importExportRoutes);
 router.use(templateRoutes);
 router.use(oauthRoutes);
+router.use(oidcRoutes);
 
 export { router };
