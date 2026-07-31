@@ -217,6 +217,111 @@ export const registerIncomingCall = async (
 };
 
 /**
+ * Records a call an agent placed from their browser softphone.
+ *
+ * Separate from {@link registerIncomingCall} because the two disagree on every
+ * field that matters. Plivo labels a softphone-originated leg `inbound` — it is
+ * inbound to the platform — and sends the agent's SIP URI as `From`, so reusing
+ * the inbound path would store the direction backwards and try to resolve a
+ * `sip:` URI as the contact's phone number.
+ *
+ * Both numbers are rewritten to what a human would recognise: the integration's
+ * own number as `from`, since that is the CLI the callee actually sees, and the
+ * dialled number as `to`. The agent is recorded as `userId` so the call is
+ * attributable in history, which is the whole reason the endpoint credential is
+ * resolved on the callback path.
+ *
+ * Written before any XML is returned, for the same reason as the inbound path:
+ * the unique `callUuid` is what makes a redelivered answer callback a no-op.
+ */
+export const registerOutgoingCall = async (
+  models: IModels,
+  subdomain: string,
+  integration: IPlivoIntegrationDocument,
+  userId: string,
+  params: IPlivoCallbackParams,
+): Promise<IPlivoCallSessionDocument | null> => {
+  const callUuid = params.CallUUID;
+
+  if (!callUuid) {
+    return null;
+  }
+
+  const existing = await models.PlivoCallSessions.findOne({ callUuid });
+
+  if (existing) {
+    debugPlivo(`Ignoring already-registered call ${callUuid}`);
+    return existing;
+  }
+
+  const to = normalizePhone(params.To, integration.defaultCountryCode);
+
+  if (!to) {
+    throw new Error(
+      `Outgoing Plivo call ${callUuid} dialled an unusable number: ${params.To}`,
+    );
+  }
+
+  const customer = await getOrCreateCustomer(models, subdomain, integration, to);
+
+  const startedAt = new Date();
+  const content = describeRingingCall('outbound', integration.plivoPhoneNumber, to);
+
+  const session = await models.PlivoCallSessions.addCallSession({
+    callUuid,
+    integrationId: integration.erxesApiId,
+    customerId: customer.erxesApiId,
+    userId,
+    direction: 'outbound',
+    status: 'ringing',
+    // The agent's SIP URI is not a number anyone can call back, so the
+    // integration's own number — the CLI `<Dial callerId>` presents — is what
+    // is stored and shown.
+    from: integration.plivoPhoneNumber,
+    to,
+    startedAt,
+  });
+
+  // See registerIncomingCall: a concurrent delivery that won the race owns the
+  // conversation, and its row must never be rolled back below.
+  const isOurs = session.startedAt?.getTime() === startedAt.getTime();
+
+  if (!isOurs || session.erxesApiConversationId) {
+    return session;
+  }
+
+  try {
+    const conversationId = await createCallConversation(
+      subdomain,
+      integration,
+      customer,
+      callUuid,
+      content,
+    );
+
+    session.erxesApiConversationId = conversationId;
+    session.erxesApiMessageId = await createCallMessage(
+      subdomain,
+      conversationId,
+      customer.erxesApiId,
+      content,
+      startedAt,
+    );
+    await session.save();
+  } catch (e: any) {
+    // Roll back so a Plivo retry is reprocessed rather than swallowed by the
+    // callUuid check above.
+    await models.PlivoCallSessions.deleteOne({ _id: session._id });
+
+    throw new Error(
+      `Failed to deliver Plivo call ${callUuid} to inbox: ${e.message}`,
+    );
+  }
+
+  return session;
+};
+
+/**
  * Applies the hangup callback: final status, duration, cost and cause.
  *
  * A hangup for a call we never registered is ignored rather than back-filled —

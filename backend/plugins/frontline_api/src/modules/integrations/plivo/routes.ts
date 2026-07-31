@@ -1,10 +1,12 @@
 import express, { Router } from 'express';
 import {
+  PLIVO_ANSWER_FAILURE_XML,
   plivoAnswerWebhook,
   plivoHangupWebhook,
   plivoRecordingWebhook,
   plivoVoicemailWebhook,
 } from '@/integrations/plivo/controller/controller';
+import { debugError } from '@/integrations/plivo/debuggers';
 
 export const router: Router = express.Router();
 
@@ -41,15 +43,25 @@ router.use(
   }),
 );
 
+// The last-resort handler for `/answer` answers in XML, not JSON. A caller is
+// on the line, and Plivo acts on the BODY: a JSON error document is not
+// PlivoXML, so it is rejected as `Invalid Answer XML` and the call is dropped
+// with a misleading `Busy` — the same failure a bare 200 used to cause. The
+// reason is logged rather than spoken, since it is for us and not the caller.
 router.post('/answer', async (req, res, next) => {
   try {
     await plivoAnswerWebhook(req, res, next);
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: 'Answer webhook handling failed',
-      error: err.message || err.toString(),
-    });
+    debugError(
+      `Answer webhook handling failed: ${err.message || err.toString()}`,
+    );
+
+    if (res.headersSent) {
+      return;
+    }
+
+    res.set('Content-Type', 'text/xml');
+    res.status(200).send(PLIVO_ANSWER_FAILURE_XML);
   }
 });
 
