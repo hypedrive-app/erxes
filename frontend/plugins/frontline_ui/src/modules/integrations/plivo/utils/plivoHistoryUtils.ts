@@ -32,8 +32,34 @@ export const getPlivoRecordingUrl = (value: string): string => {
  * under "missed" and lose the fact that someone left a message waiting — the
  * exact distinction this history is being built to surface.
  */
+/**
+ * How long a call may sit in a non-terminal state before the row stops
+ * believing it.
+ *
+ * A call is `ringing`/`in-progress` only until its end-of-call callback lands.
+ * When that callback is lost the row keeps that status forever, and production
+ * history showed every one of the last eight calls still claiming "In progress"
+ * hours later — a status line that says the same thing for a live call and a
+ * long-dead one tells the agent nothing. Anything older than this is reported
+ * by its last known state instead of as ongoing. Generous on purpose: a real
+ * call running past an hour is rare, a lost callback is not.
+ */
+const PLIVO_STALE_IN_PROGRESS_MS = 60 * 60 * 1000;
+
+const isStillPlausiblyLive = (startedAt?: string | null): boolean => {
+  if (!startedAt) return false;
+
+  const started = new Date(startedAt).getTime();
+  if (Number.isNaN(started)) return false;
+
+  return Date.now() - started < PLIVO_STALE_IN_PROGRESS_MS;
+};
+
 export const getPlivoCallOutcome = (
-  callHistory: Pick<IPlivoCallHistory, 'status' | 'isVoicemail' | 'duration'>,
+  callHistory: Pick<
+    IPlivoCallHistory,
+    'status' | 'isVoicemail' | 'duration' | 'startedAt' | 'createdAt'
+  >,
 ): PlivoCallOutcome => {
   if (callHistory.isVoicemail) {
     return 'voicemail';
@@ -48,7 +74,13 @@ export const getPlivoCallOutcome = (
       return 'missed';
     case 'ringing':
     case 'in-progress':
-      return 'in-progress';
+      // Only claim a call is ongoing while that is still credible; a stranded
+      // row falls back to what it can actually evidence.
+      if (isStillPlausiblyLive(callHistory.startedAt || callHistory.createdAt)) {
+        return 'in-progress';
+      }
+
+      return callHistory.duration ? 'answered' : 'missed';
     case 'completed':
       // Plivo reports an unanswered call as `completed` too; a call that never
       // carried audio was never really answered, so zero seconds reads as

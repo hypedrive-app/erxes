@@ -64,20 +64,32 @@ export const PlivoCallHistoryRow = ({
   // call-back button would otherwise sit.
   const callBackNumber = toDialableNumber(counterpartNumber);
 
+  // The glyph alone already separates inbound from outbound from voicemail from
+  // failed, so direction and outcome survive without their colour. The tinted
+  // disc behind it adds a second, non-hue channel — shape — at scan distance.
   const renderDirectionIcon = () => {
+    const wrap = (icon: React.ReactNode, tone: string) => (
+      <span
+        className={cn(
+          'flex size-8 shrink-0 items-center justify-center rounded-full [&>svg]:size-4',
+          tone,
+        )}
+      >
+        {icon}
+      </span>
+    );
+
     if (isVoicemail) {
-      return <IconMailbox className="size-4 shrink-0 text-warning" />;
+      return wrap(<IconMailbox />, 'bg-warning/10 text-warning');
     }
 
     if (isUnanswered) {
-      return <IconPhoneX className="size-4 shrink-0 text-destructive" />;
+      return wrap(<IconPhoneX />, 'bg-destructive/10 text-destructive');
     }
 
-    return direction === 'inbound' ? (
-      <IconPhoneIncoming className="size-4 shrink-0 text-success" />
-    ) : (
-      <IconPhoneOutgoing className="size-4 shrink-0 text-success" />
-    );
+    return direction === 'inbound'
+      ? wrap(<IconPhoneIncoming />, 'bg-success/10 text-success')
+      : wrap(<IconPhoneOutgoing />, 'bg-accent text-accent-foreground');
   };
 
   return (
@@ -104,7 +116,10 @@ export const PlivoCallHistoryRow = ({
             >
               {label || t('plivo-unknown-caller')}
             </span>
+            {/* The word is the outcome; the badge's colour only reinforces it,
+                so a greyscale read loses nothing. */}
             <Badge
+              className="shrink-0"
               variant={
                 outcome === 'answered'
                   ? 'success'
@@ -147,7 +162,16 @@ export const PlivoCallHistoryRow = ({
               <Tooltip>
                 <Tooltip.Trigger asChild>
                   <Collapsible.Trigger asChild>
-                    <Button variant="ghost" size="icon" className="size-6">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-11 [&>svg]:size-4"
+                      aria-label={
+                        isVoicemail
+                          ? t('plivo-play-voicemail')
+                          : t('plivo-play-recording')
+                      }
+                    >
                       {isOpen ? (
                         <IconChevronDown />
                       ) : isVoicemail ? (
@@ -174,7 +198,7 @@ export const PlivoCallHistoryRow = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6"
+                    className="size-11 [&>svg]:size-4"
                     aria-label={t('plivo-call-back')}
                     onClick={() => dial(callBackNumber)}
                   >
@@ -193,7 +217,8 @@ export const PlivoCallHistoryRow = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6"
+                    className="size-11 [&>svg]:size-4"
+                    aria-label={t('go-to-conversation')}
                     onClick={() =>
                       navigate(
                         `/frontline/inbox?conversationId=${conversationId}`,

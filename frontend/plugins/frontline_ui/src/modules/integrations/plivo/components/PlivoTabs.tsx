@@ -17,7 +17,7 @@ import { plivoUiAtom } from '@/integrations/plivo/states/plivoStates';
  * scroll within it: before this, the history list sized itself and its last row
  * was drawn underneath the tab strip.
  */
-export const PLIVO_TAB_BODY_CLASS = 'flex h-[27.5rem] flex-col overflow-hidden';
+export const PLIVO_TAB_BODY_CLASS = 'flex h-110 flex-col overflow-hidden';
 
 /**
  * History / dialpad / address book switch for the softphone panel, following
@@ -79,9 +79,9 @@ const PlivoTabsTrigger = ({
 }) => {
   return (
     <Button
-      // The active tab is marked by weight and a background as well as by
-      // colour, so it stays legible without relying on hue alone.
-      className="flex-col h-14 gap-1 px-1 text-xs [&>svg]:size-5 after:hidden data-[state=active]:bg-accent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:hover:bg-accent-foreground/10"
+      // The active tab is marked by weight, a background AND a filled underline
+      // as well as by colour, so it survives a greyscale or colour-blind read.
+      className="relative flex-col h-14 gap-1 px-1 text-xs [&>svg]:size-5 after:hidden data-[state=active]:bg-accent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:hover:bg-accent-foreground/10 data-[state=active]:before:absolute data-[state=active]:before:inset-x-3 data-[state=active]:before:bottom-1 data-[state=active]:before:h-0.5 data-[state=active]:before:rounded-full data-[state=active]:before:bg-current"
       variant="ghost"
       asChild
     >

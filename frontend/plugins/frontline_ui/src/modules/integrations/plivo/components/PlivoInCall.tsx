@@ -25,13 +25,22 @@ const DTMF_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 
 export const PlivoInCallActionButton = React.forwardRef<
   HTMLButtonElement,
-  ButtonProps
->(({ className, ...props }, ref) => (
+  ButtonProps & { active?: boolean }
+>(({ className, active, ...props }, ref) => (
   <Button
     ref={ref}
     variant="ghost"
+    // `h-auto` let these collapse to whatever the label needed; they are now a
+    // fixed 64px so the mid-call controls are a real target and the row keeps
+    // one height whether a label wraps or not.
+    // An engaged control is marked by a filled background AND a ring, not by
+    // colour alone, so "mute is on" is readable in greyscale.
+    aria-pressed={active}
     className={cn(
-      'flex-col h-auto text-accent-foreground hover:text-foreground font-medium [&>svg]:size-5 gap-1 rounded-lg justify-start text-wrap px-1 text-xs',
+      'flex-col h-16 font-medium [&>svg]:size-5 gap-1 rounded-lg justify-center text-wrap px-1 text-xs',
+      active
+        ? 'bg-accent text-foreground font-semibold ring-1 ring-inset ring-border hover:bg-accent'
+        : 'text-accent-foreground hover:text-foreground',
       className,
     )}
     {...props}
@@ -49,6 +58,10 @@ export const PlivoMuteButton = () => {
     <PlivoInCallActionButton
       disabled={callStatus !== PlivoCallStatusEnum.ACTIVE}
       onClick={isMuted ? unmute : mute}
+      active={isMuted}
+      // The slashed microphone, the pressed styling and the word all change
+      // together — muting yourself and not noticing is the classic call-UI
+      // failure, so it is signalled three ways.
       className={cn(isMuted && 'text-destructive hover:text-destructive')}
     >
       {isMuted ? <IconMicrophoneOff /> : <IconMicrophone />}
@@ -79,8 +92,18 @@ export const PlivoKeypadTrigger = () => {
         </PlivoInCallActionButton>
       </Popover.Trigger>
       <Popover.Content className="w-56 p-2" align="center">
-        <div className="h-7 mb-1 truncate text-center font-medium leading-7 tracking-widest tabular-nums">
-          {sentTones}
+        {/* Height is reserved whether or not a tone has been sent, so the keys
+            do not shift down the moment the first digit is pressed. */}
+        <div
+          role="status"
+          aria-label={t('plivo-tones-sent')}
+          className="h-7 mb-1 truncate text-center font-medium leading-7 tracking-widest tabular-nums"
+        >
+          {sentTones || (
+            <span className="text-xs font-normal tracking-normal text-accent-foreground">
+              {t('plivo-keypad-hint')}
+            </span>
+          )}
         </div>
         {/* Same key size and gutter as the dialpad's own keypad, so the two
             keypads in this widget do not read as different controls. */}
@@ -89,7 +112,7 @@ export const PlivoKeypadTrigger = () => {
             <Button
               key={key}
               variant="secondary"
-              className="h-11 text-base font-semibold tabular-nums"
+              className="h-11 text-base font-semibold tabular-nums transition-transform duration-75 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100"
               onClick={() => handleKey(key)}
             >
               {key}
@@ -113,7 +136,7 @@ export const PlivoKeypadTrigger = () => {
 export const PlivoInCall = () => {
   const { t } = useTranslation('frontline');
   const { stopCall } = usePlivo();
-  const { callStatus, callCounterpart, callerName, plivoErrorType } =
+  const { callStatus, callCounterpart, callerName, plivoErrorType, isMuted } =
     useAtomValue(plivoStateAtom);
 
   // Owned by the widget so the timer survives the panel being collapsed and
@@ -125,6 +148,10 @@ export const PlivoInCall = () => {
     callStatus === PlivoCallStatusEnum.FAILED ||
     callStatus === PlivoCallStatusEnum.ENDED;
 
+  const isConnecting =
+    callStatus === PlivoCallStatusEnum.STARTING ||
+    callStatus === PlivoCallStatusEnum.RINGING;
+
   const statusLabels: Partial<Record<PlivoCallStatusEnum, string>> = {
     [PlivoCallStatusEnum.STARTING]: t('calling'),
     [PlivoCallStatusEnum.RINGING]: t('plivo-ringing'),
@@ -134,16 +161,24 @@ export const PlivoInCall = () => {
   };
 
   return (
-    <div className="flex flex-col gap-5 p-5">
+    <div className="flex h-full flex-col gap-5 p-5">
       <div className="flex flex-col items-center gap-2 text-center">
         <div
           className={cn(
-            'text-sm font-medium',
+            'flex items-center gap-1.5 text-sm font-medium',
             callStatus === PlivoCallStatusEnum.FAILED
               ? 'text-destructive'
               : 'text-accent-foreground',
           )}
         >
+          {/* A pulsing dot marks a call that is still being set up, so
+              "Calling…" and "In call" differ by more than their wording. */}
+          {isConnecting && (
+            <span
+              aria-hidden
+              className="size-1.5 rounded-full bg-current motion-safe:animate-pulse"
+            />
+          )}
           {statusLabels[callStatus]}
         </div>
         {/* Same hierarchy as the incoming screen, so the counterpart does not
@@ -153,19 +188,33 @@ export const PlivoInCall = () => {
             <p className="text-xl font-semibold leading-tight text-foreground">
               {callerName}
             </p>
-            <p className="text-sm text-accent-foreground">{callCounterpart}</p>
+            <p className="text-sm tabular-nums text-accent-foreground">
+              {callCounterpart}
+            </p>
           </>
         ) : (
-          <p className="text-xl font-semibold leading-tight text-foreground">
+          <p className="text-xl font-semibold leading-tight tabular-nums text-foreground">
             {callCounterpart}
           </p>
         )}
-        {callStatus === PlivoCallStatusEnum.ACTIVE && (
-          <div className="flex items-center justify-center gap-2 text-sm text-accent-foreground">
-            <span className="tabular-nums">{duration}</span>
-            <PlivoQualityIndicator />
-          </div>
-        )}
+        {/* The timer's row is always present, so answering a call does not
+            shove every control below it down by a line. Mid-call the elapsed
+            time is the number an agent glances at most, so it is given real
+            size rather than being tucked in with the status text. */}
+        <div className="flex h-7 items-center justify-center gap-2">
+          {callStatus === PlivoCallStatusEnum.ACTIVE && (
+            <>
+              <span
+                className="text-lg font-semibold tabular-nums text-foreground"
+                role="timer"
+                aria-label={t('plivo-call-duration')}
+              >
+                {duration}
+              </span>
+              <PlivoQualityIndicator />
+            </>
+          )}
+        </div>
       </div>
 
       {/* A denied microphone is terminal for the call, and the toast that
@@ -176,18 +225,32 @@ export const PlivoInCall = () => {
           <Alert.Description>{t('plivo-mic-denied')}</Alert.Description>
         </Alert>
       )}
+      {/* Mute is the one state whose consequence is silent: the agent talks and
+          nobody hears them. It gets a standing line of its own, not just a
+          styled button, and it announces itself. */}
+      {isMuted && callStatus === PlivoCallStatusEnum.ACTIVE && (
+        <p
+          role="status"
+          className="flex items-center justify-center gap-1.5 rounded-md bg-destructive/10 py-1.5 text-xs font-medium text-destructive"
+        >
+          <IconMicrophoneOff className="size-4" />
+          {t('plivo-you-are-muted')}
+        </p>
+      )}
       <div className="grid grid-cols-2 items-stretch gap-2">
         <PlivoMuteButton />
         <PlivoKeypadTrigger />
       </div>
       {/* Ending a call is destructive and time-critical, so it is a solid
           destructive button rather than a tinted secondary one. Once the call
-          is already over the same slot just dismisses, and drops the red. */}
+          is already over the same slot just dismisses, and drops the red.
+          `mt-auto` pins it to the foot of the panel so it is in the same place
+          on every call state rather than floating up under a short one. */}
       <Button
         variant={isEnding ? 'secondary' : 'destructive'}
         // `size="lg"` is only h-8 in this library, under the 44px touch target
         // this control deserves, so the height is set outright.
-        className="h-11 w-full text-sm"
+        className="mt-auto h-12 w-full text-sm font-semibold"
         onClick={stopCall}
       >
         {isEnding ? (

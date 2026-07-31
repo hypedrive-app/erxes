@@ -42,7 +42,7 @@ export const PlivoContacts = () => {
   );
 
   return (
-    <Command shouldFilter={false}>
+    <Command shouldFilter={false} className="h-full min-h-0">
       <div className="p-3">
         <Command.Input
           asChild
@@ -59,9 +59,9 @@ export const PlivoContacts = () => {
         </Command.Input>
       </div>
       <Separator />
-      {/* Shares the call history list's height so switching between the two
-          tabs does not resize the panel under the agent's cursor. */}
-      <Command.List className="h-80 max-h-full flex-auto overflow-auto p-3">
+      {/* Claims whatever the tab body has left rather than naming a height of
+          its own, which is what keeps all three tabs the same size. */}
+      <Command.List className="min-h-0 flex-auto overflow-auto p-3">
         {loading && (
           <div className="flex justify-center py-6">
             <Spinner />
@@ -106,7 +106,9 @@ export const PlivoContacts = () => {
                 <Button
                   variant="secondary"
                   size="icon"
-                  className="ml-auto size-8 flex-none"
+                  // 32px was under the 44px an agent dials with; the icon stays
+                  // its old size so only the tappable area grows.
+                  className="ml-auto size-11 flex-none [&>svg]:size-4"
                   disabled={!isReady}
                   aria-label={t('plivo-call-contact')}
                   onClick={(event) => {

@@ -289,8 +289,11 @@ export const escapeXml = (value: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
-/** Everything that is not a dialable digit, including the leading `+`. */
-const NON_DIGIT_CHARS = /\D/g;
+/** Separators that may appear inside a written phone number. */
+const NUMBER_SEPARATORS = /[\s()\-.]/g;
+
+/** A phone number once the separators are gone: digits, maybe a leading `+`. */
+const DIALABLE_NUMBER = /^\+?\d+$/;
 
 /** Regex metacharacters, so a stored number cannot act as a pattern. */
 const REGEX_METACHARS = /[.*+?^${}()|[\]\\]/g;
@@ -303,9 +306,18 @@ const REGEX_METACHARS = /[.*+?^${}()|[\]\\]/g;
  * (`918035396691`), and neither side can be made to change: the stored `+` is
  * what `normalizePhone` produces and what the rest of the module renders from,
  * while the wire format is Plivo's.
+ *
+ * A value that is not a plain dialable number yields `''` rather than the digits
+ * scraped out of it. `From` on a softphone leg is a SIP URI
+ * (`sip:erxes<user>123456789012@phone.plivo.com`) whose username ends in the
+ * 12-digit suffix Plivo appends — scraping those digits would put a number-like
+ * string into the lookup that never identified a phone number at all.
  */
-export const toDialDigits = (value?: string | null): string =>
-  (value || '').replace(NON_DIGIT_CHARS, '');
+export const toDialDigits = (value?: string | null): string => {
+  const cleaned = (value || '').trim().replace(NUMBER_SEPARATORS, '');
+
+  return DIALABLE_NUMBER.test(cleaned) ? cleaned.replace('+', '') : '';
+};
 
 /**
  * A Mongo selector matching `plivoPhoneNumber` by its digits, whether or not

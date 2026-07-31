@@ -30,9 +30,10 @@ export const PlivoCallHistory = () => {
   const [totalCalls, setTotalCalls] = useState(0);
 
   return (
-    // Fixed height: the list inside scrolls, so the panel keeps one size no
-    // matter how many calls come back from the query.
-    <Tabs defaultValue="all" className="flex h-[26rem] flex-col">
+    // Fills the height the tab body already fixes, rather than setting a second
+    // one of its own: the previous `h-[26rem]` was taller than the space it was
+    // given, so the final row was drawn underneath the tab strip.
+    <Tabs defaultValue="all" className="flex h-full min-h-0 flex-col">
       <Tabs.List className="grid grid-cols-4 gap-1 px-3 pt-3">
         <Tabs.Trigger value="all">
           {t('all-count', { count: totalCalls })}
