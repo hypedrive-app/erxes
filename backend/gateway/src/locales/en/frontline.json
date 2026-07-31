@@ -1315,5 +1315,12 @@
   "plivo-voicemail-max-length": "Maximum voicemail length (seconds)",
   "plivo-voicemail-max-length-description": "Recording stops after this long, or when the caller presses the pound key.",
   "plivo-voicemail-greeting": "Voicemail greeting",
-  "plivo-voicemail-greeting-description": "Read to the caller before the beep. Leave empty to use the standard greeting."
+  "plivo-voicemail-greeting-description": "Read to the caller before the beep. Leave empty to use the standard greeting.",
+  "remove-integration-effect-whatsapp": "Removing {{name}} permanently deletes its conversations, all their messages, and the customers created from them. This cannot be undone.",
+  "remove-integration-effect-facebook": "Removing {{name}} permanently deletes its post and message conversations, all their messages, and the customers created from them. This cannot be undone.",
+  "remove-integration-effect-instagram": "Removing {{name}} permanently deletes its post, comment and message conversations, all their messages, and the customers created from them. This cannot be undone.",
+  "remove-integration-effect-discord": "Removing {{name}} permanently deletes its conversations, all their messages, the customers created from them, and the bot registration. This cannot be undone.",
+  "remove-integration-effect-imap": "Removing {{name}} permanently deletes its stored messages and the customers created from them. This cannot be undone.",
+  "remove-integration-effect-plivo": "Removing {{name}} permanently deletes its call history, including recordings and voicemails, and the customers created from them. This cannot be undone.",
+  "remove-integration-effect-call": "Removing {{name}} permanently deletes the customers created from it. Call history is kept. This cannot be undone."
 }

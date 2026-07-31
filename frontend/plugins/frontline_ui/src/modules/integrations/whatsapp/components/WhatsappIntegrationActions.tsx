@@ -31,6 +31,15 @@ const WHATSAPP_REPAIR_INTEGRATION = gql`
   }
 `;
 
+/**
+ * `integrationsRepair` is typed `JSON`, and the message broker reports a failed
+ * repair inside the payload instead of raising a GraphQL error.
+ */
+type WhatsappRepairResult = {
+  status?: string;
+  errorMessage?: string;
+};
+
 type WhatsappEditValues = z.infer<typeof WHATSAPP_EDIT_SCHEMA>;
 
 /**
@@ -184,7 +193,26 @@ export const WhatsappIntegrationRepair = ({
 
     repairIntegration({
       variables: { _id: cell.row.original._id, kind: integrationType },
-      onCompleted: () => toast({ title: t('repaired-successfully') }),
+      // A failed repair does NOT reject: the message broker catches the Graph
+      // API failure and resolves with { status: 'error', errorMessage }, so
+      // onError never runs for an expired token — the usual reason to repair.
+      // The payload has to be read or the operator is told it worked.
+      onCompleted: (data: {
+        integrationsRepair?: WhatsappRepairResult | null;
+      }) => {
+        const result = data?.integrationsRepair;
+
+        if (result?.status === 'error') {
+          toast({
+            title: t('repair-failed'),
+            description: result.errorMessage ?? undefined,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        toast({ title: t('repaired-successfully') });
+      },
       onError: (error) =>
         toast({ title: error.message, variant: 'destructive' }),
     });

@@ -1,7 +1,9 @@
 import { Spinner, toast, useConfirm } from 'erxes-ui';
 import { IconTrash } from '@tabler/icons-react';
 import { REMOVE_INTEGRATION } from '@/integrations/graphql/mutations/RemoveIntegration';
+import { getIntegrationRemovalEffectKey } from '@/integrations/constants/integrationRemovalEffects';
 import { useMutation } from '@apollo/client';
+import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 export const RemoveIntegration = ({
@@ -30,10 +32,24 @@ export const RemoveIntegration = ({
   });
 
   const { confirm } = useConfirm();
+  const { integrationType } = useParams();
+
+  const removalEffectKey = getIntegrationRemovalEffectKey(integrationType);
 
   const handleRemove = () => {
     confirm({
       message: t('confirm-remove-integration', { name }),
+      // Kinds that cascade delete conversation history state exactly what goes
+      // and ask for the name to be typed, because nothing restores it
+      // afterwards. Kinds that only drop the integration row keep the plain
+      // confirmation.
+      options: removalEffectKey
+        ? {
+            description: t(removalEffectKey, { name }),
+            confirmationValue: name,
+            okLabel: t('remove'),
+          }
+        : undefined,
     }).then(() => {
       removeIntegration({ variables: { id: _id } });
     });
