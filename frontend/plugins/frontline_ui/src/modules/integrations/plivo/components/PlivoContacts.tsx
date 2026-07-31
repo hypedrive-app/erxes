@@ -84,7 +84,12 @@ export const PlivoContacts = () => {
                 // when it has a number worth dialling.
                 onSelect={() => dial(destination)}
                 disabled={!isReady}
-                className="gap-2"
+                // Command.Item is `h-8` by default, which fits the single line
+                // of text it is normally given. This row stacks a name over a
+                // phone number, so the fixed height cut it short and every
+                // row's number overlapped the next row's name by ~6px, making
+                // each number look like it belonged to the contact below.
+                className="h-auto gap-2 py-2"
               >
                 <div className="min-w-0 flex-auto">
                   <CustomersInline

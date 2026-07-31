@@ -19,10 +19,30 @@ import {
 import { PlivoStatusEnum } from '@/integrations/plivo/types/plivoTypes';
 import { useCallUserIntegration } from '@/integrations/call/hooks/useCallUserIntegration';
 
-/** Keeps the launcher inside the viewport, matching the Grandstream widget. */
+/**
+ * Keeps the launcher inside the viewport, with its resting inset intact.
+ *
+ * The button is laid out at `bottom-10 right-10` — a 40px inset — and this
+ * offset is added on top of that. A positive offset therefore eats into the
+ * inset, and the previous `Math.min(40, …)` upper bound allowed exactly enough
+ * to cancel it: a stored `{x:40, y:40}` put the button flush into the corner
+ * with zero margin on every viewport, which at 375px reads as clipped rather
+ * than placed. Clamping at 0 keeps the inset as the closest the launcher can
+ * sit to the corner, while dragging away from it stays free down to the
+ * opposite edge.
+ */
+const LAUNCHER_INSET = 40;
+const LAUNCHER_SIZE = 48;
+
 const clampToViewport = (x: number, y: number) => ({
-  x: Math.min(40, Math.max((window.innerWidth - 88) * -1, x)),
-  y: Math.min(40, Math.max((window.innerHeight - 88) * -1, y)),
+  x: Math.min(
+    0,
+    Math.max((window.innerWidth - LAUNCHER_INSET - LAUNCHER_SIZE) * -1, x),
+  ),
+  y: Math.min(
+    0,
+    Math.max((window.innerHeight - LAUNCHER_INSET - LAUNCHER_SIZE) * -1, y),
+  ),
 });
 
 const PlivoWidgetDraggable = memo(
@@ -126,6 +146,15 @@ export const PlivoWidgetDraggableRoot = ({
     const handleResize = () => {
       setPosition((prev) => clampToViewport(prev.x, prev.y));
     };
+
+    // The stored offset was clamped against whatever viewport it was dragged
+    // in, and `atomWithStorage` restores it verbatim. Opening the same account
+    // on a narrower screen — or on a phone — therefore replayed an offset that
+    // is out of bounds there: a saved {x:40,y:40} pinned the launcher hard into
+    // the corner at 375px with no margin at all. `resize` never fires on a
+    // fresh load, so the restored value has to be re-clamped once on mount for
+    // the viewport it is actually being shown in.
+    handleResize();
 
     window.addEventListener('resize', handleResize);
 

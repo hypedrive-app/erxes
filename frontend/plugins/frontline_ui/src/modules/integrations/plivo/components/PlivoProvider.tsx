@@ -25,6 +25,7 @@ import {
   plivoStateAtom,
   plivoUnregisteredAtom,
 } from '@/integrations/plivo/states/plivoStates';
+import { trimPlivoLogStorage } from '@/integrations/plivo/utils/plivoLogStorage';
 
 const PlivoContext = createContext<PlivoContextValue | null>(null);
 
@@ -36,13 +37,25 @@ const PlivoContext = createContext<PlivoContextValue | null>(null);
  * place a call. `closeProtection` warns before a tab close drops a live call.
  * `allowMultipleIncomingCalls` is off so a second inbound call cannot arrive
  * mid-conversation, matching how the Grandstream widget replies busy.
+ *
+ * Quality tracking is OFF. `enableQualityTracking: 'ALL'` is the SDK's most
+ * verbose setting — it ships per-stream stats to Plivo's callstats service AND
+ * mirrors them into the local log store on every metrics tick. Nobody reads
+ * either: the only quality signal this widget acts on is the `mediaMetrics`
+ * event, which the SDK emits from the peer connection regardless of this flag,
+ * and `appId`/`appSecret` are not configured, so the remote half was never
+ * actually reaching Plivo. What it did do was multiply writes to the SDK's
+ * unbounded `PlivoLogStorage` key until the origin's localStorage quota was
+ * gone — see `trimPlivoLogStorage` for what that broke. Keeping the local
+ * bound is still necessary with tracking off, because the SDK logs its INIT,
+ * LOGIN and CALLING categories to that key unconditionally.
  */
 const PLIVO_OPTIONS = {
   debug: 'ERROR' as const,
   permOnClick: true,
   closeProtection: true,
-  enableTracking: true,
-  enableQualityTracking: 'ALL' as const,
+  enableTracking: false,
+  enableQualityTracking: 'NONE' as const,
   allowMultipleIncomingCalls: false,
   audioConstraints: {
     echoCancellation: true,
@@ -198,6 +211,15 @@ export const PlivoProvider = ({
   // because the SDK has no way to replace a listener after login.
   useEffect(() => {
     if (!accessToken) return;
+
+    // Runs BEFORE the client is constructed, because the SDK logs its INIT
+    // category from the constructor and its LOGIN category from
+    // `loginWithAccessToken` — both through the unguarded `setItem` that a full
+    // quota throws on. On an agent whose storage is already saturated (which is
+    // every agent who has run the previous build) this is what makes the very
+    // next page load recover: the key is cut back under budget here, so both
+    // the SDK's login and every unrelated feature's writes have room again.
+    trimPlivoLogStorage();
 
     const instance = new Plivo(PLIVO_OPTIONS);
     const client = instance.client;
@@ -401,7 +423,18 @@ export const PlivoProvider = ({
       client.loginWithAccessToken(accessToken);
     }
 
+    // The trim above only bounds the log as it stood at login. The SDK keeps
+    // appending for the whole session — a CALLING line per call, plus WS and
+    // NETWORK_CHANGE lines — so an agent who leaves the CRM open for a shift
+    // would drift back over budget and re-break other features without ever
+    // reloading. Re-checking on an interval keeps the ceiling in force for as
+    // long as the client is mounted; the check is a single `getItem` and a
+    // length compare, and only rewrites when it is actually over.
+    const trimInterval = setInterval(trimPlivoLogStorage, 5 * 60 * 1000);
+
     return () => {
+      clearInterval(trimInterval);
+
       if (audioRetryRef.current) {
         clearTimeout(audioRetryRef.current);
         audioRetryRef.current = null;
@@ -549,6 +582,13 @@ export const PlivoProvider = ({
       plivoErrorType: null,
       plivoErrorMessage: null,
     }));
+
+    // The client already exists here, so the mount-time trim does not re-run —
+    // but this is the button an agent presses precisely when login has been
+    // failing, and a login that silently returns false on a full quota is one
+    // of the reasons it was. Making room again is what lets the retry differ
+    // from the attempt that failed.
+    trimPlivoLogStorage();
 
     clientRef.current.loginWithAccessToken(accessToken);
   }, [accessToken, setIsUnregistered, setPlivoState]);
