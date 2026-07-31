@@ -1,5 +1,5 @@
-import { IconPhoneFilled } from '@tabler/icons-react';
-import { Button } from 'erxes-ui';
+import { IconAlertTriangle, IconPhoneFilled } from '@tabler/icons-react';
+import { Alert, Button } from 'erxes-ui';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { Popover as PopoverPrimitive } from 'radix-ui';
 import {
@@ -38,12 +38,14 @@ import {
 import {
   PlivoCallDirectionEnum,
   PlivoCallStatusEnum,
+  PlivoStatusEnum,
 } from '@/integrations/plivo/types/plivoTypes';
 
 export const PlivoDialpad = () => {
   const { t } = useTranslation('frontline');
   const { phoneNumber } = usePlivo();
   const number = useAtomValue(plivoNumberAtom);
+  const { plivoStatus, plivoErrorMessage } = useAtomValue(plivoStateAtom);
   const canCall = useCanPlaceCall();
   const { dial, isReady } = usePlivoDialer();
   const { integrations, integrationId, selectIntegration } =
@@ -67,7 +69,7 @@ export const PlivoDialpad = () => {
   })();
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="flex h-full flex-col gap-3 p-3">
       <PlivoActions />
       {/* Only worth showing when there is actually a choice; with one number
           the caller id line below already says which one is in use. */}
@@ -78,33 +80,43 @@ export const PlivoDialpad = () => {
           onValueChange={selectIntegration}
         />
       )}
+      {/* A registration that has given up says so HERE, next to the keypad the
+          agent is about to use, rather than only inside a badge tooltip they
+          would have to go hunting for. The retry guard's terminal message is
+          the one piece of text that explains why nothing can be dialled. */}
+      {plivoErrorMessage && plivoStatus === PlivoStatusEnum.ERROR && (
+        <Alert variant="destructive">
+          <IconAlertTriangle className="size-4" />
+          <Alert.Description className="text-xs">
+            {plivoErrorMessage}
+          </Alert.Description>
+        </Alert>
+      )}
       <PlivoNumberInput />
-      <div className="flex flex-col gap-1.5">
+      {/* `mt-auto` keeps the primary action at the foot of the panel, so it
+          does not move when the error alert above appears or disappears. */}
+      <div className="mt-auto flex flex-col gap-1.5">
         <Button
           // `size="lg"` is only h-8 here; the primary action of the whole panel
           // is sized to match the keypad keys it sits under.
-          className="h-11 w-full text-sm"
+          className="h-12 w-full text-sm font-semibold"
           disabled={isDisabled}
           onClick={() => dial(number)}
         >
           <IconPhoneFilled />
           {t('call')}
         </Button>
-        {/* The reason is text, not just a colour change, so it survives both a
-            colour-blind reader and a screen reader. */}
-        {disabledReason && (
-          <p
-            role="status"
-            className="text-center text-xs text-accent-foreground"
-          >
-            {disabledReason}
-          </p>
-        )}
-        {phoneNumber && !disabledReason && (
-          <p className="text-center text-xs text-accent-foreground">
-            {t('plivo-calling-from')}: {phoneNumber}
-          </p>
-        )}
+        {/* One reserved line for whichever caption applies, so the Call button
+            does not hop as the reason appears, changes or clears. */}
+        <p
+          role="status"
+          className="flex h-4 items-center justify-center text-center text-xs text-accent-foreground"
+        >
+          {/* The reason is text, not just a colour change, so it survives both
+              a colour-blind reader and a screen reader. */}
+          {disabledReason ??
+            (phoneNumber ? `${t('plivo-calling-from')}: ${phoneNumber}` : '')}
+        </p>
       </div>
     </div>
   );

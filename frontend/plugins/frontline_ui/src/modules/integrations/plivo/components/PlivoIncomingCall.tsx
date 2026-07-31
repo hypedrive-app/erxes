@@ -1,4 +1,8 @@
-import { IconPhone, IconPhoneEnd } from '@tabler/icons-react';
+import {
+  IconPhone,
+  IconPhoneEnd,
+  IconPhoneIncoming,
+} from '@tabler/icons-react';
 import { Button, getPluginAssetsUrl, toast } from 'erxes-ui';
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
@@ -53,13 +57,21 @@ export const PlivoIncomingCall = () => {
   const { callCounterpart, callerName } = useAtomValue(plivoStateAtom);
 
   return (
-    <div className="flex flex-col gap-5 p-5">
-      <div className="flex flex-col items-center gap-2 text-center">
-        {/* The pulse marks a live, waiting call at a glance; the wording below
-            carries the same meaning for anyone who cannot see it. */}
-        <span className="relative flex size-3">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-75" />
-          <span className="relative inline-flex size-3 rounded-full bg-success" />
+    // Matches the height of the tabbed surfaces so a call arriving does not
+    // resize the floating panel, and `justify-between` keeps the two answer
+    // controls at the foot of it rather than wherever the name above happens
+    // to end.
+    <div className="flex h-110 flex-col justify-between gap-5 p-5">
+      <div className="flex flex-auto flex-col items-center justify-center gap-2 text-center">
+        {/* A ringing handset says "incoming call" by shape, where a bare dot
+            said only "something is happening". The ring animation is the
+            attention-getter and is dropped for reduced-motion readers, leaving
+            the icon and the wording to carry the meaning on their own. */}
+        <span className="relative flex size-12 items-center justify-center">
+          <span className="absolute inline-flex size-12 rounded-full bg-success/20 motion-safe:animate-ping" />
+          <span className="relative inline-flex size-12 items-center justify-center rounded-full bg-success/15 text-success">
+            <IconPhoneIncoming className="size-6" />
+          </span>
         </span>
         <p className="text-sm font-medium text-accent-foreground">
           {t('plivo-incoming-call')}
@@ -71,28 +83,37 @@ export const PlivoIncomingCall = () => {
             <p className="text-xl font-semibold leading-tight text-foreground">
               {callerName}
             </p>
-            <p className="text-sm text-accent-foreground">{callCounterpart}</p>
+            <p className="text-sm tabular-nums text-accent-foreground">
+              {callCounterpart}
+            </p>
           </>
         ) : (
-          <p className="text-xl font-semibold leading-tight text-foreground">
+          <p className="text-xl font-semibold leading-tight tabular-nums text-foreground">
             {callCounterpart || t('plivo-unknown-caller')}
           </p>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      {/* Answering and declining are the two most consequential and most
+          hurried presses in the widget, and they are irreversible in opposite
+          directions. So they are pulled apart by a full 3rem gutter — far more
+          than the 0.75rem they used to share — and given 56px of height. The
+          gap is the actual mis-hit protection: adjacent 44px buttons are easy
+          to catch the wrong edge of when the panel appears under a moving
+          cursor.
+          They are also told apart WITHOUT colour: the icons point opposite
+          ways, Answer is the only filled button on the surface, and each
+          carries its own word. */}
+      <div className="grid grid-cols-2 gap-12">
         <Button
-          variant="secondary"
-          // Answer/decline are the two hardest-pressed controls in the whole
-          // widget, so both get a full 44px target.
-          className="h-11 text-sm text-destructive bg-destructive/10 hover:bg-destructive/15"
+          variant="outline"
+          className="h-14 text-sm font-semibold text-destructive border-destructive/30 bg-destructive/5 hover:bg-destructive/15 hover:text-destructive"
           onClick={rejectCall}
         >
           <IconPhoneEnd />
           {t('decline')}
         </Button>
         <Button
-          variant="secondary"
-          className="h-11 text-sm text-success bg-success/10 hover:bg-success/15"
+          className="h-14 text-sm font-semibold bg-success text-white hover:bg-success/90"
           onClick={answerCall}
         >
           <IconPhone />

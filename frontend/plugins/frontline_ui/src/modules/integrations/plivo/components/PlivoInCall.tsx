@@ -161,7 +161,9 @@ export const PlivoInCall = () => {
   };
 
   return (
-    <div className="flex h-full flex-col gap-5 p-5">
+    // Same height as every other surface in the panel, so answering, muting or
+    // hanging up never resizes the widget mid-call.
+    <div className="flex h-110 flex-col gap-5 p-5">
       <div className="flex flex-col items-center gap-2 text-center">
         <div
           className={cn(

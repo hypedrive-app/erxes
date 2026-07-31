@@ -1,6 +1,10 @@
 import {
+  IconAlertTriangle,
   IconAntennaBars3,
   IconAntennaBars5,
+  IconCircleFilled,
+  IconCircleOff,
+  IconLoader2,
   IconPower,
   IconRefresh,
 } from '@tabler/icons-react';
@@ -35,8 +39,15 @@ export const PlivoStatusBadge = () => {
     useAtomValue(plivoStateAtom);
   const isUnregistered = useAtomValue(plivoUnregisteredAtom);
 
+  // Every registration state carries its own icon, so online/offline/connecting
+  // are told apart by shape and wording as well as by the badge's hue.
   if (plivoStatus === PlivoStatusEnum.CONNECTING) {
-    return <Badge variant="warning">{t('connecting')}</Badge>;
+    return (
+      <Badge variant="warning">
+        <IconLoader2 className="size-3 motion-safe:animate-spin" />
+        {t('connecting')}
+      </Badge>
+    );
   }
 
   if (plivoStatus === PlivoStatusEnum.ERROR) {
@@ -45,13 +56,19 @@ export const PlivoStatusBadge = () => {
         <Tooltip>
           <Tooltip.Trigger asChild>
             <Badge variant="destructive">
+              <IconAlertTriangle className="size-3" />
               {plivoErrorType === PlivoErrorTypeEnum.MEDIA_PERMISSION
                 ? t('plivo-mic-denied')
                 : t('connection-error')}
             </Badge>
           </Tooltip.Trigger>
+          {/* The retry guard's terminal message lands here; without it the
+              badge says only "connection error" and the agent has nothing to
+              act on. */}
           {plivoErrorMessage && (
-            <Tooltip.Content>{plivoErrorMessage}</Tooltip.Content>
+            <Tooltip.Content className="max-w-56">
+              {plivoErrorMessage}
+            </Tooltip.Content>
           )}
         </Tooltip>
       </Tooltip.Provider>
@@ -63,6 +80,11 @@ export const PlivoStatusBadge = () => {
 
   return (
     <Badge variant={isOnline ? 'success' : 'destructive'}>
+      {isOnline ? (
+        <IconCircleFilled className="size-2" />
+      ) : (
+        <IconCircleOff className="size-3" />
+      )}
       {isOnline ? t('online') : t('offline')}
     </Badge>
   );
@@ -88,19 +110,14 @@ export const PlivoQualityIndicator = () => {
 
   const isDegraded = callQuality === PlivoCallQualityEnum.DEGRADED;
 
+  // The bar count differs by shape and the quality is now spelled out, so this
+  // no longer needs a tooltip to be understood — the label that used to hide in
+  // one is on the badge itself, where it is readable on a touch device too.
   return (
-    <Tooltip.Provider>
-      <Tooltip>
-        <Tooltip.Trigger asChild>
-          <Badge variant={isDegraded ? 'warning' : 'success'}>
-            {isDegraded ? <IconAntennaBars3 /> : <IconAntennaBars5 />}
-          </Badge>
-        </Tooltip.Trigger>
-        <Tooltip.Content>
-          {isDegraded ? t('plivo-quality-poor') : t('plivo-quality-good')}
-        </Tooltip.Content>
-      </Tooltip>
-    </Tooltip.Provider>
+    <Badge variant={isDegraded ? 'warning' : 'success'}>
+      {isDegraded ? <IconAntennaBars3 /> : <IconAntennaBars5 />}
+      {isDegraded ? t('plivo-quality-poor') : t('plivo-quality-good')}
+    </Badge>
   );
 };
 
@@ -116,7 +133,14 @@ export const PlivoPowerButton = () => {
 
   if (needsReconnect) {
     return (
-      <Button size="sm" variant="secondary" onClick={reconnectPlivo}>
+      <Button
+        size="sm"
+        variant="secondary"
+        // 24px was under the 24px WCAG floor once its border was counted, and
+        // this is the button that gets an offline agent back online.
+        className="ml-auto h-8"
+        onClick={reconnectPlivo}
+      >
         <IconRefresh /> {t('reconnect')}
       </Button>
     );
@@ -126,6 +150,7 @@ export const PlivoPowerButton = () => {
     <Button
       size="sm"
       variant="secondary"
+      className="ml-auto h-8"
       disabled={plivoStatus === PlivoStatusEnum.CONNECTING}
       onClick={isRegistered ? unregisterPlivo : reconnectPlivo}
     >
