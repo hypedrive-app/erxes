@@ -438,7 +438,15 @@ services:
   # var into /js/env.js as window.env at container start, so the API URL is a
   # runtime knob and this image needs no rebuild per domain.
   core-ui:
-    image: erxes/erxes-next-ui:${ERXES_VERSION}
+    # Built from source, NOT `image: erxes/erxes-next-ui:${ERXES_VERSION}`,
+    # because the login screen carries our OIDC sign-in button. The published
+    # image hardcodes exactly two login tabs, so an SSO entry point cannot be
+    # added to it -- without this the backend's /auth/oidc/* routes work but no
+    # one can reach them from the UI.
+    image: sharksmarketing/erxes-core-ui:latest
+    build:
+      context: ..
+      dockerfile: frontend/core-ui/Dockerfile
     depends_on:
       gateway: {condition: service_started}
     environment:
@@ -449,6 +457,16 @@ services:
       # `${base}/initial-setup` from this single value.
       REACT_APP_API_URL: https://${ERXES_API_DOMAIN}
       REACT_APP_SERVER_BASE_URL: https://${ERXES_API_DOMAIN}
+      # Label and logo for the OIDC sign-in button. The name is the switch: with
+      # it empty the button is not rendered, which is what a deployment without
+      # OIDC wants, since the backend routes 404 there anyway. Read at container
+      # start into window.env, so changing them needs no rebuild.
+      REACT_APP_OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-}
+      REACT_APP_OIDC_PROVIDER_ICON_URL: ${OIDC_PROVIDER_ICON_URL:-}
+      # Browser tab title, applied to index.html by docker-entrypoint.sh at
+      # container start. This replaces the old bind-mounted index.html, which
+      # could not survive building our own bundle.
+      REACT_APP_APP_TITLE: ${APP_TITLE:-}
       # The baked nginx vhost is `server_name *.next.erxes.io` with literal
       # ${NGINX_HOST}/${NGINX_PORT} placeholders the entrypoint sed-replaces.
       NGINX_HOST: ${ERXES_UI_DOMAIN}
@@ -459,37 +477,22 @@ services:
     # The upstream `erxes/erxes-next-ui` image has NO runtime branding hook:
     # the entrypoint only injects REACT_APP_* into window.env, and neither
     # the page <title> nor the favicon paths are configurable. There are also
-    # no `build:` directives anywhere in this compose, so patching this repo
-    # cannot change image contents. Bind-mounting the three branded files
-    # over the served docroot is therefore the only no-rebuild option.
+    # core-ui is now built from source (see the `build:` above), so branding
+    # that used to require bind-mounting over the served docroot belongs in the
+    # source instead. The <title> lives in frontend/core-ui/src/index.html.
     #
-    # !!!!!!!!!!!!!!!!!!!!!!!!  READ BEFORE UPGRADING  !!!!!!!!!!!!!!!!!!!!!!
-    # index.html is VERSION-LOCKED to ERXES_VERSION. It hard-references the
-    # content-hashed entry bundle (currently `main.8ef9f40b.js`). If you bump
-    # ERXES_VERSION, the new image ships a NEW bundle hash and this stale
-    # mounted index.html will point at a bundle that no longer exists ->
-    # BLANK WHITE SPA. On every version bump you MUST regenerate it:
+    # The version-locked index.html mount that used to sit here has been
+    # REMOVED, deliberately. It hard-referenced the content-hashed entry bundle
+    # of a specific published image, so building our own bundle would leave it
+    # pointing at a file that does not exist -- a blank white SPA. Do not
+    # reintroduce it.
     #
-    #   docker run --rm --entrypoint cat erxes/erxes-next-ui:<NEW_VERSION> \
-    #     /usr/share/nginx/html/index.html > /opt/sharks-branding/erxes/index.html
-    #   sed -i 's|<title>erxes</title>|<title>Sharks Marketing</title>|' \
-    #     /opt/sharks-branding/erxes/index.html
-    #
-    # Change ONLY the <title>; everything else must stay byte-identical.
-    #
-    # The :ro flags are safe despite the entrypoint's `sed -i` on index.html:
-    # that sed is guarded by `if ! grep -q "/js/env.js"`, and our copy already
-    # contains the `<script src="/js/env.js">` tag, so the guard short-circuits
-    # and no write is ever attempted. Keep that tag when regenerating (it is
-    # appended after </html> by the entrypoint on a stock image, so a `cat`
-    # from a fresh image will NOT have it -- re-append it manually):
-    #     printf '    <script src="/js/env.js"></script>\n' >> index.html
-    #
-    # The two logo files keep their upstream `erxes-logo.*` filenames on
-    # purpose -- index.html and the built bundles reference those exact paths.
+    # The two logo files are still mounted: they keep their upstream
+    # `erxes-logo.*` filenames on purpose, because index.html and the built
+    # bundles reference those exact paths, so overriding them by name is stable
+    # across rebuilds in a way an index.html override is not.
     # ---------------------------------------------------------------------
     volumes:
-      - /opt/sharks-branding/erxes/index.html:/usr/share/nginx/html/index.html:ro
       - /opt/sharks-branding/erxes/erxes-logo.svg:/usr/share/nginx/html/assets/erxes-logo.svg:ro
       - /opt/sharks-branding/erxes/erxes-logo.ico:/usr/share/nginx/html/assets/erxes-logo.ico:ro
     restart: unless-stopped

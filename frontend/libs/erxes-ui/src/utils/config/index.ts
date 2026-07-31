@@ -64,6 +64,27 @@ const sentryEnvironment = () => {
   );
 };
 
+/**
+ * Label for the OIDC sign-in button on the login screen, e.g. the name of the
+ * identity provider. Empty means no provider is configured, and the button is
+ * not rendered at all -- the backend's `/auth/oidc/*` routes answer 404 in that
+ * case, so showing it would offer a login that cannot work.
+ */
+const oidcProviderName = () => {
+  return (
+    window.env?.REACT_APP_OIDC_PROVIDER_NAME ??
+    process.env.REACT_APP_OIDC_PROVIDER_NAME
+  );
+};
+
+/** Optional logo shown on that button. Falls back to a generic key icon. */
+const oidcProviderIconUrl = () => {
+  return (
+    window.env?.REACT_APP_OIDC_PROVIDER_ICON_URL ??
+    process.env.REACT_APP_OIDC_PROVIDER_ICON_URL
+  );
+};
+
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const REACT_APP_API_URL = getApi();
 const REACT_APP_IMAGE_CDN_URL = cdnUrl();
@@ -71,6 +92,8 @@ const REACT_APP_GOOGLE_MAP_API_KEY = googleMapApiKey();
 const REACT_APP_HIDE_CORE_MODULES = hideCoreModules();
 const REACT_APP_SENTRY_DSN = sentryDsn();
 const REACT_APP_SENTRY_ENVIRONMENT = sentryEnvironment();
+const REACT_APP_OIDC_PROVIDER_NAME = oidcProviderName();
+const REACT_APP_OIDC_PROVIDER_ICON_URL = oidcProviderIconUrl();
 
 export {
   NODE_ENV,
@@ -80,4 +103,6 @@ export {
   REACT_APP_HIDE_CORE_MODULES,
   REACT_APP_SENTRY_DSN,
   REACT_APP_SENTRY_ENVIRONMENT,
+  REACT_APP_OIDC_PROVIDER_NAME,
+  REACT_APP_OIDC_PROVIDER_ICON_URL,
 };

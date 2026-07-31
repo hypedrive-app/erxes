@@ -1,6 +1,7 @@
 import { Tabs } from 'erxes-ui';
 import { CredentialLoginForm } from '@/auth/login/components/CredentialLoginForm';
 import { MagicLinkLoginForm } from '@/auth/login/components/MagicLinkLoginForm';
+import { OidcLoginButton } from '@/auth/login/components/OidcLoginButton';
 import { useState } from 'react';
 import { useVersion } from 'ui-modules';
 import { motion } from 'motion/react';
@@ -18,6 +19,8 @@ export const Login = () => {
           Please sign in to your account to continue
         </div>
       </div>
+
+      <OidcLoginButton />
 
       <Tabs
         value={value}
