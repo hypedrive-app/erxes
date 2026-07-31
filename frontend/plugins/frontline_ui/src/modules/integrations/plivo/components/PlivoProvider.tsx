@@ -67,6 +67,66 @@ const PLIVO_OPTIONS = {
 };
 
 /**
+ * How many times a refused login may ask for a fresh token.
+ *
+ * The SDK does NOT retry a failed login — `_onRegistrationFailed` emits
+ * `onLoginFailed` and stops — so every retry is this provider's own. Refetching
+ * mints a new token string, which is the sole dependency of the login effect,
+ * so each refetch tears the client down and logs in again: unbounded, that is a
+ * closed fail → refetch → remount → fail loop that ran roughly every 700ms and
+ * grew the SDK's own log store by ~9MB/hour until localStorage was gone.
+ *
+ * Two is what a token problem can actually justify. A genuinely expired token
+ * needs exactly one refetch. The second covers the race where that replacement
+ * was itself minted close enough to its expiry to be refused, or where a
+ * rotation landed mid-flight. A third attempt has no failure mode left to fix:
+ * the SDK collapses most registrar rejections into a generic `SIP Failure
+ * Code`, so past this point the cause is account- or endpoint-level and a
+ * fresh token is the one thing that cannot repair it.
+ */
+const PLIVO_MAX_LOGIN_TOKEN_ATTEMPTS = 2;
+
+/**
+ * How many times a transient failure may re-login with the SAME token.
+ *
+ * A laptop resuming from sleep or a flaky network raises `Connection Error` /
+ * `Request Timeout` against a token that is perfectly valid, so treating those
+ * as terminal would strand an agent offline until they noticed and pressed
+ * Reconnect. These retries deliberately do NOT refetch — they re-drive the
+ * existing token through `loginWithAccessToken`, which leaves `accessToken`
+ * untouched and so cannot re-enter the remount loop the counter above exists
+ * to stop.
+ */
+const PLIVO_MAX_LOGIN_BACKOFF_ATTEMPTS = 3;
+
+/** 2s, 4s, 8s. Indexed by the retry that is about to be scheduled. */
+const PLIVO_LOGIN_BACKOFF_MS = [2000, 4000, 8000];
+
+/**
+ * Causes that no retry can clear, so they are surfaced immediately.
+ *
+ * These are additions to the attempt counter, never a replacement for it: the
+ * SDK reports most registrar rejections as the generic `SIP Failure Code`, so
+ * matching on cause alone would leave the loop wide open for everything not
+ * listed here. `INVALID_ACCESS_TOKEN` is the SDK's own synchronous verdict that
+ * the token did not even parse, raised before any network round trip, so
+ * asking for another one is pointless.
+ */
+const PLIVO_PERMANENT_LOGIN_CAUSES = new Set([
+  'Authentication Error',
+  'Not Found',
+  'INVALID_ACCESS_TOKEN',
+  'RELOGIN_FAILED_INVALID_TOKEN',
+]);
+
+/** Causes that are worth retrying with the token already in hand. */
+const PLIVO_TRANSIENT_LOGIN_CAUSES = new Set([
+  'Connection Error',
+  'Request Timeout',
+  'Cannot login when there is no internet',
+]);
+
+/**
  * The id of the `<audio>` element the SDK creates for the remote stream.
  *
  * Exported as `REMOTE_VIEW_ID` from the package's own constants and used in its
@@ -106,6 +166,14 @@ export const PlivoProvider = ({
 
   const clientRef = useRef<Client | null>(null);
   const audioRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Both counters are refs rather than state: they are read and written from
+  // SDK callbacks that were registered once at login and would close over a
+  // stale value, and a re-render on every failed attempt would change nothing
+  // that is rendered.
+  const loginAttemptsRef = useRef(0);
+  const loginBackoffAttemptsRef = useRef(0);
+  const loginBackoffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Read inside SDK callbacks, which are registered once and would otherwise
   // close over the state as it was at login time.
@@ -233,6 +301,13 @@ export const PlivoProvider = ({
     }));
 
     client.on('onLogin', () => {
+      // A login that succeeded proves the token and the endpoint are both good,
+      // so the next failure starts from a clean budget rather than inheriting
+      // one spent on an unrelated earlier fault — an agent whose network
+      // dropped twice hours ago must not be one failure away from terminal.
+      loginAttemptsRef.current = 0;
+      loginBackoffAttemptsRef.current = 0;
+
       setPlivoState((prev) => ({
         ...prev,
         plivoStatus: PlivoStatusEnum.REGISTERED,
@@ -242,17 +317,93 @@ export const PlivoProvider = ({
       }));
     });
 
+    /**
+     * Every path out of here is bounded.
+     *
+     * The SDK stops dead on a refused login, so whatever this handler does is
+     * the whole retry policy. It used to unconditionally ask for a new token,
+     * which changed the effect's only dependency and remounted the client into
+     * the same failure — a hot loop that hammered our token endpoint and
+     * Plivo's registrar several times a second and showed the agent nothing but
+     * a red launcher. There are exactly three outcomes now, and two of them
+     * count down to the third.
+     */
     client.on('onLoginFailed', (cause: string) => {
+      const failTerminally = (message: string) => {
+        setPlivoState((prev) => ({
+          ...prev,
+          plivoStatus: PlivoStatusEnum.ERROR,
+          plivoErrorType: PlivoErrorTypeEnum.REGISTRATION,
+          // The raw cause is kept alongside the guidance because it is the only
+          // thing that distinguishes an account-level fault from a token one
+          // when an agent reports this.
+          plivoErrorMessage: `${message} (${cause})`,
+        }));
+      };
+
+      // A transient cause means the token was never in question, so it is
+      // retried with the one already in hand — no refetch, so `accessToken`
+      // does not change and the effect does not remount.
+      if (PLIVO_TRANSIENT_LOGIN_CAUSES.has(cause)) {
+        if (loginBackoffAttemptsRef.current >= PLIVO_MAX_LOGIN_BACKOFF_ATTEMPTS) {
+          failTerminally(tRef.current('plivo-login-unreachable'));
+          return;
+        }
+
+        const delay = PLIVO_LOGIN_BACKOFF_MS[loginBackoffAttemptsRef.current];
+        loginBackoffAttemptsRef.current += 1;
+
+        setPlivoState((prev) => ({
+          ...prev,
+          plivoStatus: PlivoStatusEnum.CONNECTING,
+          plivoErrorType: PlivoErrorTypeEnum.CONNECTION,
+          plivoErrorMessage: tRef.current('plivo-login-retrying'),
+        }));
+
+        // Only one retry is ever armed: a second failure cannot arrive before
+        // this fires, because the SDK raises `onLoginFailed` once per attempt.
+        // Cleared on unmount so a token refresh or a page change cannot leave a
+        // timer pointing at a client that has already been torn down.
+        if (loginBackoffRef.current) clearTimeout(loginBackoffRef.current);
+
+        loginBackoffRef.current = setTimeout(() => {
+          loginBackoffRef.current = null;
+          if (clientRef.current !== client) return;
+          if (isUnregisteredRef.current) return;
+
+          client.loginWithAccessToken(accessToken);
+        }, delay);
+        return;
+      }
+
+      // Known-permanent causes skip the budget entirely — a new token cannot
+      // fix a rejected identity — but they never replace it, because the SDK
+      // reports most registrar rejections as a generic `SIP Failure Code` that
+      // lands below in the counted path.
+      if (PLIVO_PERMANENT_LOGIN_CAUSES.has(cause)) {
+        failTerminally(tRef.current('plivo-login-rejected'));
+        return;
+      }
+
+      // Everything else — including the generic `SIP Failure Code` that an
+      // out-of-credit or unprovisioned account produces — is treated as
+      // possibly-expired-token, but only for a strictly counted number of
+      // refetches. This is the load-bearing guard: it is the only thing
+      // standing between the ambiguous causes and the old hot loop.
+      if (loginAttemptsRef.current >= PLIVO_MAX_LOGIN_TOKEN_ATTEMPTS) {
+        failTerminally(tRef.current('plivo-login-failed-permanently'));
+        return;
+      }
+
+      loginAttemptsRef.current += 1;
+
       setPlivoState((prev) => ({
         ...prev,
-        plivoStatus: PlivoStatusEnum.ERROR,
+        plivoStatus: PlivoStatusEnum.CONNECTING,
         plivoErrorType: PlivoErrorTypeEnum.REGISTRATION,
-        plivoErrorMessage: cause,
+        plivoErrorMessage: tRef.current('plivo-login-retrying'),
       }));
 
-      // The token has a finite life, so a refused login is most often an
-      // expired one rather than a broken integration; ask for a new one before
-      // surfacing this as a hard failure.
       onTokenExpiredRef.current();
     });
 
@@ -440,6 +591,16 @@ export const PlivoProvider = ({
         audioRetryRef.current = null;
       }
 
+      // A pending login retry holds the client this effect created. Left armed,
+      // it would fire against a client that has already been logged out and had
+      // its listeners removed — so the attempt could neither succeed nor report
+      // that it failed, and on a token refresh it would race the new client's
+      // own login.
+      if (loginBackoffRef.current) {
+        clearTimeout(loginBackoffRef.current);
+        loginBackoffRef.current = null;
+      }
+
       // Teardown order matters: end the media session, then the SIP session,
       // then the handlers.
       //
@@ -575,6 +736,20 @@ export const PlivoProvider = ({
     setIsUnregistered(false);
 
     if (!clientRef.current) return;
+
+    // An explicit Reconnect is the agent asserting that whatever was wrong has
+    // been dealt with, so it earns a full budget back. Without this the button
+    // would be dead after a terminal failure — one press, one refused login,
+    // straight back to terminal — which is the state it exists to escape. A
+    // pending backoff retry is dropped so the manual attempt is the only one
+    // in flight.
+    loginAttemptsRef.current = 0;
+    loginBackoffAttemptsRef.current = 0;
+
+    if (loginBackoffRef.current) {
+      clearTimeout(loginBackoffRef.current);
+      loginBackoffRef.current = null;
+    }
 
     setPlivoState((prev) => ({
       ...prev,
