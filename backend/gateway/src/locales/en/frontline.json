@@ -1269,6 +1269,8 @@
   "whatsapp-new-conversation-failed": "Could not send the message: {{message}}",
   "whatsapp-new-conversation-no-numbers": "No WhatsApp number available",
   "whatsapp-new-conversation-no-numbers-description": "Connect a WhatsApp Business number and set its business account ID so its approved templates can be used.",
+  "plivo-calls": "Calls",
+  "plivo-no-contact-calls": "No calls with this contact yet",
   "plivo-voicemails": "Voicemail",
   "plivo-voicemail": "Voicemail",
   "plivo-no-voicemails": "No voicemails waiting",

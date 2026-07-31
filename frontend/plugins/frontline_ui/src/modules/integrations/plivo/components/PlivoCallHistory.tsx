@@ -58,14 +58,34 @@ export const PlivoCallHistory = () => {
   );
 };
 
+/**
+ * The call list itself, shared by the softphone and the contact record.
+ *
+ * Presentational apart from its own query: every scope it can be read under is
+ * a prop, so the contact widget reuses this list rather than restating the row
+ * markup, the empty state and the paging next to it.
+ */
 export const PlivoCallHistoryList = ({
   direction,
   isVoicemail,
   onTotalCountChange,
+  customerId,
+  hideSearch,
+  emptyMessage,
 }: {
   direction?: PlivoHistoryDirection;
   isVoicemail?: boolean;
   onTotalCountChange?: (totalCount: number) => void;
+  /** Read one contact's calls across every number instead of the softphone's. */
+  customerId?: string;
+  /**
+   * Drop the search box. A contact's log is already scoped to one person and is
+   * short enough to read, so searching it by phone number filters on the one
+   * number it is all from.
+   */
+  hideSearch?: boolean;
+  /** Overrides the "no calls" copy where a surface needs its own wording. */
+  emptyMessage?: string;
 }) => {
   const { t } = useTranslation('frontline');
   const [search, setSearch] = useState('');
@@ -81,7 +101,8 @@ export const PlivoCallHistoryList = ({
   } = usePlivoCallHistories({
     direction,
     isVoicemail,
-    searchValue: debouncedSearch,
+    customerId,
+    searchValue: hideSearch ? undefined : debouncedSearch,
   });
 
   // The tab strip lives above this component but the count belongs to the
@@ -121,7 +142,8 @@ export const PlivoCallHistoryList = ({
     if (!callHistories?.length) {
       return (
         <p className="py-6 text-center text-sm text-accent-foreground">
-          {isVoicemail ? t('plivo-no-voicemails') : t('no-calls')}
+          {emptyMessage ??
+            (isVoicemail ? t('plivo-no-voicemails') : t('no-calls'))}
         </p>
       );
     }
@@ -147,17 +169,21 @@ export const PlivoCallHistoryList = ({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="p-3">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('search-by-phone-number')}
-          aria-label={t('search-by-phone-number')}
-          // Matches the contacts search box, so the two list tabs line up.
-          className="h-8"
-        />
-      </div>
-      <Separator />
+      {!hideSearch && (
+        <>
+          <div className="p-3">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('search-by-phone-number')}
+              aria-label={t('search-by-phone-number')}
+              // Matches the contacts search box, so the two list tabs line up.
+              className="h-8"
+            />
+          </div>
+          <Separator />
+        </>
+      )}
       <ScrollArea className="flex-auto" viewportClassName="p-3">
         {renderBody()}
       </ScrollArea>

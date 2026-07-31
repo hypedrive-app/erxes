@@ -101,6 +101,7 @@ export interface IPlivoIntegrationConfig {
 
 export interface IPlivoCallHistoriesArgs {
   integrationId?: string;
+  customerId?: string;
   direction?: string;
   isVoicemail?: boolean;
   hasRecording?: boolean;
@@ -368,6 +369,11 @@ export const plivoQueries = {
    * Rows are read newest-first, which is the order the `{ integrationId,
    * createdAt }` index is built for.
    *
+   * Serves two surfaces: the softphone's own history, scoped by `integrationId`,
+   * and a contact's call history on their record, scoped by `customerId`. The
+   * latter deliberately spans every connected number — "what happened with this
+   * person" is not a per-queue question.
+   *
    * `totalCount` is returned alongside the page rather than as a second query
    * so the list can render "load more" from one round trip and cannot show a
    * count that disagrees with the rows beneath it.
@@ -380,6 +386,7 @@ export const plivoQueries = {
     _root: undefined,
     {
       integrationId,
+      customerId,
       direction,
       isVoicemail,
       hasRecording,
@@ -397,6 +404,14 @@ export const plivoQueries = {
 
     if (integrationId) {
       selector.integrationId = integrationId;
+    }
+
+    // Filtered on the stored foreign key, never on the contact's phone number:
+    // a number can be edited or re-formatted after the call, and matching on the
+    // string would silently detach a contact from calls that are provably
+    // theirs. The field is indexed, so this stays a keyed read.
+    if (customerId) {
+      selector.customerId = customerId;
     }
 
     // An unrecognised direction must not silently widen the result to

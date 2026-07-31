@@ -19,14 +19,27 @@ interface UsePlivoCallHistoriesArgs {
   /** `true` for voicemails only, `false` to exclude them, omitted for both. */
   isVoicemail?: boolean;
   searchValue?: string;
+  /**
+   * Read one contact's calls across every connected number instead of the
+   * softphone's own log. See the scoping note below.
+   */
+  customerId?: string;
 }
 
 /**
- * A page of Plivo call history for the number this agent is answering on.
+ * A page of Plivo call history, scoped either to a contact or to the number
+ * this agent is answering on.
  *
- * Scoped to the selected integration rather than the whole account: the widget
- * this feeds is the agent's own phone, and an agent answering one number has no
- * business reading another queue's call log from it.
+ * SCOPE
+ * -----
+ * Passing a `customerId` reads that contact's calls across EVERY connected
+ * number and does not require a softphone: "what happened with this person" is
+ * not a per-queue question, and a contact record must show the same history
+ * whether or not the agent looking at it has a phone registered.
+ *
+ * Without one it falls back to the selected integration, which is what the
+ * widget wants: the widget is the agent's own phone, and an agent answering one
+ * number has no business reading another queue's call log from it.
  *
  * REAL-TIME
  * ---------
@@ -46,17 +59,24 @@ export const usePlivoCallHistories = ({
   direction,
   isVoicemail,
   searchValue,
+  customerId,
 }: UsePlivoCallHistoriesArgs = {}) => {
-  const integrationId = useAtomValue(plivoIntegrationIdAtom);
+  const softphoneIntegrationId = useAtomValue(plivoIntegrationIdAtom);
   const { callStatus } = useAtomValue(plivoStateAtom);
+
+  // A contact's history spans every number, so the softphone's integration is
+  // not applied as a second filter — doing so would hide calls the contact
+  // genuinely had on another queue.
+  const integrationId = customerId ? undefined : softphoneIntegrationId;
 
   const { data, loading, error, fetchMore, refetch } = useQuery<{
     plivoCallHistories: IPlivoCallHistoryList;
   }>(PLIVO_CALL_HISTORIES, {
     variables: {
-      integrationId,
       limit: PLIVO_CALL_HISTORIES_PER_PAGE,
       skip: 0,
+      ...(integrationId ? { integrationId } : {}),
+      ...(customerId ? { customerId } : {}),
       ...(direction ? { direction } : {}),
       ...(isVoicemail === undefined ? {} : { isVoicemail }),
       ...(searchValue ? { searchValue } : {}),
@@ -64,7 +84,10 @@ export const usePlivoCallHistories = ({
     // The list decides whether an agent sees a voicemail waiting, so a cached
     // page is shown immediately but always re-checked against the server.
     fetchPolicy: 'cache-and-network',
-    skip: !integrationId,
+    // An unscoped read would return the whole account's call log, so the query
+    // waits for whichever scope it was asked for. The contact surface must NOT
+    // wait for a softphone — it has none when no number is registered.
+    skip: customerId ? false : !softphoneIntegrationId,
   });
 
   const previousCallStatus = useRef(callStatus);
@@ -80,7 +103,14 @@ export const usePlivoCallHistories = ({
     // browser's own return to idle — so refetching the instant the call ends
     // can read the log back before the row exists. A short delay lets the
     // callback land, and the query still self-corrects on the next mount.
-    if (wasOnACall && callStatus === PlivoCallStatusEnum.IDLE && integrationId) {
+    //
+    // This applies to the contact surface too: calling a contact from their own
+    // record is exactly when a new row should appear beneath the button that
+    // placed it. Gated on the query being live at all, not on the softphone —
+    // a contact-scoped read runs without one.
+    const isQueryActive = !!customerId || !!softphoneIntegrationId;
+
+    if (wasOnACall && callStatus === PlivoCallStatusEnum.IDLE && isQueryActive) {
       const timer = setTimeout(() => {
         refetch();
       }, 2000);
@@ -89,7 +119,7 @@ export const usePlivoCallHistories = ({
     }
 
     return undefined;
-  }, [callStatus, integrationId, refetch]);
+  }, [callStatus, customerId, softphoneIntegrationId, refetch]);
 
   const callHistories = data?.plivoCallHistories?.list;
   const totalCount = data?.plivoCallHistories?.totalCount ?? 0;

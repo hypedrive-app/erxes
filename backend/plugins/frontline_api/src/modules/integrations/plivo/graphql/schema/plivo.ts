@@ -148,6 +148,14 @@ export const queries = `
   plivoSoftphoneCredentials(integrationId: String!): PlivoSoftphoneCredentials
   plivoCallHistories(
     integrationId: String
+    """
+    Contact to read the call log of, as stored on the call session.
+
+    Filters on the indexed foreign key rather than on the contact's phone
+    number: a number can be edited or stored in another format, and matching
+    on the string would silently detach a contact from their own history.
+    """
+    customerId: String
     direction: String
     isVoicemail: Boolean
     hasRecording: Boolean

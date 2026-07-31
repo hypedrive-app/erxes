@@ -1,5 +1,6 @@
 import {
   IconMail,
+  IconPhone,
   IconStackFront,
   IconTicket,
   IconBook,
@@ -73,6 +74,11 @@ export const CONFIG: IUIConfig = {
         name: 'ticket',
         icon: IconTicket,
         label: 'Tickets',
+      },
+      {
+        name: 'call',
+        icon: IconPhone,
+        label: 'Calls',
       },
     ],
     propertyInputs: {

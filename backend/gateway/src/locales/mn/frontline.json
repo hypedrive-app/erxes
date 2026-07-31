@@ -1269,6 +1269,8 @@
   "whatsapp-new-conversation-failed": "Мессеж илгээж чадсангүй: {{message}}",
   "whatsapp-new-conversation-no-numbers": "Боломжтой WhatsApp дугаар алга",
   "whatsapp-new-conversation-no-numbers-description": "WhatsApp Business дугаар холбож, батлагдсан загваруудыг ашиглахын тулд бизнес бүртгэлийн ID-г тохируулна уу.",
+  "plivo-calls": "Дуудлага",
+  "plivo-no-contact-calls": "Энэ харилцагчтай хийсэн дуудлага алга",
   "plivo-voicemails": "Дуут мессеж",
   "plivo-voicemail": "Дуут мессеж",
   "plivo-no-voicemails": "Хүлээгдэж буй дуут мессеж алга",

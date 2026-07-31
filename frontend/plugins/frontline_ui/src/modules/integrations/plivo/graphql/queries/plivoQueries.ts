@@ -58,6 +58,7 @@ export const PLIVO_SOFTPHONE_CREDENTIALS = gql`
 export const PLIVO_CALL_HISTORIES = gql`
   query plivoCallHistories(
     $integrationId: String
+    $customerId: String
     $direction: String
     $isVoicemail: Boolean
     $searchValue: String
@@ -66,6 +67,7 @@ export const PLIVO_CALL_HISTORIES = gql`
   ) {
     plivoCallHistories(
       integrationId: $integrationId
+      customerId: $customerId
       direction: $direction
       isVoicemail: $isVoicemail
       searchValue: $searchValue
