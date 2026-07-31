@@ -289,6 +289,56 @@ export const escapeXml = (value: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
+/** Everything that is not a dialable digit, including the leading `+`. */
+const NON_DIGIT_CHARS = /\D/g;
+
+/** Regex metacharacters, so a stored number cannot act as a pattern. */
+const REGEX_METACHARS = /[.*+?^${}()|[\]\\]/g;
+
+/**
+ * The digits of a phone number, with the `+` and every separator removed.
+ *
+ * This is the only form both sides of a callback agree on. `plivoPhoneNumber` is
+ * stored in E.164 (`+918035396691`) but Plivo posts `To`/`From` as bare digits
+ * (`918035396691`), and neither side can be made to change: the stored `+` is
+ * what `normalizePhone` produces and what the rest of the module renders from,
+ * while the wire format is Plivo's.
+ */
+export const toDialDigits = (value?: string | null): string =>
+  (value || '').replace(NON_DIGIT_CHARS, '');
+
+/**
+ * A Mongo selector matching `plivoPhoneNumber` by its digits, whether or not
+ * either side carries a `+`.
+ *
+ * Matching the raw string is what broke inbound and outbound PSTN calls: the
+ * integration is stored `+918035396691`, Plivo sends `918035396691`, so an
+ * equality match found nothing and every call got the give-up XML.
+ *
+ * Normalising at the QUERY rather than adding `+`-prefixed candidates is
+ * deliberate. The candidate approach only fixes the direction we happen to see
+ * today — a row legitimately stored WITHOUT a `+` (which `normalizePhone`
+ * returns when the integration has no `defaultCountryCode`) would still miss a
+ * callback that carried one. Comparing digits is symmetric, so storage format
+ * and wire format can never drift apart again.
+ *
+ * The match is ANCHORED (`^\+?<digits>$`) so it stays exact: an unanchored or
+ * suffix match would let `8035396691` match both `+918035396691` and
+ * `+448035396691` and route a call to the wrong tenant. Only a literal,
+ * optional `+` may differ. The digits are escaped even though they are digits by
+ * construction, because the escape is what keeps that true if this is ever
+ * called with something else.
+ */
+export const buildPlivoNumberSelector = (
+  numbers: string[],
+): { $in: RegExp[] } | null => {
+  const patterns = [...new Set(numbers.map(toDialDigits).filter(Boolean))].map(
+    (digits) => new RegExp(`^\\+?${digits.replace(REGEX_METACHARS, '\\$&')}$`),
+  );
+
+  return patterns.length ? { $in: patterns } : null;
+};
+
 /**
  * Places an outbound call.
  *

@@ -2,10 +2,12 @@ import { randomBytes } from 'crypto';
 import { normalizePhone } from 'erxes-api-shared/utils';
 import { generateModels, IModels } from '~/connectionResolvers';
 import {
+  buildPlivoNumberSelector,
   createPlivoEndpoint,
   findPlivoEndpointByAlias,
   getPlivoAccount,
   listPlivoEndpoints,
+  toDialDigits,
   updatePlivoEndpointPassword,
 } from '@/integrations/plivo/utils';
 import { debugError } from '@/integrations/plivo/debuggers';
@@ -98,8 +100,11 @@ export const plivoCreateIntegration = async (
     throw new Error(`Not a usable phone number: ${plivoPhoneNumber}`);
   }
 
+  // Compared on digits, not on the exact string: a number already connected as
+  // `918035396691` is the same rented line as `+918035396691` and must not be
+  // claimed twice, or an inbound callback could match either integration.
   const duplicate = await models.PlivoIntegrations.findOne({
-    plivoPhoneNumber: phoneNumber,
+    plivoPhoneNumber: buildPlivoNumberSelector([phoneNumber]),
   });
 
   if (duplicate) {
@@ -160,9 +165,14 @@ export const plivoUpdateIntegration = async (
     throw new Error(`Not a usable phone number: ${config.plivoPhoneNumber}`);
   }
 
-  if (plivoPhoneNumber !== integration.plivoPhoneNumber) {
+  // Digits, so merely re-saving the form with the same line written differently
+  // (`918035396691` vs `+918035396691`) is not mistaken for a number change and
+  // does not run a duplicate check against the integration's own current row.
+  if (
+    toDialDigits(plivoPhoneNumber) !== toDialDigits(integration.plivoPhoneNumber)
+  ) {
     const duplicate = await models.PlivoIntegrations.findOne({
-      plivoPhoneNumber,
+      plivoPhoneNumber: buildPlivoNumberSelector([plivoPhoneNumber]),
       erxesApiId: { $ne: integrationId },
     });
 

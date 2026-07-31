@@ -3,6 +3,7 @@ import { generateModels, IModels } from '~/connectionResolvers';
 import { debugError, debugPlivo } from '@/integrations/plivo/debuggers';
 import {
   buildCallbackUrl,
+  buildPlivoNumberSelector,
   escapeXml,
   validatePlivoSignature,
 } from '@/integrations/plivo/utils';
@@ -238,23 +239,18 @@ const resolveVerifiedIntegration = async (
   params: IPlivoCallbackParams,
   onUnresolved: () => void,
 ): Promise<IResolvedPlivoCallback | null> => {
-  // `plivoPhoneNumber` is stored normalised (`+919876543210`), but Plivo sends
-  // `To`/`From` without the leading `+` on many callbacks. Matching only the
-  // raw value would find nothing and silently drop every call, so both the raw
-  // and the normalised form of each candidate are tried. No default country
-  // code is available before the integration is known, so normalisation here
-  // can only add the `+` that E.164 input already implies.
-  const candidates = [...new Set(
-    [params.To, params.From]
-      .filter((value): value is string => Boolean(value))
-      .flatMap((value) => [value, normalizePhone(value)])
-      .filter(Boolean),
-  )];
+  // `plivoPhoneNumber` is stored in E.164 (`+918035396691`) but Plivo posts
+  // `To`/`From` as bare digits (`918035396691`), so the two are compared on
+  // their digits alone — see `buildPlivoNumberSelector` for why the match is
+  // normalised at the query rather than by guessing extra candidates. The
+  // integration's own `defaultCountryCode` cannot help here: it is stored ON the
+  // integration this lookup is trying to find.
+  const selector = buildPlivoNumberSelector(
+    [params.To, params.From].filter((value): value is string => Boolean(value)),
+  );
 
-  const byNumber = candidates.length
-    ? await models.PlivoIntegrations.findOne({
-        plivoPhoneNumber: { $in: candidates },
-      })
+  const byNumber = selector
+    ? await models.PlivoIntegrations.findOne({ plivoPhoneNumber: selector })
     : null;
 
   // Softphone-originated: neither party is our own number, so the endpoint in
