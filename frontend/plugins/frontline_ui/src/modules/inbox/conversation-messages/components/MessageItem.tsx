@@ -19,6 +19,7 @@ import { MessagePoll } from '@/inbox/conversation-messages/components/MessagePol
 import { useConversationMessageContext } from '@/inbox/conversations/conversation-detail/hooks/useConversationMessageContext';
 import { activeConversationState } from '@/inbox/conversations/states/activeConversationState';
 import { DiscordMessageActions } from '@/integrations/discord/components/DiscordMessageActions';
+import { PlivoRecordingPlayer } from '@/integrations/plivo/components/PlivoRecordingPlayer';
 import { IconBrain, IconFile, IconSparkles } from '@tabler/icons-react';
 
 const Img = (props: JSX.IntrinsicElements['img']) => (
@@ -203,7 +204,12 @@ export const MessageItem = () => {
             )
           )}
           {/* skipcq: JS-0357 */}
-          {!isDeleted && <Attachments attachments={attachments} />}
+          {!isDeleted && (
+            <Attachments
+              attachments={attachments}
+              isVoicemail={extraData?.plivoIsVoicemail}
+            />
+          )}
           {!isDeleted && poll && <MessagePoll poll={poll} />}
           {!isDeleted && <MessageEmbeds embeds={embeds} />}
           {!isDeleted &&
@@ -288,7 +294,13 @@ export const MessageWrapper = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const Attachments = ({ attachments }: { attachments?: IAttachment[] }) => {
+const Attachments = ({
+  attachments,
+  isVoicemail,
+}: {
+  attachments?: IAttachment[];
+  isVoicemail?: boolean;
+}) => {
   if (!attachments?.length) {
     return null;
   }
@@ -302,6 +314,7 @@ const Attachments = ({ attachments }: { attachments?: IAttachment[] }) => {
           key={`${attachment.url}-${index}`}
           attachment={attachment}
           length={attachments.length}
+          isVoicemail={isVoicemail}
         />
       ))}
     </div>
@@ -311,12 +324,28 @@ const Attachments = ({ attachments }: { attachments?: IAttachment[] }) => {
 const Attachment = ({
   attachment,
   length,
+  isVoicemail,
 }: {
   attachment: IAttachment;
   length?: number;
+  isVoicemail?: boolean;
 }) => {
   const isImage = attachment.type.startsWith('image');
   const single = length === 1;
+
+  // Audio is PLAYED in place, never offered as a download. A call recording is
+  // the substance of the message, and `readImage` below would route it through
+  // the image CDN, which cannot serve a WAV at all.
+  if (attachment.type.startsWith('audio')) {
+    return (
+      <PlivoRecordingPlayer
+        recordUrl={attachment.url}
+        isVoicemail={isVoicemail}
+        className={cn(length === 1 ? 'col-span-2' : 'col-span-1', 'w-full')}
+      />
+    );
+  }
+
   if (!isImage) {
     return (
       <a

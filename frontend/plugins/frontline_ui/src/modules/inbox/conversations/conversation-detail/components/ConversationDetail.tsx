@@ -21,6 +21,7 @@ import { MessageInputIntegrationWrapper } from '@/integrations/components/Messag
 import { messageExtraInfoState } from '../states/messageExtraInfoState';
 import { useEffect } from 'react';
 import { ConversationSideWidget } from '@/inbox/conversations/conversation-detail/components/ConversationSideWidget';
+import { MESSAGE_THREAD_INTEGRATION_KINDS } from '@/inbox/conversations/conversation-detail/constants/messageThreadIntegrationKinds';
 import { useLocation } from 'react-router-dom';
 
 export const ConversationDetail = () => {
@@ -98,12 +99,9 @@ export const ConversationDetail = () => {
             ) : (
               <>
                 {integration?.kind &&
-                  [
-                    'messenger',
-                    'lead',
-                    'discord-messenger',
-                    'whatsapp-messenger',
-                  ].includes(integration.kind) && (
+                  MESSAGE_THREAD_INTEGRATION_KINDS.includes(
+                    integration.kind,
+                  ) && (
                     <ConversationMessages
                       conversationId={conversationId || ''}
                     />

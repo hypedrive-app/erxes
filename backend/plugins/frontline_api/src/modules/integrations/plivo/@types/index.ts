@@ -159,6 +159,21 @@ export interface IPlivoCallSessionDocument extends IPlivoCallSession, Document {
 }
 
 /**
+ * An attachment on an inbox message this module writes.
+ *
+ * Mirrors `attachmentSchema` in erxes-api-shared/core-modules, the same shape
+ * the WhatsApp integration sends, so call audio arrives in the inbox through
+ * the field the message list already reads.
+ */
+export interface IPlivoMessageAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size?: number;
+  duration?: number;
+}
+
+/**
  * The subset of Plivo's callback parameters this module consumes.
  *
  * Every value arrives as a form-encoded string, including the numeric ones —

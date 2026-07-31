@@ -16,6 +16,7 @@ import {
   IPlivoCallbackParams,
   IPlivoCallSessionDocument,
   IPlivoIntegrationDocument,
+  IPlivoMessageAttachment,
   PlivoCallDirection,
   PlivoCallStatus,
 } from '@/integrations/plivo/@types';
@@ -114,6 +115,61 @@ const describeVoicemail = (duration: number | undefined): string =>
   duration
     ? `Missed call — voicemail (${duration}s)`
     : 'Missed call — voicemail';
+
+/** The line that carries a recording of a call that was actually answered. */
+const describeRecording = (duration: number | undefined): string =>
+  duration ? `Call recording (${duration}s)` : 'Call recording';
+
+/** Plivo writes WAV by default and MP3 when the application asks for it. */
+const RECORDING_MIME_BY_EXTENSION: Record<string, string> = {
+  wav: 'audio/wav',
+  mp3: 'audio/mpeg',
+};
+
+/**
+ * Builds the inbox attachment that carries call audio.
+ *
+ * `url` is whatever the session row holds — an erxes storage key after a
+ * successful re-host, or Plivo's own URL when the copy failed — and the player
+ * resolves either, so a failed re-host still gives the agent something to play
+ * rather than a silent message.
+ *
+ * The mime type is read from the PROVIDER URL, not from the stored value: the
+ * storage key is derived from that same URL and keeps its extension, but the
+ * provider URL is the authoritative statement of what Plivo actually recorded.
+ * Anything unrecognised falls back to WAV, which is Plivo's default format.
+ */
+const buildRecordingAttachment = (
+  recordUrl: string,
+  providerRecordUrl: string,
+  isVoicemail: boolean,
+  duration: number | undefined,
+): IPlivoMessageAttachment => {
+  let extension = 'wav';
+
+  try {
+    const { pathname } = new URL(providerRecordUrl);
+    const last = pathname.split('/').filter(Boolean).pop() || '';
+    const parsed = (last.split('.').pop() || '').toLowerCase();
+
+    if (
+      parsed &&
+      parsed !== last.toLowerCase() &&
+      RECORDING_MIME_BY_EXTENSION[parsed]
+    ) {
+      extension = parsed;
+    }
+  } catch {
+    // Not a URL we can parse; the default extension stands.
+  }
+
+  return {
+    url: recordUrl,
+    name: `${isVoicemail ? 'voicemail' : 'call-recording'}.${extension}`,
+    type: RECORDING_MIME_BY_EXTENSION[extension],
+    ...(duration === undefined ? {} : { duration }),
+  };
+};
 
 /**
  * Records a call the moment Plivo asks us how to answer it.
@@ -491,13 +547,29 @@ export const registerCallVoicemail = async (
   }
 
   // The voicemail is what the agent must act on, so it replaces the ringing
-  // line in the conversation list rather than being buried beneath it.
+  // line in the conversation list rather than being buried beneath it. The
+  // audio rides along as an attachment so it is playable from the thread —
+  // storing it on the session row alone would leave the agent no way to hear
+  // the message they are being told to act on.
   await createCallMessage(
     subdomain,
     session.erxesApiConversationId,
     session.customerId,
     describeVoicemail(recordingDuration),
     leftAt,
+    {
+      audio: {
+        attachment: buildRecordingAttachment(
+          session.recordUrl || params.RecordUrl,
+          params.RecordUrl,
+          true,
+          recordingDuration,
+        ),
+        isVoicemail: true,
+      },
+      // A waiting voicemail IS the call's outcome, so it takes the preview.
+      replacesConversationContent: true,
+    },
   );
 };
 
@@ -567,7 +639,9 @@ export const registerCallRecording = async (
     authToken: integration.authToken,
   });
 
-  const updated = await models.PlivoCallSessions.updateOne(
+  const storedAt = new Date();
+
+  const session = await models.PlivoCallSessions.findOneAndUpdate(
     selector,
     {
       $set: {
@@ -577,15 +651,57 @@ export const registerCallRecording = async (
         providerRecordUrl: params.RecordUrl,
         recordingUuid: params.RecordingID,
         recordingDuration,
-        updatedAt: new Date(),
-        ...(storageKey ? { recordingStoredAt: new Date() } : {}),
+        updatedAt: storedAt,
+        ...(storageKey ? { recordingStoredAt: storedAt } : {}),
       },
     },
+    { new: true },
   );
 
-  if (!updated.matchedCount) {
+  if (!session) {
     debugError(
       `Recording callback matched no call session (${JSON.stringify(selector)})`,
     );
+    return;
   }
+
+  if (!session.erxesApiConversationId) {
+    return;
+  }
+
+  // A voicemail already delivered its own audio through registerCallVoicemail
+  // and is a different kind of item entirely — an unhandled contact, not a
+  // record of a conversation. Posting again here would put the same file in the
+  // thread twice and relabel a waiting voicemail as a handled recording.
+  if (session.isVoicemail) {
+    return;
+  }
+
+  // The recording arrives on its own callback, well after the hangup message
+  // has already been written, so it is APPENDED as a second message rather
+  // than merged into the first: `create-conversation-message` only ever
+  // creates, and it is the action that publishes the insert event an open
+  // inbox is listening for. An update path would leave every agent already
+  // looking at the thread without the audio until they reloaded.
+  await createCallMessage(
+    subdomain,
+    session.erxesApiConversationId,
+    session.customerId,
+    describeRecording(recordingDuration),
+    storedAt,
+    {
+      audio: {
+        attachment: buildRecordingAttachment(
+          session.recordUrl || params.RecordUrl,
+          params.RecordUrl,
+          false,
+          recordingDuration,
+        ),
+        isVoicemail: false,
+      },
+      // The hangup already set the preview to the call's real outcome; this is
+      // an addendum to that call, so it must not overwrite it.
+      replacesConversationContent: false,
+    },
+  );
 };

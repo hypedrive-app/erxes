@@ -70,6 +70,13 @@ export interface IMessage {
     embeds?: IMessageEmbed[];
     discordMessageId?: string;
     discordDeletedAt?: string;
+    /**
+     * True when the audio attached to this message is a VOICEMAIL rather than a
+     * recording of a call that was answered. Carried explicitly because the
+     * attachment shape has no room for it, and the two must not render alike: a
+     * voicemail is an unhandled contact still needing an agent.
+     */
+    plivoIsVoicemail?: boolean;
   };
   internal?: boolean;
   botData?: unknown[];

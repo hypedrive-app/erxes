@@ -5,6 +5,7 @@ import { debugError } from '@/integrations/plivo/debuggers';
 import {
   IPlivoCustomerDocument,
   IPlivoIntegrationDocument,
+  IPlivoMessageAttachment,
 } from '@/integrations/plivo/@types';
 
 /**
@@ -148,9 +149,45 @@ export const createCallConversation = async (
   return conversationId;
 };
 
+/** The call audio a message carries, when it carries any. */
+export interface IPlivoCallMessageAudio {
+  attachment: IPlivoMessageAttachment;
+  /**
+   * True when the audio is a voicemail rather than a recording of an answered
+   * call. Sent as message `extraData` because the attachment shape has no room
+   * for it and the inbox must not render the two alike — a voicemail is an
+   * unhandled contact, a recording is a record of a handled one.
+   */
+  isVoicemail: boolean;
+}
+
+/** Everything beyond the text a call message may carry. */
+export interface IPlivoCallMessageOptions {
+  audio?: IPlivoCallMessageAudio;
+  /**
+   * Whether this message's text becomes the conversation's list preview.
+   *
+   * The preview must say what HAPPENED on the call — `Outgoing call — 53s` —
+   * so only the messages that report the call's state claim it. The recording
+   * lands on its own callback long after the outcome is known and is an
+   * addendum to that call, not a newer fact about it; letting it take the
+   * preview would overwrite a correct outcome with "Call recording" in every
+   * inbox list.
+   */
+  replacesConversationContent: boolean;
+}
+
 /**
  * Writes the call itself into the conversation so the agent sees a message
  * rather than an empty thread.
+ *
+ * `audio` carries the recording or voicemail when there is one. It is passed
+ * through the SAME action as the text, matching how the WhatsApp integration
+ * delivers media, because `create-conversation-message` is the only inbox
+ * action that both stores a message and publishes the
+ * `conversationMessageInserted` event an open inbox is subscribed to — an
+ * update path would store the audio but leave every open inbox showing the
+ * thread without it.
  *
  * Failure here is logged and swallowed: the conversation already exists and the
  * call session row is the durable record, so losing the rendered line is worth
@@ -162,16 +199,25 @@ export const createCallMessage = async (
   customerId: string | undefined,
   content: string,
   createdAt: Date,
+  { audio, replacesConversationContent }: IPlivoCallMessageOptions = {
+    replacesConversationContent: true,
+  },
 ): Promise<string> => {
   try {
     const response = await receiveInboxMessage(subdomain, {
       action: 'create-conversation-message',
-      metaInfo: 'replaceContent',
+      ...(replacesConversationContent ? { metaInfo: 'replaceContent' } : {}),
       payload: JSON.stringify({
         content,
         conversationId,
         customerId,
         createdAt,
+        ...(audio
+          ? {
+              attachments: [audio.attachment],
+              extraData: { plivoIsVoicemail: audio.isVoicemail },
+            }
+          : {}),
       }),
     });
 
