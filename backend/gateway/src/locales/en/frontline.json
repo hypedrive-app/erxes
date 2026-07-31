@@ -640,7 +640,7 @@
   "plivo-softphone": "Browser phone",
   "plivo-softphone-select": "Choose a number",
   "plivo-softphone-off": "Off",
-  "plivo-token-failed": "Could not start the browser phone",
+  "plivo-credentials-failed": "Could not start the browser phone",
   "plivo-audio-blocked": "Your browser blocked call audio. Click the page, then try the call again.",
   "plivo-mic-denied": "Microphone access denied. Allow it in your browser to make calls.",
   "plivo-missed-call": "Missed call",

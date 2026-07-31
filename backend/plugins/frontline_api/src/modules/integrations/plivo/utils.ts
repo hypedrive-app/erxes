@@ -411,6 +411,38 @@ export const createPlivoEndpoint = async ({
 };
 
 /**
+ * Sets a new password on an existing SIP endpoint.
+ *
+ * Plivo has no way to read a password back: `GET /Endpoint/{id}/` DOES return a
+ * `password` field, but it is stale — logging in with the value it returns
+ * fails with `Authentication Error`, while the value just POSTed here works.
+ * The password is therefore write-only and the caller must persist what it
+ * passed in; this helper deliberately returns nothing to read.
+ *
+ * A successful update answers `{"message":"changed"}`.
+ * https://www.plivo.com/docs/voice/api/endpoints#update-an-endpoint
+ */
+export const updatePlivoEndpointPassword = async ({
+  authId,
+  authToken,
+  endpointId,
+  password,
+}: {
+  authId: string;
+  authToken: string;
+  endpointId: string;
+  password: string;
+}): Promise<void> => {
+  await plivoRequest({
+    authId,
+    authToken,
+    method: 'POST',
+    path: `/Endpoint/${endpointId}/`,
+    body: { password },
+  });
+};
+
+/**
  * Normalises Plivo's `sip_registered`.
  *
  * Plivo's attribute table types this field as a STRING carrying `'true'` or

@@ -136,33 +136,3 @@ export const PLIVO_RECORDING_FREE_STORAGE_DAYS = 90;
  * https://www.plivo.com/docs/voice/concepts/sip-endpoint
  */
 export const PLIVO_ENDPOINT_DOMAIN = 'phone.plivo.com';
-
-/**
- * Lifetime of a browser access token, in seconds.
- *
- * One hour keeps a full shift from re-authenticating repeatedly while still
- * bounding how long a token lifted from a browser stays usable.
- * https://www.plivo.com/docs/voice/sdk/browser/jwt-authentication
- */
-export const PLIVO_ACCESS_TOKEN_TTL_SECONDS = 3600;
-
-/**
- * Shortest access token lifetime Plivo accepts, in seconds.
- *
- * Plivo's own SDKs reject anything outside [180, 86400] before the token is
- * ever sent — `plivo-python` enforces `180 <= lifetime <= 86400` in
- * `plivo/utils/jwt.py`, and the JWT API documents a 3 minute to 24 hour range.
- */
-export const PLIVO_ACCESS_TOKEN_MIN_TTL_SECONDS = 180;
-
-/** Longest access token lifetime Plivo accepts (24 hours), in seconds. */
-export const PLIVO_ACCESS_TOKEN_MAX_TTL_SECONDS = 86400;
-
-/**
- * How far `nbf` is backdated to absorb clock drift, in seconds.
- *
- * Kept small and applied only to `nbf` — never to the lifetime — because Plivo
- * measures validity as `exp - nbf`, so widening this eats into the permitted
- * range rather than adding slack.
- */
-export const PLIVO_ACCESS_TOKEN_CLOCK_SKEW_SECONDS = 30;

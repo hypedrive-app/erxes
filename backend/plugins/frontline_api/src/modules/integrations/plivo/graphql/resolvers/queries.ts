@@ -1,12 +1,15 @@
 import { FilterQuery } from 'mongoose';
 import { sendTRPCMessage } from 'erxes-api-shared/utils';
 import { IContext } from '~/connectionResolvers';
-import {
-  generatePlivoAccessToken,
-  IPlivoAccessToken,
-} from '@/integrations/plivo/accessToken';
 import { ensurePlivoEndpoint } from '@/integrations/plivo/helpers';
 import { debugError } from '@/integrations/plivo/debuggers';
+import {
+  PLIVO_DEFAULT_AGENT_RING_SECONDS,
+  PLIVO_DEFAULT_FORWARD_RING_SECONDS,
+  PLIVO_DEFAULT_VOICEMAIL_GREETING,
+  PLIVO_DEFAULT_VOICEMAIL_MAX_SECONDS,
+  PLIVO_ENDPOINT_DOMAIN,
+} from '@/integrations/plivo/constants';
 import {
   IPlivoCallSessionDocument,
   PlivoCallDirection,
@@ -16,6 +19,22 @@ import {
 export interface IPlivoSoftphoneIntegration {
   _id: string;
   name: string;
+  phoneNumber?: string;
+}
+
+/**
+ * What one agent's browser needs to register its softphone.
+ *
+ * The password is a live SIP credential. It is scoped to a single endpoint
+ * belonging to a single agent, and is only ever returned to that agent — see
+ * the resolver.
+ */
+export interface IPlivoSoftphoneCredentials {
+  username: string;
+  password: string;
+  /** Endpoint URI an inbound `<Dial><User>` must target to ring this browser. */
+  endpointUri: string;
+  /** Caller id outbound browser calls are placed from. */
   phoneNumber?: string;
 }
 
@@ -54,6 +73,30 @@ export interface IPlivoCallHistory {
 export interface IPlivoCallHistoryList {
   list: IPlivoCallHistory[];
   totalCount: number;
+}
+
+/**
+ * A connected number's settings, as the config screen edits them.
+ *
+ * `authToken` is deliberately absent — see the resolver.
+ */
+export interface IPlivoIntegrationConfig {
+  _id: string;
+  name?: string;
+  authId?: string;
+  plivoPhoneNumber?: string;
+  appId?: string;
+  defaultCountryCode?: string;
+  recordCalls: boolean;
+  forwardToNumber?: string;
+  forwardTimeout: number;
+  ringAgents: boolean;
+  agentRingTimeout: number;
+  voicemailEnabled: boolean;
+  voicemailMaxLength: number;
+  voicemailGreeting: string;
+  healthStatus?: string;
+  error?: string;
 }
 
 export interface IPlivoCallHistoriesArgs {
@@ -108,7 +151,8 @@ export const plivoQueries = {
    * several.
    *
    * Credentials never leave the server: only the id, name and caller id are
-   * exposed, and a token still has to be minted through `plivoAccessToken`.
+   * exposed, and SIP credentials still have to be fetched through
+   * `plivoSoftphoneCredentials`.
    *
    * An integration with no stored credentials is omitted rather than offered,
    * because picking it could only ever fail at the token step — which is the
@@ -163,26 +207,113 @@ export const plivoQueries = {
   },
 
   /**
-   * Mints a browser softphone access token for the requesting agent.
+   * Every connected Plivo number with the settings that drive its call routing.
    *
-   * This resolver deliberately carries NO `wrapperConfig`, so the plugin's
-   * Apollo wrapper applies `wrapPermission` and rejects an anonymous caller
-   * before the body runs — minting calling credentials must never be reachable
-   * without a session.
+   * Exists because the routing settings were previously editable only in the
+   * database: `plivoSoftphoneIntegrations` returns just an id, a name and a
+   * caller id, so a config form had nothing to populate from. Without this a
+   * form would render every toggle blank and then save those blanks over live
+   * routing — `plivoUpdateIntegration` falls back to the stored value per field,
+   * so a form that never knew the current values is exactly what defeats it.
    *
-   * The account's `authId`/`authToken` stay on the server: the auth token is
-   * used only as the signing key, so what the browser receives is a token
-   * scoped to one endpoint that expires on its own.
+   * `authToken` is NOT returned and must never be added. It is the account
+   * secret and the HMAC key that verifies inbound callbacks, so it is
+   * write-only: replaceable, never readable. `authId` is returned because it
+   * identifies the account without authenticating to it.
+   *
+   * Values are the EFFECTIVE ones, not the raw columns: an unset `ringAgents`
+   * routes as ON and an unset timeout routes at its default, so returning the
+   * raw null would show the operator "off"/"0" for a number that is in fact
+   * ringing agents. The form must show what the phone system is actually doing.
+   *
+   * Carries no `wrapperConfig`, so the plugin's Apollo wrapper applies
+   * `wrapPermission` and rejects an anonymous caller before the body runs.
    */
-  plivoAccessToken: async (
+  plivoIntegrationConfigs: async (
+    _root: undefined,
+    _args: undefined,
+    { models, user }: IContext,
+  ): Promise<IPlivoIntegrationConfig[]> => {
+    if (!user?._id) {
+      throw new Error('Login required');
+    }
+
+    const plivoIntegrations = await models.PlivoIntegrations.find({}).lean();
+
+    if (!plivoIntegrations.length) {
+      return [];
+    }
+
+    // The inbox row owns the name the operator recognises, and an archived
+    // integration must not be offered as something to configure.
+    const inboxIntegrations = await models.Integrations.find({
+      _id: { $in: plivoIntegrations.map((integration) => integration.erxesApiId) },
+      isActive: { $ne: false },
+    }).lean();
+
+    const nameById = new Map(
+      inboxIntegrations.map((integration) => [integration._id, integration.name]),
+    );
+
+    return plivoIntegrations
+      .filter((integration) => nameById.has(integration.erxesApiId))
+      .map((integration) => ({
+        _id: integration.erxesApiId,
+        name: nameById.get(integration.erxesApiId) || integration.plivoPhoneNumber,
+        authId: integration.authId,
+        plivoPhoneNumber: integration.plivoPhoneNumber,
+        appId: integration.appId,
+        defaultCountryCode: integration.defaultCountryCode,
+        recordCalls: integration.recordCalls === true,
+        forwardToNumber: integration.forwardToNumber,
+        forwardTimeout:
+          integration.forwardTimeout || PLIVO_DEFAULT_FORWARD_RING_SECONDS,
+        // Unset means ON for both of these — see `buildAnswerXml`, which only
+        // disables them on an explicit `=== false`.
+        ringAgents: integration.ringAgents !== false,
+        agentRingTimeout:
+          integration.agentRingTimeout || PLIVO_DEFAULT_AGENT_RING_SECONDS,
+        voicemailEnabled: integration.voicemailEnabled !== false,
+        voicemailMaxLength:
+          integration.voicemailMaxLength || PLIVO_DEFAULT_VOICEMAIL_MAX_SECONDS,
+        voicemailGreeting:
+          integration.voicemailGreeting || PLIVO_DEFAULT_VOICEMAIL_GREETING,
+        healthStatus: integration.healthStatus,
+        error: integration.error,
+      }));
+  },
+
+  /**
+   * Returns the SIP credentials the requesting agent's browser registers with.
+   *
+   * This replaced a JWT-minting resolver. Plivo's registrar refuses JWT
+   * registration on this account — a token minted by Plivo's own REST JWT API
+   * and a locally-signed one were both rejected with `SIP Failure Code` against
+   * the very endpoint where `client.login(username, password)` succeeded at the
+   * same moment — so the browser SDK is driven with the endpoint's username and
+   * password instead.
+   *
+   * The password is returned to the browser, which is unavoidable for password
+   * auth: the SDK registers with it directly. What bounds the exposure is that
+   * it belongs to ONE endpoint, provisioned for ONE agent on ONE integration,
+   * and is scoped by `user._id` below — the account's `authId`/`authToken`,
+   * which could place calls on every number, never leave the server.
+   *
+   * Like the resolver it replaced, this carries NO `wrapperConfig`, so the
+   * plugin's Apollo wrapper applies `wrapPermission` and rejects an anonymous
+   * caller before the body runs. The endpoint is additionally derived from
+   * `user._id`, so an agent can only ever be handed their own credential —
+   * there is no argument that could name another agent's endpoint.
+   */
+  plivoSoftphoneCredentials: async (
     _root: undefined,
     { integrationId }: { integrationId: string },
     { models, user }: IContext,
-  ): Promise<IPlivoAccessToken & { phoneNumber?: string }> => {
-    // This mints credentials that can place and receive calls on the account,
-    // so an unauthenticated caller must never reach the signing step. The
-    // endpoint username is derived from the user id as well, which would be
-    // meaningless without one.
+  ): Promise<IPlivoSoftphoneCredentials> => {
+    // This returns credentials that can place and receive calls on the account,
+    // so an unauthenticated caller must never reach the provisioning step. The
+    // endpoint is keyed by the user id as well, which would be meaningless
+    // without one.
     if (!user?._id) {
       throw new Error('Login required');
     }
@@ -199,12 +330,16 @@ export const plivoQueries = {
       );
     }
 
-    // A token on its own does not make the browser reachable — `<Dial><User>`
-    // can only ring a SIP endpoint that exists — so one is provisioned before
-    // the token is minted. One endpoint per agent per integration: two browsers
-    // sharing a username would race for the same registration and only the last
-    // one would ring.
+    // Credentials alone do not make the browser reachable — `<Dial><User>` can
+    // only ring a SIP endpoint that exists — so one is provisioned first. One
+    // endpoint per agent per integration: two browsers sharing a username would
+    // race for the same registration and only the last one would ring.
+    //
+    // For an endpoint provisioned before passwords were stored this ROTATES the
+    // password, because the original was discarded and Plivo will not read one
+    // back. See `ensurePlivoEndpoint`.
     const endpoint = await ensurePlivoEndpoint({
+      models,
       authId,
       authToken,
       integrationId,
@@ -212,22 +347,20 @@ export const plivoQueries = {
       appId,
     });
 
-    // Plivo appends a 12-digit number to the requested username, so the token's
-    // `sub` and the SIP URI must both use the name Plivo actually assigned.
-    const accessToken = generatePlivoAccessToken({
-      authId,
-      authToken,
+    return {
       username: endpoint.username,
-      appId,
-    });
-
-    return { ...accessToken, phoneNumber: plivoPhoneNumber };
+      password: endpoint.password,
+      // Plivo appends a 12-digit number to the requested username, so the SIP
+      // URI must use the name Plivo actually assigned.
+      endpointUri: `sip:${endpoint.username}@${PLIVO_ENDPOINT_DOMAIN}`,
+      phoneNumber: plivoPhoneNumber,
+    };
   },
 
   /**
    * A page of call history for the Plivo numbers this account has connected.
    *
-   * Like `plivoAccessToken` this resolver carries NO `wrapperConfig`, so the
+   * Like `plivoSoftphoneCredentials` this resolver carries NO `wrapperConfig`, so the
    * plugin's Apollo wrapper applies `wrapPermission` and rejects an anonymous
    * caller before the body runs. Call history is a log of who spoke to whom
    * and a link to the audio of it; it must never be readable without a session.

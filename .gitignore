@@ -85,3 +85,6 @@ backend/core-api/src/utils/private/uploads/
 
 # Sentry CLI local auth (token set via SENTRY_AUTH_TOKEN env var)
 .sentryclirc
+
+# Scratch/diagnostic dumps — may contain live credentials, never commit
+archive/

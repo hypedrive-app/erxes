@@ -1,7 +1,7 @@
 export const types = `
   """A connected Plivo number this agent can answer on in the browser."""
   type PlivoSoftphoneIntegration {
-    """Inbox integration id, the value plivoAccessToken is asked for."""
+    """Inbox integration id, the value plivoSoftphoneCredentials is asked for."""
     _id: String!
     """Inbox name of the integration, for the picker."""
     name: String!
@@ -9,13 +9,20 @@ export const types = `
     phoneNumber: String
   }
 
-  type PlivoAccessToken {
-    """Short-lived JWT the browser SDK logs in with. Never cache it past expiresAt."""
-    token: String!
-    """SIP endpoint username the token authenticates as."""
+  """
+  SIP credentials for ONE agent's browser softphone.
+
+  Replaces the JWT this integration used to mint: Plivo's registrar refuses JWT
+  registration on this account, while username+password registration on the same
+  endpoint succeeds. The password is a live SIP credential and is only ever
+  returned to the agent whose endpoint it is — the resolver derives the endpoint
+  from the session user, so there is no argument that could name another agent's.
+  """
+  type PlivoSoftphoneCredentials {
+    """SIP endpoint username, as Plivo assigned it."""
     username: String!
-    """Unix seconds at which the token stops being accepted."""
-    expiresAt: Float!
+    """SIP password. Write-only at Plivo, so this is the only copy that works."""
+    password: String!
     """Endpoint URI an inbound <Dial><User> must target to ring this browser."""
     endpointUri: String!
     """Caller id outbound browser calls are placed from."""
@@ -89,11 +96,56 @@ export const types = `
     list: [PlivoCallHistory]
     totalCount: Int
   }
+
+  """
+  A connected Plivo number's settings, as the integration config screen edits
+  them.
+
+  The auth token is deliberately ABSENT from this type. It is the account secret
+  AND the HMAC key that verifies inbound callbacks, so it is write-only: it can
+  be replaced, never read back. Every other field round-trips so the form shows
+  what live call routing is actually doing.
+  """
+  type PlivoIntegrationConfig {
+    """Inbox integration id these settings belong to."""
+    _id: String!
+    """Inbox name of the integration."""
+    name: String
+    """The account auth id. Not a secret on its own — the token is."""
+    authId: String
+    """The rented number in E.164."""
+    plivoPhoneNumber: String
+    """Plivo application that owns the answer/hangup URLs."""
+    appId: String
+    """Dialing code prefixed to caller numbers that arrive without one."""
+    defaultCountryCode: String
+    """Record answered calls."""
+    recordCalls: Boolean
+    """E.164 number an unanswered call falls back to; empty means no fallback."""
+    forwardToNumber: String
+    """Seconds to ring the fallback number before giving up."""
+    forwardTimeout: Int
+    """Ring logged-in agents' browser softphones before the fallback number."""
+    ringAgents: Boolean
+    """Seconds to ring the agents' softphones before falling back."""
+    agentRingTimeout: Int
+    """Take a voicemail when nobody answered."""
+    voicemailEnabled: Boolean
+    """Seconds of voicemail to accept before stopping the recording."""
+    voicemailMaxLength: Int
+    """Prompt read to the caller before the beep."""
+    voicemailGreeting: String
+    """healthy | error, as of the last credential check."""
+    healthStatus: String
+    """Why the integration is broken, when it is."""
+    error: String
+  }
 `;
 
 export const queries = `
   plivoSoftphoneIntegrations: [PlivoSoftphoneIntegration]
-  plivoAccessToken(integrationId: String!): PlivoAccessToken
+  plivoIntegrationConfigs: [PlivoIntegrationConfig]
+  plivoSoftphoneCredentials(integrationId: String!): PlivoSoftphoneCredentials
   plivoCallHistories(
     integrationId: String
     direction: String

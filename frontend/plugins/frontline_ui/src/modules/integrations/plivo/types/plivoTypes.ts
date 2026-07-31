@@ -2,8 +2,8 @@
  * Connection lifecycle of the Plivo browser client.
  *
  * Mirrors `SipStatusEnum` from the Grandstream softphone so the two widgets
- * read the same way, but the values are namespaced separately because a Plivo
- * client is logged in with a JWT rather than SIP-registered with a password.
+ * read the same way, but the values are namespaced separately because the two
+ * clients are driven by different SDKs with their own lifecycles.
  */
 export enum PlivoStatusEnum {
   DISCONNECTED = 'plivoStatus/DISCONNECTED',
@@ -78,10 +78,16 @@ export interface IPlivoMediaMetric {
   active?: boolean;
 }
 
-export interface IPlivoAccessToken {
-  token: string;
+/**
+ * SIP credentials this agent's browser softphone registers with.
+ *
+ * Plivo's registrar refuses JWT registration on this account, so the SDK is
+ * driven with `client.login(username, password)` rather than a token. The
+ * password belongs to one endpoint provisioned for this agent alone.
+ */
+export interface IPlivoSoftphoneCredentials {
   username: string;
-  expiresAt: number;
+  password: string;
   endpointUri: string;
   phoneNumber?: string | null;
 }
@@ -91,6 +97,33 @@ export interface IPlivoSoftphoneIntegration {
   _id: string;
   name: string;
   phoneNumber?: string | null;
+}
+
+/**
+ * A connected number's settings, as the integration config screen edits them.
+ *
+ * There is no `authToken`: it is write-only on the server and never reaches the
+ * browser. Booleans and seconds arrive already resolved to their EFFECTIVE
+ * values, so the form shows what inbound routing is actually doing rather than
+ * a blank for every field that was left at its default.
+ */
+export interface IPlivoIntegrationConfig {
+  _id: string;
+  name?: string | null;
+  authId?: string | null;
+  plivoPhoneNumber?: string | null;
+  appId?: string | null;
+  defaultCountryCode?: string | null;
+  recordCalls: boolean;
+  forwardToNumber?: string | null;
+  forwardTimeout: number;
+  ringAgents: boolean;
+  agentRingTimeout: number;
+  voicemailEnabled: boolean;
+  voicemailMaxLength: number;
+  voicemailGreeting: string;
+  healthStatus?: string | null;
+  error?: string | null;
 }
 
 /** Direction exactly as the backend stores it, which is how Plivo reports it. */
@@ -172,7 +205,7 @@ export type PlivoCallOutcome =
   | 'in-progress';
 
 export interface PlivoContextValue {
-  /** Logs the client in again with a freshly fetched token. */
+  /** Logs the client in again with the credentials already in hand. */
   reconnectPlivo: () => void;
   /** Unregisters the endpoint so the agent stops receiving calls. */
   unregisterPlivo: () => void;

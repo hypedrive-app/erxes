@@ -34,6 +34,37 @@ export interface IPlivoIntegrationDocument extends IPlivoIntegration, Document {
   _id: string;
 }
 
+/**
+ * One agent's SIP endpoint on one integration, with the password it registers
+ * with.
+ *
+ * Stored because Plivo will not give a password back: the browser authenticates
+ * with `client.login(username, password)`, so the value POSTed at provisioning
+ * time is the only copy that exists. See `ensurePlivoEndpoint`.
+ */
+export interface IPlivoEndpointCredential {
+  /** Inbox integration id the endpoint belongs to. */
+  integrationId: string;
+  /** Erxes user the endpoint was provisioned for. */
+  userId: string;
+  /** Plivo's own endpoint id, used to rotate the password. */
+  endpointId: string;
+  /** The username Plivo assigned, which is what actually registers. */
+  username: string;
+  /** Alias we set at creation; the only field that identifies our endpoints. */
+  alias: string;
+  /** Live SIP credential. Never logged, never returned to another user. */
+  password: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface IPlivoEndpointCredentialDocument
+  extends IPlivoEndpointCredential,
+    Document {
+  _id: string;
+}
+
 export interface IPlivoCustomer {
   phoneNumber: string;
   erxesApiId?: string;
@@ -212,6 +243,17 @@ export interface IPlivoEndpoint {
    * the field was absent, which is treated as unknown rather than offline.
    */
   sipRegistered?: boolean;
+}
+
+/**
+ * A SIP endpoint together with the password the browser registers with.
+ *
+ * The password is NEVER read back from Plivo — `GET /Endpoint/{id}/` returns a
+ * stale value that does not authenticate — so it only ever exists here on the
+ * path that just wrote it. See `ensurePlivoEndpoint`.
+ */
+export interface IPlivoEndpointCredentials extends IPlivoEndpoint {
+  password: string;
 }
 
 /** Response from POST /v1/Account/{auth_id}/Endpoint/. */

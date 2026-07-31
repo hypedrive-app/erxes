@@ -319,9 +319,14 @@ import {
   loadPlivoCallSessionClass,
 } from '@/integrations/plivo/db/models/CallSessions';
 import {
+  IPlivoEndpointCredentialModel,
+  loadPlivoEndpointCredentialClass,
+} from '@/integrations/plivo/db/models/EndpointCredentials';
+import {
   IPlivoIntegrationDocument,
   IPlivoCustomerDocument,
   IPlivoCallSessionDocument,
+  IPlivoEndpointCredentialDocument,
 } from '@/integrations/plivo/@types';
 export interface IModels {
   //channel
@@ -366,6 +371,7 @@ export interface IModels {
   PlivoIntegrations: IPlivoIntegrationModel;
   PlivoCustomers: IPlivoCustomerModel;
   PlivoCallSessions: IPlivoCallSessionModel;
+  PlivoEndpointCredentials: IPlivoEndpointCredentialModel;
 
   //call
   CallIntegrations: ICallIntegrationModel;
@@ -569,6 +575,13 @@ export const loadClasses = (
     IPlivoCallSessionDocument,
     IPlivoCallSessionModel
   >('plivo_call_sessions', loadPlivoCallSessionClass(models));
+  models.PlivoEndpointCredentials = db.model<
+    IPlivoEndpointCredentialDocument,
+    IPlivoEndpointCredentialModel
+  >(
+    'plivo_endpoint_credentials',
+    loadPlivoEndpointCredentialClass(models),
+  );
 
   models.InstagramIntegrations = db.model<
     IInstagramIntegrationDocument,

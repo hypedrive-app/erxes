@@ -67,35 +67,41 @@ const PLIVO_OPTIONS = {
 };
 
 /**
- * How many times a refused login may ask for a fresh token.
+ * How many times a refused login may ask for a fresh credential.
  *
  * The SDK does NOT retry a failed login — `_onRegistrationFailed` emits
  * `onLoginFailed` and stops — so every retry is this provider's own. Refetching
- * mints a new token string, which is the sole dependency of the login effect,
- * so each refetch tears the client down and logs in again: unbounded, that is a
- * closed fail → refetch → remount → fail loop that ran roughly every 700ms and
- * grew the SDK's own log store by ~9MB/hour until localStorage was gone.
+ * changes the password, which is a dependency of the login effect, so each
+ * refetch tears the client down and logs in again: unbounded, that is a closed
+ * fail → refetch → remount → fail loop that ran roughly every 700ms and grew
+ * the SDK's own log store by ~9MB/hour until localStorage was gone.
  *
- * Two is what a token problem can actually justify. A genuinely expired token
- * needs exactly one refetch. The second covers the race where that replacement
- * was itself minted close enough to its expiry to be refused, or where a
- * rotation landed mid-flight. A third attempt has no failure mode left to fix:
- * the SDK collapses most registrar rejections into a generic `SIP Failure
- * Code`, so past this point the cause is account- or endpoint-level and a
- * fresh token is the one thing that cannot repair it.
+ * On the password path "retry" means something narrower than it did for a
+ * token, and the budget shrinks accordingly. A SIP password does not expire, so
+ * a refetch can no longer fix the common case it was written for. What it CAN
+ * fix is exactly one thing: our stored password having drifted from the
+ * endpoint that actually exists at Plivo — the endpoint deleted and
+ * re-provisioned in the console, or a row left over from a previous
+ * integration. The server's `ensurePlivoEndpoint` reconciles that on every
+ * fetch, rotating when it holds no usable password.
+ *
+ * ONE such attempt is all that is justified. If the refetch reconciled
+ * anything, the very next login succeeds; if it did not, the server returned
+ * the same password it just returned, and asking a third time cannot produce a
+ * different one. A second attempt would only re-POST a rotation Plivo already
+ * accepted.
  */
-const PLIVO_MAX_LOGIN_TOKEN_ATTEMPTS = 2;
+const PLIVO_MAX_LOGIN_CREDENTIAL_ATTEMPTS = 1;
 
 /**
- * How many times a transient failure may re-login with the SAME token.
+ * How many times a transient failure may re-login with the SAME credential.
  *
  * A laptop resuming from sleep or a flaky network raises `Connection Error` /
- * `Request Timeout` against a token that is perfectly valid, so treating those
- * as terminal would strand an agent offline until they noticed and pressed
- * Reconnect. These retries deliberately do NOT refetch — they re-drive the
- * existing token through `loginWithAccessToken`, which leaves `accessToken`
- * untouched and so cannot re-enter the remount loop the counter above exists
- * to stop.
+ * `Request Timeout` against a credential that is perfectly valid, so treating
+ * those as terminal would strand an agent offline until they noticed and
+ * pressed Reconnect. These retries deliberately do NOT refetch — they re-drive
+ * the existing username/password through `login`, which leaves both untouched
+ * and so cannot re-enter the remount loop the counter above exists to stop.
  */
 const PLIVO_MAX_LOGIN_BACKOFF_ATTEMPTS = 3;
 
@@ -108,15 +114,21 @@ const PLIVO_LOGIN_BACKOFF_MS = [2000, 4000, 8000];
  * These are additions to the attempt counter, never a replacement for it: the
  * SDK reports most registrar rejections as the generic `SIP Failure Code`, so
  * matching on cause alone would leave the loop wide open for everything not
- * listed here. `INVALID_ACCESS_TOKEN` is the SDK's own synchronous verdict that
- * the token did not even parse, raised before any network round trip, so
- * asking for another one is pointless.
+ * listed here.
+ *
+ * `Authentication Error` was on this list under JWT auth and is deliberately
+ * NOT here now. On the password path it is the single most repairable cause:
+ * it is exactly what Plivo answers when the password we hold has drifted from
+ * the endpoint's real one, which is what a refetch reconciles. It therefore
+ * falls through to the counted path below and gets its one credential attempt.
+ *
+ * `Not Found` means the registrar has no such endpoint. A refetch DOES fix that
+ * — `ensurePlivoEndpoint` creates one when the alias lookup misses — so it is
+ * likewise left to the counted path rather than declared terminal here.
  */
 const PLIVO_PERMANENT_LOGIN_CAUSES = new Set([
-  'Authentication Error',
-  'Not Found',
-  'INVALID_ACCESS_TOKEN',
-  'RELOGIN_FAILED_INVALID_TOKEN',
+  'Origin Not Allowed',
+  'Forbidden',
 ]);
 
 /** Causes that are worth retrying with the token already in hand. */
@@ -148,15 +160,22 @@ const extractCounterpart = (value?: string | null): string => {
 };
 
 export const PlivoProvider = ({
-  accessToken,
+  username,
+  password,
   phoneNumber,
-  onTokenExpired,
+  onCredentialsRejected,
   children,
 }: {
-  accessToken: string;
+  /** SIP endpoint username, as Plivo assigned it. */
+  username: string;
+  /** SIP password for that endpoint. Never logged, never rendered. */
+  password: string;
   phoneNumber?: string | null;
-  /** Asks the container for a fresh token when this one is refused. */
-  onTokenExpired: () => void;
+  /**
+   * Asks the container to re-issue credentials when Plivo refuses this login
+   * for a reason re-provisioning could repair.
+   */
+  onCredentialsRejected: () => void;
   children: React.ReactNode;
 }) => {
   const { t } = useTranslation('frontline');
@@ -178,7 +197,7 @@ export const PlivoProvider = ({
   // Read inside SDK callbacks, which are registered once and would otherwise
   // close over the state as it was at login time.
   const plivoStateRef = useRef(plivoState);
-  const onTokenExpiredRef = useRef(onTokenExpired);
+  const onCredentialsRejectedRef = useRef(onCredentialsRejected);
   const isUnregisteredRef = useRef(isUnregistered);
   // The SDK handlers are attached once per token, so a `t` captured there would
   // keep rendering the language that was active at login even after the agent
@@ -194,8 +213,8 @@ export const PlivoProvider = ({
   }, [plivoState]);
 
   useEffect(() => {
-    onTokenExpiredRef.current = onTokenExpired;
-  }, [onTokenExpired]);
+    onCredentialsRejectedRef.current = onCredentialsRejected;
+  }, [onCredentialsRejected]);
 
   useEffect(() => {
     isUnregisteredRef.current = isUnregistered;
@@ -275,14 +294,14 @@ export const PlivoProvider = ({
     }));
   }, [setPlivoState]);
 
-  // The client is created once per token. Every handler is attached here
+  // The client is created once per credential. Every handler is attached here
   // because the SDK has no way to replace a listener after login.
   useEffect(() => {
-    if (!accessToken) return;
+    if (!username || !password) return;
 
     // Runs BEFORE the client is constructed, because the SDK logs its INIT
     // category from the constructor and its LOGIN category from
-    // `loginWithAccessToken` — both through the unguarded `setItem` that a full
+    // `login` — both through the unguarded `setItem` that a full
     // quota throws on. On an agent whose storage is already saturated (which is
     // every agent who has run the previous build) this is what makes the very
     // next page load recover: the key is cut back under budget here, so both
@@ -301,10 +320,11 @@ export const PlivoProvider = ({
     }));
 
     client.on('onLogin', () => {
-      // A login that succeeded proves the token and the endpoint are both good,
-      // so the next failure starts from a clean budget rather than inheriting
-      // one spent on an unrelated earlier fault — an agent whose network
-      // dropped twice hours ago must not be one failure away from terminal.
+      // A login that succeeded proves the credential and the endpoint are both
+      // good, so the next failure starts from a clean budget rather than
+      // inheriting one spent on an unrelated earlier fault — an agent whose
+      // network dropped twice hours ago must not be one failure away from
+      // terminal.
       loginAttemptsRef.current = 0;
       loginBackoffAttemptsRef.current = 0;
 
@@ -321,11 +341,11 @@ export const PlivoProvider = ({
      * Every path out of here is bounded.
      *
      * The SDK stops dead on a refused login, so whatever this handler does is
-     * the whole retry policy. It used to unconditionally ask for a new token,
-     * which changed the effect's only dependency and remounted the client into
-     * the same failure — a hot loop that hammered our token endpoint and
-     * Plivo's registrar several times a second and showed the agent nothing but
-     * a red launcher. There are exactly three outcomes now, and two of them
+     * the whole retry policy. It used to unconditionally ask for a new
+     * credential, which changed the effect's dependency and remounted the
+     * client into the same failure — a hot loop that hammered our own endpoint
+     * and Plivo's registrar several times a second and showed the agent nothing
+     * but a red launcher. There are exactly three outcomes, and two of them
      * count down to the third.
      */
     client.on('onLoginFailed', (cause: string) => {
@@ -341,9 +361,9 @@ export const PlivoProvider = ({
         }));
       };
 
-      // A transient cause means the token was never in question, so it is
-      // retried with the one already in hand — no refetch, so `accessToken`
-      // does not change and the effect does not remount.
+      // A transient cause means the credential was never in question, so it is
+      // retried with the one already in hand — no refetch, so `password` does
+      // not change and the effect does not remount.
       if (PLIVO_TRANSIENT_LOGIN_CAUSES.has(cause)) {
         if (loginBackoffAttemptsRef.current >= PLIVO_MAX_LOGIN_BACKOFF_ATTEMPTS) {
           failTerminally(tRef.current('plivo-login-unreachable'));
@@ -371,26 +391,32 @@ export const PlivoProvider = ({
           if (clientRef.current !== client) return;
           if (isUnregisteredRef.current) return;
 
-          client.loginWithAccessToken(accessToken);
+          // `login` returns false synchronously when the SDK refuses to even
+          // attempt — no `onLoginFailed` follows it, so a bare call would leave
+          // the widget stuck on "Reconnecting..." with nothing further coming.
+          if (client.login(username, password) === false) {
+            failTerminally(tRef.current('plivo-login-unreachable'));
+          }
         }, delay);
         return;
       }
 
-      // Known-permanent causes skip the budget entirely — a new token cannot
-      // fix a rejected identity — but they never replace it, because the SDK
-      // reports most registrar rejections as a generic `SIP Failure Code` that
-      // lands below in the counted path.
+      // Known-permanent causes skip the budget entirely — a new credential
+      // cannot fix an origin the account refuses — but they never replace it,
+      // because the SDK reports most registrar rejections as a generic `SIP
+      // Failure Code` that lands below in the counted path.
       if (PLIVO_PERMANENT_LOGIN_CAUSES.has(cause)) {
         failTerminally(tRef.current('plivo-login-rejected'));
         return;
       }
 
-      // Everything else — including the generic `SIP Failure Code` that an
-      // out-of-credit or unprovisioned account produces — is treated as
-      // possibly-expired-token, but only for a strictly counted number of
-      // refetches. This is the load-bearing guard: it is the only thing
-      // standing between the ambiguous causes and the old hot loop.
-      if (loginAttemptsRef.current >= PLIVO_MAX_LOGIN_TOKEN_ATTEMPTS) {
+      // Everything else — `Authentication Error`, `Not Found`, and the generic
+      // `SIP Failure Code` an unprovisioned or out-of-credit account produces —
+      // is treated as a credential that may have drifted from the endpoint,
+      // and re-issued a strictly counted number of times. This is the
+      // load-bearing guard: it is the only thing standing between the ambiguous
+      // causes and the old hot loop.
+      if (loginAttemptsRef.current >= PLIVO_MAX_LOGIN_CREDENTIAL_ATTEMPTS) {
         failTerminally(tRef.current('plivo-login-failed-permanently'));
         return;
       }
@@ -404,32 +430,20 @@ export const PlivoProvider = ({
         plivoErrorMessage: tRef.current('plivo-login-retrying'),
       }));
 
-      onTokenExpiredRef.current();
+      onCredentialsRejectedRef.current();
     });
 
     /**
-     * Also the SDK's expiry signal.
+     * A password registration has no expiry, so this is now only ever a real
+     * sign-out.
      *
-     * A plain `loginWithAccessToken` does not refresh itself: when the token
-     * dies the SDK emits `onLogout` with the cause `ACCESS_TOKEN_EXPIRED` and
-     * then logs out. Treating that like a deliberate sign-out left the agent
-     * silently offline mid-shift — the launcher went red and no call could
-     * arrive, with nothing saying why. A fresh token is requested instead,
-     * which remounts this effect and logs back in.
+     * Under JWT auth the SDK emitted `ACCESS_TOKEN_EXPIRED` here when the token
+     * died mid-shift, and that branch requested a fresh one. A SIP password
+     * does not expire and the SDK re-registers on its own for the life of the
+     * session, so the cause can no longer arrive and the branch was removed
+     * rather than left as a condition nothing satisfies.
      */
-    client.on('onLogout', (cause?: string) => {
-      if (cause === 'ACCESS_TOKEN_EXPIRED') {
-        setPlivoState((prev) => ({
-          ...prev,
-          plivoStatus: PlivoStatusEnum.CONNECTING,
-          callStatus: PlivoCallStatusEnum.IDLE,
-          callDirection: null,
-        }));
-
-        onTokenExpiredRef.current();
-        return;
-      }
-
+    client.on('onLogout', () => {
       setPlivoState((prev) => ({
         ...prev,
         plivoStatus: PlivoStatusEnum.DISCONNECTED,
@@ -570,8 +584,19 @@ export const PlivoProvider = ({
       }
     });
 
+    // `login` reports a refusal it will not raise an event for by returning
+    // false — an empty credential, or a client the SDK considers already busy.
+    // Without checking it the widget would sit on "Connecting..." forever,
+    // because no `onLoginFailed` follows a synchronous false.
     if (!isUnregisteredRef.current) {
-      client.loginWithAccessToken(accessToken);
+      if (client.login(username, password) === false) {
+        setPlivoState((prev) => ({
+          ...prev,
+          plivoStatus: PlivoStatusEnum.ERROR,
+          plivoErrorType: PlivoErrorTypeEnum.REGISTRATION,
+          plivoErrorMessage: tRef.current('plivo-login-rejected'),
+        }));
+      }
     }
 
     // The trim above only bounds the log as it stood at login. The SDK keeps
@@ -623,9 +648,9 @@ export const PlivoProvider = ({
 
       clientRef.current = null;
     };
-    // Re-running on anything but the token would tear down a live call.
+    // Re-running on anything but the credential would tear down a live call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken]);
+  }, [username, password]);
 
   const startCall = useCallback(
     (destination: string) => {
@@ -765,8 +790,17 @@ export const PlivoProvider = ({
     // from the attempt that failed.
     trimPlivoLogStorage();
 
-    clientRef.current.loginWithAccessToken(accessToken);
-  }, [accessToken, setIsUnregistered, setPlivoState]);
+    // A synchronous false raises no event, so the press would otherwise leave
+    // the widget on "Connecting..." and look like the button did nothing.
+    if (clientRef.current.login(username, password) === false) {
+      setPlivoState((prev) => ({
+        ...prev,
+        plivoStatus: PlivoStatusEnum.ERROR,
+        plivoErrorType: PlivoErrorTypeEnum.REGISTRATION,
+        plivoErrorMessage: tRef.current('plivo-login-rejected'),
+      }));
+    }
+  }, [username, password, setIsUnregistered, setPlivoState]);
 
   const contextValue = useMemo<PlivoContextValue>(
     () => ({

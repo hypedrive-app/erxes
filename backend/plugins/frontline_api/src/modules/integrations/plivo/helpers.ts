@@ -1,15 +1,16 @@
 import { randomBytes } from 'crypto';
 import { normalizePhone } from 'erxes-api-shared/utils';
-import { generateModels } from '~/connectionResolvers';
+import { generateModels, IModels } from '~/connectionResolvers';
 import {
   createPlivoEndpoint,
   findPlivoEndpointByAlias,
   getPlivoAccount,
   listPlivoEndpoints,
+  updatePlivoEndpointPassword,
 } from '@/integrations/plivo/utils';
 import { debugError } from '@/integrations/plivo/debuggers';
 import {
-  IPlivoEndpoint,
+  IPlivoEndpointCredentials,
   IPlivoIntegration,
 } from '@/integrations/plivo/@types';
 
@@ -268,6 +269,11 @@ export const plivoRemoveIntegration = async (
     await models.PlivoCustomers.deleteMany({
       integrationId: integration.erxesApiId,
     });
+    // Live SIP passwords for a number nobody can call any more. They are of no
+    // further use and must not outlive the integration that scoped them.
+    await models.PlivoEndpointCredentials.deleteMany({
+      integrationId: integration.erxesApiId,
+    });
   } catch (e) {
     // The integration itself must still go, otherwise the number stays claimed
     // by the unique index and cannot be reconnected.
@@ -378,29 +384,61 @@ export const getReachableAgentEndpoints = async ({
 };
 
 /**
- * Returns the SIP endpoint for one agent, creating it the first time.
+ * A password Plivo will accept on a SIP endpoint.
  *
- * A JWT alone does not make a browser reachable: `<Dial><User>` can only ring a
- * SIP endpoint that exists, and registration fails without one. The endpoint is
- * therefore provisioned on demand and looked up by alias on every later call,
- * because Plivo's generated username is not derivable.
+ * Hex keeps it inside the alphanumeric set Plivo documents for endpoint
+ * passwords, so nothing has to be escaped on the way to the SIP registrar.
+ */
+const generateEndpointPassword = (): string => randomBytes(24).toString('hex');
+
+/**
+ * Returns the SIP endpoint for one agent WITH the password it registers with,
+ * creating or rotating as needed.
  *
- * The generated password is never stored or returned — the browser authenticates
- * with the access token, so the password only has to exist to satisfy the API.
+ * A browser is not reachable without an endpoint: `<Dial><User>` can only ring
+ * one that exists. The endpoint is therefore provisioned on demand and looked
+ * up by alias on every later call, because Plivo's generated username is not
+ * derivable.
+ *
+ * The password must be persisted, which is the opposite of what this function
+ * used to do. JWT registration is refused by Plivo's registrar for this account
+ * — a server-minted token from Plivo's own JWT API and a locally-signed one both
+ * fail with `SIP Failure Code` on an endpoint where
+ * `client.login(username, password)` succeeds at the same moment — so the
+ * browser authenticates with the password instead, and a password that was
+ * discarded at creation can never be recovered: Plivo's `GET /Endpoint/{id}/`
+ * returns a STALE value that does not authenticate.
+ *
+ * There are three cases:
+ *
+ * 1. No endpoint at Plivo — create one, store what we set.
+ * 2. Endpoint exists and we hold its password — return both, no API write.
+ * 3. Endpoint exists but we hold NO password (every endpoint provisioned before
+ *    this change) — its real password is unknown and unreadable, so it is
+ *    ROTATED: a fresh one is POSTed and stored. This is the only way to make a
+ *    legacy endpoint usable again.
+ *
+ * Rotation invalidates any client still registered on that endpoint with the
+ * old password — a desk phone or another browser would be dropped and would not
+ * re-register. That is accepted: those endpoints are ours, provisioned for this
+ * agent's softphone alone, and the alternative is an endpoint nobody can ever
+ * log into.
  */
 export const ensurePlivoEndpoint = async ({
+  models,
   authId,
   authToken,
   integrationId,
   userId,
   appId,
 }: {
+  models: IModels;
   authId: string;
   authToken: string;
   integrationId: string;
   userId: string;
   appId?: string;
-}): Promise<IPlivoEndpoint> => {
+}): Promise<IPlivoEndpointCredentials> => {
   const alias = buildPlivoEndpointAlias(integrationId, userId);
 
   const existing = await findPlivoEndpointByAlias({
@@ -410,15 +448,60 @@ export const ensurePlivoEndpoint = async ({
   });
 
   if (existing?.username) {
-    return existing;
+    const stored = await models.PlivoEndpointCredentials.findOne({
+      integrationId,
+      userId,
+    }).lean();
+
+    // The stored row must match the endpoint that is actually at Plivo. An
+    // endpoint deleted and re-provisioned in the console keeps the alias but
+    // gets a NEW username, and registering the old one would fail on an
+    // identity that no longer exists.
+    if (stored?.password && stored.username === existing.username) {
+      return { ...existing, password: stored.password };
+    }
+
+    // Case 3: rotate. See the note above on what this breaks.
+    const password = generateEndpointPassword();
+
+    await updatePlivoEndpointPassword({
+      authId,
+      authToken,
+      endpointId: existing.endpointId,
+      password,
+    });
+
+    await models.PlivoEndpointCredentials.storeCredential({
+      integrationId,
+      userId,
+      endpointId: existing.endpointId,
+      username: existing.username,
+      alias: existing.alias,
+      password,
+    });
+
+    return { ...existing, password };
   }
 
-  return await createPlivoEndpoint({
+  const password = generateEndpointPassword();
+
+  const created = await createPlivoEndpoint({
     authId,
     authToken,
     username: buildPlivoEndpointUsernameStem(userId),
-    password: randomBytes(24).toString('hex'),
+    password,
     alias,
     appId,
   });
+
+  await models.PlivoEndpointCredentials.storeCredential({
+    integrationId,
+    userId,
+    endpointId: created.endpointId,
+    username: created.username,
+    alias: created.alias,
+    password,
+  });
+
+  return { ...created, password };
 };
