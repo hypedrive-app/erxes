@@ -599,7 +599,7 @@
   "whatsapp-business-account-id": "WhatsApp Business Account ID",
   "whatsapp-business-account-id-description": "Optional. Used to look up message templates for this number.",
   "whatsapp-app-secret": "App secret",
-  "whatsapp-app-secret-description": "Optional. Used to verify that incoming webhooks really come from Meta. Stored securely and never shown again.",
+  "whatsapp-app-secret-description": "Required. Every inbound message is signature-checked against this. Without it WhatsApp messages from customers are rejected and never reach your inbox. Stored securely and never shown again.",
   "whatsapp-verify-token": "Verify token",
   "whatsapp-verify-token-description": "Optional. The token you entered when subscribing the webhook in your Meta app.",
   "whatsapp-default-country-code": "Default country code",

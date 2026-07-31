@@ -1,9 +1,15 @@
 import { z } from 'zod';
 
 /**
- * Only `phoneNumberId` and `accessToken` are enforced by the backend; the rest
- * refine webhook verification and phone normalisation and stay optional so a
- * number can be connected before the Meta app webhook is configured.
+ * `appSecret` is required even though the backend does not enforce it.
+ *
+ * Every inbound webhook is signature-checked against it, and
+ * `verifyWebhookSignature` returns false when it is absent — so a number saved
+ * without one still sends messages and still reports itself healthy, while
+ * silently answering 403 to every message a customer sends. A half-working
+ * integration that looks fine is worse than one that refuses to be created,
+ * so this is enforced at the only point where the operator has the value to
+ * hand.
  */
 export const WHATSAPP_INTEGRATION_SCHEMA = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -11,7 +17,9 @@ export const WHATSAPP_INTEGRATION_SCHEMA = z.object({
   phoneNumberId: z.string().min(1, 'Phone number ID is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   whatsappBusinessAccountId: z.string().optional(),
-  appSecret: z.string().optional(),
+  appSecret: z
+    .string()
+    .min(1, 'App secret is required — without it inbound messages are rejected'),
   verifyToken: z.string().optional(),
   defaultCountryCode: z
     .string()

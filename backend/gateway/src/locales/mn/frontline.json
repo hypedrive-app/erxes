@@ -599,7 +599,7 @@
   "whatsapp-business-account-id": "WhatsApp Business Account ID",
   "whatsapp-business-account-id-description": "Заавал биш. Энэ дугаарын зурвасын загваруудыг олоход ашиглагдана.",
   "whatsapp-app-secret": "Аппын нууц түлхүүр",
-  "whatsapp-app-secret-description": "Заавал биш. Ирж буй webhook үнэхээр Meta-аас ирсэн эсэхийг шалгахад ашиглагдана. Найдвартай хадгалагдах бөгөөд дахин харагдахгүй.",
+  "whatsapp-app-secret-description": "Шаардлагатай. Ирж буй мессеж бүрийг үүгээр баталгаажуулна. Үүнгүйгээр харилцагчийн WhatsApp мессежийг татгалзаж, inbox-д хүрэхгүй. Найдвартай хадгална, дахин харуулахгүй.",
   "whatsapp-verify-token": "Баталгаажуулах токен",
   "whatsapp-verify-token-description": "Заавал биш. Meta аппдаа webhook бүртгэхдээ оруулсан токен.",
   "whatsapp-default-country-code": "Үндсэн улсын код",
