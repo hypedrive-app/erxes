@@ -115,11 +115,24 @@ export const plivoRequest = async <T = Record<string, unknown>>({
 /**
  * Builds the string Plivo signs, per the V3 algorithm.
  *
- * The digest is taken over the FULL request URL, then — for POST only — every
- * parameter appended in ascending, case-sensitive key order as bare
- * `key + value` pairs with NO separator of any kind between them, and finally
- * `'.' + nonce`. GET requests sign the URL (query string included) and the
- * nonce alone, because their parameters are already part of the URL.
+ * Ported from Plivo's own `construct_post_url` / `construct_get_url`
+ * (plivo-python, `plivo/utils/signature_v3.py`) rather than from the prose
+ * documentation, which does not spell out the `?` below.
+ *
+ * A POST signs the URL, then a literal `?`, then every parameter in ascending
+ * case-sensitive key order as bare `key + value` pairs with no separator
+ * between them, then `'.' + nonce`.
+ *
+ * That `?` is easy to miss and is the whole ballgame: their
+ * `construct_get_url` appends `'?' + query_params` whenever the POST body is
+ * non-empty, and `query_params` is the empty string on this path, so a bare
+ * `?` lands between the path and the parameters. Omitting it produces a
+ * perfectly plausible digest that never matches, and Plivo's only feedback is
+ * a 403 on the answer webhook — which reads as an unreachable URL and kills
+ * the call.
+ *
+ * A GET signs the URL with its query string, plus the nonce; its parameters
+ * are already in the URL.
  * https://www.plivo.com/docs/voice/concepts/signature-validation
  */
 const buildV3SignatureBase = (
@@ -131,10 +144,18 @@ const buildV3SignatureBase = (
   let base = uri;
 
   if (method.toUpperCase() === 'POST') {
+    const keys = Object.keys(params).sort();
+
+    // Present even when there are no parameters to follow it, matching
+    // construct_get_url's `len(query_params) > 0 or not empty_post_params`.
+    if (keys.length) {
+      base += '?';
+    }
+
     // Sorted with the default comparator: byte order, i.e. case-sensitive, so
     // uppercase keys sort before lowercase ones. Plivo sorts the same way and a
     // locale-aware sort would silently produce a different digest.
-    for (const key of Object.keys(params).sort()) {
+    for (const key of keys) {
       base += key + params[key];
     }
   }
