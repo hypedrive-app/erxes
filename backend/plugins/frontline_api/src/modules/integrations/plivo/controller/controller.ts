@@ -139,7 +139,7 @@ const isVerifiedCallback = (
     readHeader(req, PLIVO_SIGNATURE_MAIN_HEADER),
   ];
 
-  const verified = headers.some((signature) =>
+  return headers.some((signature) =>
     validatePlivoSignature(
       req.method,
       uri,
@@ -149,48 +149,6 @@ const isVerifiedCallback = (
       signatureParams,
     ),
   );
-
-  if (!verified) {
-    // TEMP-PLIVO-DIAG
-    const rawBody: Buffer | string | undefined = req.rawBody;
-    const sortedKeys = Object.keys(signatureParams).sort();
-    const base =
-      uri +
-      sortedKeys.map((k) => k + signatureParams[k]).join('') +
-      '.' +
-      String(nonce);
-    const expected = require('crypto')
-      .createHmac('sha256', integration.authToken || '')
-      .update(base)
-      .digest('base64');
-
-    console.error(
-      '[plivo-diag] ' +
-        JSON.stringify({
-          method: req.method,
-          uri,
-          reqPath: req.path,
-          originalUrl: req.originalUrl,
-          contentType: req.headers['content-type'],
-          contentLength: req.headers['content-length'],
-          rawBodyPresent: rawBody !== undefined,
-          rawBodyLen: rawBody === undefined ? -1 : rawBody.length,
-          rawBody: rawBody === undefined ? null : rawBody.toString(),
-          bodyKeys: req.body ? Object.keys(req.body) : null,
-          paramKeys: sortedKeys,
-          nonce,
-          base,
-          expected,
-          receivedSig: headers,
-          plivoHeaders: Object.keys(req.headers).filter((h) =>
-            h.toLowerCase().startsWith('x-plivo'),
-          ),
-          allHeaders: Object.keys(req.headers),
-        }),
-    );
-  }
-
-  return verified;
 };
 
 /**
