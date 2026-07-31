@@ -78,6 +78,45 @@ export const PLIVO_DEFAULT_TIME_LIMIT_SECONDS = 3600;
 export const PLIVO_DEFAULT_RING_TIMEOUT_SECONDS = 45;
 
 /**
+ * How long the logged-in agents' softphones ring, in seconds.
+ *
+ * Contact-centre practice is 15-20s per stage rather than one long ring: a
+ * caller left listening to ringback with no way out abandons the call, and the
+ * time is better spent moving on to the fallback number and then voicemail.
+ */
+export const PLIVO_DEFAULT_AGENT_RING_SECONDS = 20;
+
+/** How long the fallback mobile rings once no agent has answered, in seconds. */
+export const PLIVO_DEFAULT_FORWARD_RING_SECONDS = 20;
+
+/**
+ * Longest voicemail accepted, in seconds.
+ *
+ * Two minutes is the industry norm; Plivo's own `<Record>` default of 60s cuts
+ * real messages short, and its ceiling is an hour, which would let a silent
+ * line record indefinitely.
+ * https://www.plivo.com/docs/voice/xml/record
+ */
+export const PLIVO_DEFAULT_VOICEMAIL_MAX_SECONDS = 120;
+
+/**
+ * Silence that ends a voicemail, in seconds.
+ *
+ * Matches Plivo's own `<Record timeout>` default. Without it a caller who hangs
+ * up without pressing `#` leaves a recording padded with dead air.
+ */
+export const PLIVO_VOICEMAIL_SILENCE_TIMEOUT_SECONDS = 15;
+
+/** Prompt read before the beep when the integration configures none. */
+export const PLIVO_DEFAULT_VOICEMAIL_GREETING =
+  'Sorry, nobody is available to take your call. ' +
+  'Please leave a message after the beep, and press the pound key when you are finished.';
+
+/** Played once the caller has left a message, before the line is released. */
+export const PLIVO_VOICEMAIL_CLOSING_MESSAGE =
+  'Thank you for your message. Goodbye.';
+
+/**
  * How long Plivo stores a recording at no charge, in days.
  *
  * Storage is free for the first 90 days; after that Plivo keeps the recording

@@ -104,6 +104,18 @@ const describeEndedCall = (
 };
 
 /**
+ * The line the agent reads when a caller left a voicemail.
+ *
+ * Worded so it is unmistakably an unhandled contact rather than a recording of
+ * a conversation that already happened, matching how mature platforms surface a
+ * voicemail as work still to do.
+ */
+const describeVoicemail = (duration: number | undefined): string =>
+  duration
+    ? `Missed call — voicemail (${duration}s)`
+    : 'Missed call — voicemail';
+
+/**
  * Records a call the moment Plivo asks us how to answer it.
  *
  * The session row is written BEFORE any XML is returned, because its unique
@@ -279,6 +291,108 @@ export const registerCallHangup = async (
     session.customerId,
     describeEndedCall(session.direction, status, duration),
     endedAt,
+  );
+};
+
+/**
+ * Stores a voicemail the caller left because nobody answered.
+ *
+ * A voicemail is deliberately NOT treated as a call recording: the recording
+ * callback attaches audio to a call that happened, while this one records an
+ * unhandled contact that still needs an agent. Both live on the same session row
+ * — one call is one row — but `isVoicemail` keeps them apart, and the inbox gets
+ * a message saying a voicemail is waiting rather than a bare missed call.
+ *
+ * The audio is re-hosted through the same durability path as a recording, so it
+ * outlives Plivo's 90-day free storage window.
+ *
+ * The session may legitimately be missing when the answer callback failed to
+ * register the call; the audio is still worth keeping, so the re-host runs
+ * regardless and only the inbox update is skipped.
+ */
+export const registerCallVoicemail = async (
+  models: IModels,
+  subdomain: string,
+  integration: IPlivoIntegrationDocument,
+  params: IPlivoCallbackParams,
+): Promise<void> => {
+  if (!params.RecordUrl) {
+    return;
+  }
+
+  // Same identifier fallback as the recording callback: Plivo does not document
+  // CallUUID among a `<Record>` action's parameters, so RecordingID is used
+  // when it is absent rather than silently dropping the voicemail.
+  const selector = params.CallUUID
+    ? { callUuid: params.CallUUID }
+    : params.RecordingID
+      ? { recordingUuid: params.RecordingID }
+      : undefined;
+
+  if (!selector) {
+    debugError(
+      `Voicemail callback carried neither CallUUID nor RecordingID; cannot attach ${params.RecordUrl}`,
+    );
+    return;
+  }
+
+  const seconds = readNumber(params.RecordingDuration);
+  const milliseconds = readNumber(params.RecordingDurationMs);
+  const recordingDuration =
+    seconds !== undefined
+      ? seconds
+      : milliseconds === undefined
+        ? undefined
+        : Math.round(milliseconds / 1000);
+
+  const { storageKey } = await rehostPlivoRecording({
+    subdomain,
+    recordUrl: params.RecordUrl,
+    callUuid: params.CallUUID,
+    authId: integration.authId,
+    authToken: integration.authToken,
+  });
+
+  const leftAt = new Date();
+
+  const session = await models.PlivoCallSessions.findOneAndUpdate(
+    selector,
+    {
+      $set: {
+        // The storage key when the copy succeeded, else Plivo's URL so the
+        // voicemail is still playable until the provider deletes it.
+        recordUrl: storageKey || params.RecordUrl,
+        providerRecordUrl: params.RecordUrl,
+        recordingUuid: params.RecordingID,
+        recordingDuration,
+        isVoicemail: true,
+        voicemailLeftAt: leftAt,
+        updatedAt: leftAt,
+        ...(storageKey ? { recordingStoredAt: leftAt } : {}),
+      },
+    },
+    { new: true },
+  );
+
+  if (!session) {
+    debugError(
+      `Voicemail callback matched no call session (${JSON.stringify(selector)})`,
+    );
+    return;
+  }
+
+  if (!session.erxesApiConversationId) {
+    return;
+  }
+
+  // The voicemail is what the agent must act on, so it replaces the ringing
+  // line in the conversation list rather than being buried beneath it.
+  await createCallMessage(
+    subdomain,
+    session.erxesApiConversationId,
+    session.customerId,
+    describeVoicemail(recordingDuration),
+    leftAt,
   );
 };
 

@@ -3,6 +3,7 @@ import {
   plivoAnswerWebhook,
   plivoHangupWebhook,
   plivoRecordingWebhook,
+  plivoVoicemailWebhook,
 } from '@/integrations/plivo/controller/controller';
 
 export const router: Router = express.Router();
@@ -71,6 +72,20 @@ router.post('/recording', async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: 'Recording webhook handling failed',
+      error: err.message || err.toString(),
+    });
+  }
+});
+
+// The `<Record>` an unanswered inbound call falls through to. Kept apart from
+// `/recording` so a voicemail is never stored as a call recording.
+router.post('/voicemail', async (req, res, next) => {
+  try {
+    await plivoVoicemailWebhook(req, res, next);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: 'Voicemail webhook handling failed',
       error: err.message || err.toString(),
     });
   }

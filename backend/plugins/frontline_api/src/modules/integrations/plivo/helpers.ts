@@ -5,6 +5,7 @@ import {
   createPlivoEndpoint,
   findPlivoEndpointByAlias,
   getPlivoAccount,
+  listPlivoEndpoints,
 } from '@/integrations/plivo/utils';
 import { debugError } from '@/integrations/plivo/debuggers';
 import {
@@ -19,6 +20,13 @@ interface IPlivoIntegrationConfig {
   appId?: string;
   defaultCountryCode?: string;
   recordCalls?: boolean;
+  forwardToNumber?: string;
+  forwardTimeout?: number;
+  ringAgents?: boolean;
+  agentRingTimeout?: number;
+  voicemailEnabled?: boolean;
+  voicemailMaxLength?: number;
+  voicemailGreeting?: string;
 }
 
 const parseConfig = (data: string): IPlivoIntegrationConfig => {
@@ -66,6 +74,13 @@ export const plivoCreateIntegration = async (
     appId,
     defaultCountryCode,
     recordCalls,
+    forwardToNumber,
+    forwardTimeout,
+    ringAgents,
+    agentRingTimeout,
+    voicemailEnabled,
+    voicemailMaxLength,
+    voicemailGreeting,
   } = parseConfig(data);
 
   if (!authId || !authToken || !plivoPhoneNumber) {
@@ -103,6 +118,13 @@ export const plivoCreateIntegration = async (
     appId,
     defaultCountryCode,
     recordCalls,
+    forwardToNumber,
+    forwardTimeout,
+    ringAgents,
+    agentRingTimeout,
+    voicemailEnabled,
+    voicemailMaxLength,
+    voicemailGreeting,
     healthStatus: 'healthy',
   };
 
@@ -165,6 +187,19 @@ export const plivoUpdateIntegration = async (
         defaultCountryCode,
         appId: config.appId ?? integration.appId,
         recordCalls: config.recordCalls ?? integration.recordCalls,
+        // Inbound routing. Each falls back to the stored value so a form that
+        // posts only part of the config cannot silently reset the rest.
+        forwardToNumber: config.forwardToNumber ?? integration.forwardToNumber,
+        forwardTimeout: config.forwardTimeout ?? integration.forwardTimeout,
+        ringAgents: config.ringAgents ?? integration.ringAgents,
+        agentRingTimeout:
+          config.agentRingTimeout ?? integration.agentRingTimeout,
+        voicemailEnabled:
+          config.voicemailEnabled ?? integration.voicemailEnabled,
+        voicemailMaxLength:
+          config.voicemailMaxLength ?? integration.voicemailMaxLength,
+        voicemailGreeting:
+          config.voicemailGreeting ?? integration.voicemailGreeting,
         // Credentials were just proven to work; clear any prior failure.
         healthStatus: 'healthy',
         error: '',
@@ -280,6 +315,67 @@ export const buildPlivoEndpointAlias = (
  */
 export const buildPlivoEndpointUsernameStem = (userId: string): string =>
   `erxes${userId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)}`;
+
+/**
+ * Alias prefix shared by every endpoint provisioned for one integration.
+ *
+ * `buildPlivoEndpointAlias` composes `erxes_<integration>_<user>`, so the stem
+ * without the user segment selects exactly this integration's endpoints out of
+ * an account-wide list — including endpoints belonging to other Plivo numbers,
+ * which must never be rung for this one.
+ */
+export const buildPlivoEndpointAliasPrefix = (integrationId: string): string =>
+  `erxes_${integrationId.replace(/[^a-zA-Z0-9]/g, '')}_`;
+
+/**
+ * The SIP usernames of agents currently reachable on their browser softphone.
+ *
+ * Reachability is read from Plivo rather than tracked locally. Plivo's endpoint
+ * list returns `sip_registered`, which is the registrar's own live view of
+ * whether a client holds a SIP registration right now — the same fact the
+ * console shows. That beats a DB flag written from the browser's `onLogin`/
+ * `onLogout`, which goes stale on exactly the failures that matter: a closed
+ * laptop, a killed tab or a dropped network never sends `onLogout`, so a
+ * DB-tracked agent would keep absorbing calls into a dead endpoint.
+ *
+ * An endpoint whose `sip_registered` is absent is treated as NOT reachable. The
+ * cost of the two mistakes is asymmetric — ringing a dead endpoint burns the
+ * whole agent stage and delays the caller, while skipping a live one still
+ * reaches them via the fallback number and voicemail.
+ *
+ * Never throws: if Plivo cannot be reached the caller must still be handled, so
+ * an empty list is returned and routing falls through to the next stage.
+ */
+export const getReachableAgentEndpoints = async ({
+  authId,
+  authToken,
+  integrationId,
+}: {
+  authId: string;
+  authToken: string;
+  integrationId: string;
+}): Promise<string[]> => {
+  try {
+    const endpoints = await listPlivoEndpoints({ authId, authToken });
+    const prefix = buildPlivoEndpointAliasPrefix(integrationId);
+
+    return endpoints
+      .filter(
+        (endpoint) =>
+          endpoint.sipRegistered === true &&
+          endpoint.username &&
+          endpoint.alias.startsWith(prefix),
+      )
+      .map((endpoint) => endpoint.username);
+  } catch (e: any) {
+    debugError(
+      `Could not read Plivo endpoint registrations for ${integrationId}, ` +
+        `routing without agents: ${e.message}`,
+    );
+
+    return [];
+  }
+};
 
 /**
  * Returns the SIP endpoint for one agent, creating it the first time.

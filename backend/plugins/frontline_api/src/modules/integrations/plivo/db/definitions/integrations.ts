@@ -71,6 +71,41 @@ export const integrationSchema = new Schema({
     optional: true,
   },
 
+  // Ring the browser softphones of agents who are actually registered before
+  // falling back to `forwardToNumber`. Unset is treated as ON, so an existing
+  // integration starts reaching its logged-in agents without being re-saved.
+  ringAgents: {
+    type: Boolean,
+    label: 'Ring logged-in agents before the fallback number',
+    optional: true,
+  },
+
+  // Per-stage ring time. Two short stages beat one long one: a caller left
+  // ringing for 45s with no way to leave a message hangs up and is lost.
+  agentRingTimeout: {
+    type: Number,
+    label: 'Seconds to ring logged-in agents',
+    optional: true,
+  },
+
+  // A voicemail is what stops an unanswered call from vanishing. Unset is
+  // treated as ON, because dropping the caller is never the better default.
+  voicemailEnabled: {
+    type: Boolean,
+    label: 'Take a voicemail when nobody answers',
+    optional: true,
+  },
+  voicemailMaxLength: {
+    type: Number,
+    label: 'Maximum voicemail length in seconds',
+    optional: true,
+  },
+  voicemailGreeting: {
+    type: String,
+    label: 'Prompt read to the caller before the voicemail beep',
+    optional: true,
+  },
+
   healthStatus: String,
   error: String,
 });

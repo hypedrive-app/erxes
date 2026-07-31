@@ -7,13 +7,22 @@ import {
   validatePlivoSignature,
 } from '@/integrations/plivo/utils';
 import {
+  PLIVO_DEFAULT_AGENT_RING_SECONDS,
+  PLIVO_DEFAULT_FORWARD_RING_SECONDS,
+  PLIVO_DEFAULT_VOICEMAIL_GREETING,
+  PLIVO_DEFAULT_VOICEMAIL_MAX_SECONDS,
+  PLIVO_ENDPOINT_DOMAIN,
   PLIVO_NONCE_HEADER,
   PLIVO_SIGNATURE_HEADER,
   PLIVO_SIGNATURE_MAIN_HEADER,
+  PLIVO_VOICEMAIL_CLOSING_MESSAGE,
+  PLIVO_VOICEMAIL_SILENCE_TIMEOUT_SECONDS,
 } from '@/integrations/plivo/constants';
+import { getReachableAgentEndpoints } from '@/integrations/plivo/helpers';
 import {
   registerCallHangup,
   registerCallRecording,
+  registerCallVoicemail,
   registerIncomingCall,
 } from '@/integrations/plivo/controller/receiveCall';
 import {
@@ -239,77 +248,173 @@ export const plivoAnswerWebhook = async (req, res, next) => {
 
     res.set('Content-Type', 'text/xml');
 
-    return res.send(buildAnswerXml(req, integration, params));
+    return res.send(await buildAnswerXml(req, integration, params));
   } catch (e) {
     next(e);
   }
 };
 
 /**
- * Builds the PlivoXML that answers a call.
+ * Swaps the `/answer` path of a callback URL for another webhook on the same
+ * mount, e.g. `/recording` or `/voicemail`.
  *
- * `<Record>` is emitted only when the integration opts in, because recording
- * consent is jurisdiction-specific and Plivo starts recording the instant the
- * element is parsed. `redirect="false"` keeps the call going after recording
- * starts rather than jumping to the callback.
+ * The query string has to come off before `/answer` is swapped out: an anchored
+ * replace would not match `/answer?x=1` and the callback would POST back to the
+ * answer webhook, which re-registers the call and replies with XML the other
+ * handlers never expect.
+ */
+const buildSiblingCallbackUrl = (req, route: string): string => {
+  const [path] = buildCallbackUrl(req).split('?');
+
+  return path.replace(/\/answer$/, route);
+};
+
+/**
+ * The `<Dial>` stage that rings every reachable agent's browser at once.
+ *
+ * Plivo rings ALL children of a single `<Dial>` simultaneously and connects the
+ * first to answer, so no queueing logic of our own is needed. `dialMusic="real"`
+ * passes the real ringback through instead of hold music, so the caller hears a
+ * ringing phone rather than being put on hold.
+ * https://www.plivo.com/docs/voice/xml/dial
+ */
+const buildAgentDialElement = (
+  integration: IPlivoIntegrationDocument,
+  usernames: string[],
+): string => {
+  const legs = usernames
+    .map(
+      (username) =>
+        `<User>sip:${escapeXml(username)}@${PLIVO_ENDPOINT_DOMAIN}</User>`,
+    )
+    .join('');
+
+  return (
+    `<Dial timeout="${
+      integration.agentRingTimeout || PLIVO_DEFAULT_AGENT_RING_SECONDS
+    }" callerId="${escapeXml(
+      integration.plivoPhoneNumber.replace(/^\+/, ''),
+    )}" dialMusic="real">${legs}</Dial>`
+  );
+};
+
+/**
+ * The voicemail stage: a prompt, the recording, then a closing line.
+ *
+ * Reached only when every `<Dial>` above it went unanswered, because a `<Dial>`
+ * with no `action` URL falls through to the following elements rather than
+ * ending the call. Hanging up here instead would silently discard the contact,
+ * which is the behaviour this replaces.
+ *
+ * `redirect="false"` is deliberately NOT set: the default `redirect="true"` is
+ * what makes Plivo continue with the XML this handler returns, and `timeout`
+ * stops the recording after a stretch of silence so a caller who simply walks
+ * away does not record two minutes of dead air.
  * https://www.plivo.com/docs/voice/xml/record
  */
-const buildAnswerXml = (
+const buildVoicemailElements = (
+  req,
+  integration: IPlivoIntegrationDocument,
+): string[] => [
+  `<Speak>${escapeXml(
+    integration.voicemailGreeting || PLIVO_DEFAULT_VOICEMAIL_GREETING,
+  )}</Speak>`,
+  `<Record action="${escapeXml(
+    buildSiblingCallbackUrl(req, '/voicemail'),
+  )}" method="POST" maxLength="${
+    integration.voicemailMaxLength || PLIVO_DEFAULT_VOICEMAIL_MAX_SECONDS
+  }" timeout="${PLIVO_VOICEMAIL_SILENCE_TIMEOUT_SECONDS}" playBeep="true" finishOnKey="#" />`,
+  `<Speak>${escapeXml(PLIVO_VOICEMAIL_CLOSING_MESSAGE)}</Speak>`,
+];
+
+/**
+ * Builds the PlivoXML that answers a call.
+ *
+ * An inbound call is routed in stages, each falling through to the next only
+ * when nobody answered: the browser softphones of agents who are actually
+ * registered, then the configured fallback handset, then voicemail. This is the
+ * contact-centre norm — the caller is never simply hung up on, because an
+ * unanswered call that leaves no trace is a lost contact.
+ *
+ * `<Record recordSession>` is emitted only when the integration opts in,
+ * because recording consent is jurisdiction-specific and Plivo starts recording
+ * the instant the element is parsed. `redirect="false"` keeps the call going
+ * after recording starts rather than jumping to the callback.
+ * https://www.plivo.com/docs/voice/xml/record
+ */
+const buildAnswerXml = async (
   req,
   integration: IPlivoIntegrationDocument,
   params: IPlivoCallbackParams,
-): string => {
+): Promise<string> => {
   const direction = params.Direction === 'outbound' ? 'outbound' : 'inbound';
 
   const elements: string[] = [];
 
   if (integration.recordCalls) {
-    // The query string has to come off before `/answer` is swapped out: an
-    // anchored replace would not match `/answer?x=1` and the recording would
-    // POST back to the answer webhook, which re-registers the call and replies
-    // with XML the recording callback never expects.
-    const [path] = buildCallbackUrl(req).split('?');
-    const callbackUrl = path.replace(/\/answer$/, '/recording');
-
     elements.push(
       `<Record action="${escapeXml(
-        callbackUrl,
+        buildSiblingCallbackUrl(req, '/recording'),
       )}" method="POST" redirect="false" maxLength="3600" recordSession="true" />`,
     );
   }
 
   if (direction === 'inbound') {
-    const agent = normalizePhone(
+    // `ringAgents` unset means ON: an integration stored before agent ringing
+    // existed should still reach the agents who are logged in.
+    const agentUsernames =
+      integration.ringAgents === false
+        ? []
+        : await getReachableAgentEndpoints({
+            authId: integration.authId,
+            authToken: integration.authToken,
+            integrationId: integration.erxesApiId,
+          });
+
+    if (agentUsernames.length) {
+      elements.push(buildAgentDialElement(integration, agentUsernames));
+    }
+
+    const fallbackNumber = normalizePhone(
       integration.forwardToNumber,
       integration.defaultCountryCode,
     );
 
-    if (agent) {
-      // Bridge the caller to the agent's handset. `callerId` stays the Plivo
+    if (fallbackNumber) {
+      // Bridge the caller to the fallback handset. `callerId` stays the Plivo
       // number rather than the caller's: an Indian mobile will not display an
       // arbitrary spoofed CLI, and Plivo rejects a callerId the account does
       // not own, which would fail the whole call.
-      //
-      // `<Dial>` blocks until the leg ends, so anything after it only runs when
-      // the agent did not pick up — which is where the voicemail-style message
-      // belongs.
       elements.push(
         `<Dial timeout="${
-          integration.forwardTimeout || 30
+          integration.forwardTimeout || PLIVO_DEFAULT_FORWARD_RING_SECONDS
         }" callerId="${escapeXml(
           integration.plivoPhoneNumber.replace(/^\+/, ''),
-        )}">` +
-          `<Number>${escapeXml(agent.replace(/^\+/, ''))}</Number>` +
+        )}" dialMusic="real">` +
+          `<Number>${escapeXml(fallbackNumber.replace(/^\+/, ''))}</Number>` +
           `</Dial>`,
       );
+    }
+
+    const canReachSomeone = Boolean(agentUsernames.length || fallbackNumber);
+
+    if (integration.voicemailEnabled === false) {
+      // Voicemail explicitly turned off. The caller is still told what happened
+      // rather than left listening to silence until the carrier drops the line.
       elements.push(
-        '<Speak>Sorry, nobody is available right now. Please try again later.</Speak>',
+        canReachSomeone
+          ? '<Speak>Sorry, nobody is available right now. Please try again later.</Speak>'
+          : '<Speak>Please hold while we connect you to an agent.</Speak>',
       );
+    } else if (canReachSomeone) {
+      elements.push(...buildVoicemailElements(req, integration));
     } else {
-      // No agent configured. The caller is told what is happening rather than
-      // left listening to silence until the carrier drops the line.
+      // Nothing at all is configured and no agent is online. Announce-only is
+      // kept rather than failing the call, but the caller is still offered a
+      // voicemail so the contact is not lost.
       elements.push(
         '<Speak>Please hold while we connect you to an agent.</Speak>',
+        ...buildVoicemailElements(req, integration),
       );
     }
   } else {
@@ -359,6 +464,46 @@ export const plivoHangupWebhook = async (req, res, next) => {
     } catch (e: any) {
       debugError(
         `Failed to process Plivo hangup for ${params.CallUUID}: ${e.message}`,
+      );
+    }
+  } catch (e) {
+    next(e);
+  }
+};
+
+/**
+ * Voicemail callback, fired by the `<Record>` the inbound flow falls through to.
+ *
+ * Separate from the recording callback on purpose: a recording is metadata on a
+ * call that was answered, whereas a voicemail is an unhandled contact that still
+ * needs an agent to act on it, and the two must not land as the same kind of
+ * row. Acknowledged before processing for the same reason as the others.
+ */
+export const plivoVoicemailWebhook = async (req, res, next) => {
+  try {
+    const subdomain = isDev ? 'localhost' : getSubdomain(req);
+    const models = await generateModels(subdomain);
+
+    const params = parseCallbackParams(req);
+
+    const integration = await resolveVerifiedIntegration(
+      models,
+      req,
+      res,
+      params,
+    );
+
+    if (!integration) {
+      return;
+    }
+
+    res.sendStatus(200);
+
+    try {
+      await registerCallVoicemail(models, subdomain, integration, params);
+    } catch (e: any) {
+      debugError(
+        `Failed to store Plivo voicemail for ${params.CallUUID}: ${e.message}`,
       );
     }
   } catch (e) {

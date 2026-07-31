@@ -88,6 +88,21 @@ export const callSessionSchema = new Schema({
     optional: true,
   },
 
+  // A voicemail is an unhandled inbound that still needs an agent to act, while
+  // a recording is just metadata on a call that already happened. Indexed
+  // because "calls with a voicemail waiting" is the query that matters.
+  isVoicemail: {
+    type: Boolean,
+    index: true,
+    label: 'Audio on this row is a voicemail, not a call recording',
+    optional: true,
+  },
+  voicemailLeftAt: {
+    type: Date,
+    label: 'When the caller finished leaving the voicemail',
+    optional: true,
+  },
+
   startedAt: { type: Date, label: 'When the call began' },
   answeredAt: { type: Date, label: 'When the call was answered', optional: true },
   endedAt: { type: Date, label: 'When the call ended', optional: true },

@@ -11,6 +11,7 @@ import {
 import {
   IPlivoEndpoint,
   IPlivoEndpointCreateResponse,
+  IPlivoEndpointListItem,
   IPlivoEndpointListResponse,
   IPlivoOutboundCallResponse,
 } from '@/integrations/plivo/@types';
@@ -410,6 +411,58 @@ export const createPlivoEndpoint = async ({
 };
 
 /**
+ * Normalises Plivo's `sip_registered`.
+ *
+ * Plivo's attribute table types this field as a STRING carrying `'true'` or
+ * `'false'`, so a truthiness test would read the string `'false'` as registered
+ * and make every provisioned endpoint look reachable. Absent stays undefined —
+ * "unknown", which the caller deliberately does not treat as online.
+ * https://www.plivo.com/docs/voice/api/endpoints
+ */
+const readSipRegistered = (value?: string | boolean): boolean | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return value.toLowerCase() === 'true';
+};
+
+const toPlivoEndpoint = (item: IPlivoEndpointListItem): IPlivoEndpoint => ({
+  endpointId: item.endpoint_id || '',
+  username: item.username || '',
+  alias: item.alias || '',
+  sipRegistered: readSipRegistered(item.sip_registered),
+});
+
+/**
+ * Lists every SIP endpoint on the account.
+ *
+ * One call serves both the alias lookup and the reachability check, because the
+ * list response already carries `sip_registered` — asking per endpoint would
+ * mean an extra round trip per agent while a caller waits on the line.
+ */
+export const listPlivoEndpoints = async ({
+  authId,
+  authToken,
+}: {
+  authId: string;
+  authToken: string;
+}): Promise<IPlivoEndpoint[]> => {
+  const response = await plivoRequest<IPlivoEndpointListResponse>({
+    authId,
+    authToken,
+    method: 'GET',
+    path: '/Endpoint/',
+  });
+
+  return (response.objects || []).map(toPlivoEndpoint);
+};
+
+/**
  * Finds an existing endpoint by its alias.
  *
  * The alias is the only field we control that survives creation unchanged —
@@ -425,26 +478,15 @@ export const findPlivoEndpointByAlias = async ({
   authToken: string;
   alias: string;
 }): Promise<IPlivoEndpoint | null> => {
-  const response = await plivoRequest<IPlivoEndpointListResponse>({
-    authId,
-    authToken,
-    method: 'GET',
-    path: '/Endpoint/',
-  });
+  const endpoints = await listPlivoEndpoints({ authId, authToken });
 
-  const match = (response.objects || []).find(
-    (endpoint) => endpoint.alias === alias,
-  );
+  const match = endpoints.find((endpoint) => endpoint.alias === alias);
 
   if (!match) {
     return null;
   }
 
-  return {
-    endpointId: match.endpoint_id || '',
-    username: match.username || '',
-    alias: match.alias || alias,
-  };
+  return { ...match, alias: match.alias || alias };
 };
 
 /**

@@ -13,6 +13,19 @@ export interface IPlivoIntegration {
   forwardToNumber?: string;
   /** Seconds to ring the agent before giving up. */
   forwardTimeout?: number;
+  /**
+   * Ring the browser softphones of logged-in agents before the fallback number.
+   * Defaults to on; set false to keep the old forward-only routing.
+   */
+  ringAgents?: boolean;
+  /** Seconds to ring the agents' softphones before falling back. */
+  agentRingTimeout?: number;
+  /** Take a voicemail when nobody answered. Defaults to on. */
+  voicemailEnabled?: boolean;
+  /** Seconds of voicemail to accept before stopping the recording. */
+  voicemailMaxLength?: number;
+  /** Prompt read to the caller before the beep. */
+  voicemailGreeting?: string;
   healthStatus?: string;
   error?: string;
 }
@@ -91,6 +104,18 @@ export interface IPlivoCallSession {
   recordingStoredAt?: Date;
   recordingUuid?: string;
   recordingDuration?: number;
+  /**
+   * True when the audio on this row is a VOICEMAIL the caller left because
+   * nobody answered — not a recording of a conversation.
+   *
+   * The distinction is the whole point: a recording is metadata on a call that
+   * happened, a voicemail is an unhandled contact that still needs an agent to
+   * act. They are kept apart by this flag rather than by a separate collection
+   * so one call remains one row.
+   */
+  isVoicemail?: boolean;
+  /** When the caller finished leaving the voicemail. */
+  voicemailLeftAt?: Date;
   startedAt?: Date;
   answeredAt?: Date;
   endedAt?: Date;
@@ -179,6 +204,14 @@ export interface IPlivoEndpoint {
   endpointId: string;
   username: string;
   alias: string;
+  /**
+   * Whether a SIP client is registered on this endpoint RIGHT NOW.
+   *
+   * Plivo documents `sip_registered` as a STRING carrying `'true'`/`'false'`,
+   * not a boolean, so it is normalised here at the API boundary. Undefined when
+   * the field was absent, which is treated as unknown rather than offline.
+   */
+  sipRegistered?: boolean;
 }
 
 /** Response from POST /v1/Account/{auth_id}/Endpoint/. */
@@ -195,6 +228,15 @@ export interface IPlivoEndpointListItem {
   endpoint_id?: string;
   username?: string;
   alias?: string;
+  /**
+   * `'true'` when a SIP client is currently registered on the endpoint.
+   *
+   * Plivo's attribute table types this as a STRING, defaulting to `'false'` —
+   * comparing it as a boolean would make every endpoint look reachable, because
+   * the non-empty string `'false'` is itself truthy.
+   * https://www.plivo.com/docs/voice/api/endpoints
+   */
+  sip_registered?: string | boolean;
 }
 
 /** Response from GET /v1/Account/{auth_id}/Endpoint/. */
