@@ -61,5 +61,30 @@ jobs:
           else
             FOLDER="latest"
           fi
+          # Upload the chunks BEFORE remoteEntry.js, and only prune afterwards.
+          #
+          # remoteEntry.js names the exact hashed chunks a build needs, and R2
+          # serves it `no-store` while chunks are `immutable`. A plain sync into
+          # the mutable `latest/` folder therefore leaves whichever chunks the
+          # last build happened to write, and a fresh entry can end up pointing
+          # at chunks that were never uploaded — the module then 404s at import
+          # and Module Federation reports it as "failed to load".
+          #
+          # Ordering matters in both directions: publishing the entry last means
+          # it is never live before its chunks, and deleting last means a browser
+          # already running the previous entry keeps its chunks until the new one
+          # is fully in place.
           aws s3 sync dist/frontend/plugins/content_ui s3://erxes-next/$FOLDER/content_ui/ \
+            --exclude remoteEntry.js \
             --endpoint-url https://7c8392aff8ac4518aa06dfa4b6337ef2.r2.cloudflarestorage.com
+
+          aws s3 cp dist/frontend/plugins/content_ui/remoteEntry.js s3://erxes-next/$FOLDER/content_ui/remoteEntry.js \
+            --endpoint-url https://7c8392aff8ac4518aa06dfa4b6337ef2.r2.cloudflarestorage.com
+
+          # Prune chunks left behind by earlier builds so `latest/` cannot keep
+          # accumulating them. Tag folders are immutable, so only prune `latest`.
+          if [[ "$FOLDER" == "latest" ]]; then
+            aws s3 sync dist/frontend/plugins/content_ui s3://erxes-next/$FOLDER/content_ui/ \
+              --delete \
+              --endpoint-url https://7c8392aff8ac4518aa06dfa4b6337ef2.r2.cloudflarestorage.com
+          fi
