@@ -51,9 +51,11 @@ export const PlivoUnconfiguredWidget = ({
             // width when the client finishes mounting.
             className="z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 rounded-lg bg-background text-foreground shadow-lg w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto"
           >
-            <div className="flex flex-col gap-3 p-4">
+            {/* Same padding and gutter as the dialpad panel, so the widget does
+                not reflow when the client finishes mounting. */}
+            <div className="flex flex-col gap-3 p-3">
               {connecting ? (
-                <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground">
+                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                   <Spinner size="sm" />
                   {t('plivo-softphone-connecting')}
                 </div>
@@ -63,7 +65,7 @@ export const PlivoUnconfiguredWidget = ({
                     <p className="text-sm font-medium">
                       {t('plivo-softphone-not-ready')}
                     </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {t('plivo-softphone-not-ready-description')}
                     </p>
                   </div>

@@ -53,20 +53,38 @@ export const PlivoIncomingCall = () => {
   const { callCounterpart, callerName } = useAtomValue(plivoStateAtom);
 
   return (
-    <>
-      <div className="mt-2 px-3 pt-3 mb-1 space-y-2 text-center">
-        <div className="text-accent-foreground text-sm">
+    <div className="flex flex-col gap-5 p-5">
+      <div className="flex flex-col items-center gap-2 text-center">
+        {/* The pulse marks a live, waiting call at a glance; the wording below
+            carries the same meaning for anyone who cannot see it. */}
+        <span className="relative flex size-3">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-75" />
+          <span className="relative inline-flex size-3 rounded-full bg-success" />
+        </span>
+        <p className="text-sm font-medium text-accent-foreground">
           {t('plivo-incoming-call')}
-        </div>
-        {callerName && (
-          <div className="font-semibold text-foreground">{callerName}</div>
+        </p>
+        {/* The counterpart is the thing an agent reads before deciding to
+            answer, so it is the largest element on the surface. */}
+        {callerName ? (
+          <>
+            <p className="text-xl font-semibold leading-tight text-foreground">
+              {callerName}
+            </p>
+            <p className="text-sm text-accent-foreground">{callCounterpart}</p>
+          </>
+        ) : (
+          <p className="text-xl font-semibold leading-tight text-foreground">
+            {callCounterpart || t('plivo-unknown-caller')}
+          </p>
         )}
-        <div className="font-medium text-foreground">{callCounterpart}</div>
       </div>
-      <div className="p-3 grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <Button
           variant="secondary"
-          className="text-destructive bg-destructive/10 hover:bg-destructive/15"
+          // Answer/decline are the two hardest-pressed controls in the whole
+          // widget, so both get a full 44px target.
+          className="h-11 text-sm text-destructive bg-destructive/10 hover:bg-destructive/15"
           onClick={rejectCall}
         >
           <IconPhoneEnd />
@@ -74,13 +92,13 @@ export const PlivoIncomingCall = () => {
         </Button>
         <Button
           variant="secondary"
-          className="text-success bg-success/10 hover:bg-success/15"
+          className="h-11 text-sm text-success bg-success/10 hover:bg-success/15"
           onClick={answerCall}
         >
           <IconPhone />
           {t('answer')}
         </Button>
       </div>
-    </>
+    </div>
   );
 };

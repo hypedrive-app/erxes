@@ -47,7 +47,7 @@ export const PlivoContacts = () => {
         <Command.Input
           asChild
           wrapperClassName="border-b-0"
-          className="h-7"
+          className="h-8"
           value={search}
           onValueChange={setSearch}
         >
@@ -59,7 +59,9 @@ export const PlivoContacts = () => {
         </Command.Input>
       </div>
       <Separator />
-      <Command.List className="p-3 flex-auto max-h-full h-96 overflow-auto">
+      {/* Shares the call history list's height so switching between the two
+          tabs does not resize the panel under the agent's cursor. */}
+      <Command.List className="h-80 max-h-full flex-auto overflow-auto p-3">
         {loading && (
           <div className="flex justify-center py-6">
             <Spinner />
@@ -99,7 +101,7 @@ export const PlivoContacts = () => {
                 <Button
                   variant="secondary"
                   size="icon"
-                  className="ml-auto flex-none"
+                  className="ml-auto size-8 flex-none"
                   disabled={!isReady}
                   aria-label={t('plivo-call-contact')}
                   onClick={(event) => {

@@ -3,6 +3,7 @@ import {
   IconDialpad,
   IconMicrophone,
   IconMicrophoneOff,
+  IconPhoneEnd,
 } from '@tabler/icons-react';
 import { Alert, Button, ButtonProps, cn, Popover } from 'erxes-ui';
 import { useAtomValue } from 'jotai';
@@ -77,16 +78,18 @@ export const PlivoKeypadTrigger = () => {
           {t('keypad')}
         </PlivoInCallActionButton>
       </Popover.Trigger>
-      <Popover.Content className="w-48 p-2" align="center">
-        <div className="h-7 mb-1 text-center font-medium leading-7 tracking-widest truncate">
+      <Popover.Content className="w-56 p-2" align="center">
+        <div className="h-7 mb-1 truncate text-center font-medium leading-7 tracking-widest tabular-nums">
           {sentTones}
         </div>
-        <div className="grid grid-cols-3 gap-1">
+        {/* Same key size and gutter as the dialpad's own keypad, so the two
+            keypads in this widget do not read as different controls. */}
+        <div className="grid grid-cols-3 gap-1.5">
           {DTMF_KEYS.map((key) => (
             <Button
               key={key}
               variant="secondary"
-              className="h-9 text-base font-semibold"
+              className="h-11 text-base font-semibold tabular-nums"
               onClick={() => handleKey(key)}
             >
               {key}
@@ -131,8 +134,8 @@ export const PlivoInCall = () => {
   };
 
   return (
-    <>
-      <div className="text-center space-y-2 px-2 py-6">
+    <div className="flex flex-col gap-5 p-5">
+      <div className="flex flex-col items-center gap-2 text-center">
         <div
           className={cn(
             'text-sm font-medium',
@@ -143,15 +146,23 @@ export const PlivoInCall = () => {
         >
           {statusLabels[callStatus]}
         </div>
-        {callerName && (
-          <div className="font-semibold text-foreground">{callerName}</div>
+        {/* Same hierarchy as the incoming screen, so the counterpart does not
+            move or change size when a ringing call becomes an answered one. */}
+        {callerName ? (
+          <>
+            <p className="text-xl font-semibold leading-tight text-foreground">
+              {callerName}
+            </p>
+            <p className="text-sm text-accent-foreground">{callCounterpart}</p>
+          </>
+        ) : (
+          <p className="text-xl font-semibold leading-tight text-foreground">
+            {callCounterpart}
+          </p>
         )}
-        <div className="font-medium text-foreground">{callCounterpart}</div>
         {callStatus === PlivoCallStatusEnum.ACTIVE && (
-          <div className="flex items-center justify-center gap-2 text-accent-foreground text-sm">
-            <span>
-              {t('duration')}: {duration}
-            </span>
+          <div className="flex items-center justify-center gap-2 text-sm text-accent-foreground">
+            <span className="tabular-nums">{duration}</span>
             <PlivoQualityIndicator />
           </div>
         )}
@@ -160,26 +171,34 @@ export const PlivoInCall = () => {
       {/* A denied microphone is terminal for the call, and the toast that
           reported it has long since gone by the time the agent looks here. */}
       {plivoErrorType === PlivoErrorTypeEnum.MEDIA_PERMISSION && (
-        <div className="px-3 pb-3">
-          <Alert variant="destructive">
-            <IconAlertTriangle className="size-4" />
-            <Alert.Description>{t('plivo-mic-denied')}</Alert.Description>
-          </Alert>
-        </div>
+        <Alert variant="destructive">
+          <IconAlertTriangle className="size-4" />
+          <Alert.Description>{t('plivo-mic-denied')}</Alert.Description>
+        </Alert>
       )}
-      <div className="grid grid-cols-2 p-1 gap-1 items-stretch">
+      <div className="grid grid-cols-2 items-stretch gap-2">
         <PlivoMuteButton />
         <PlivoKeypadTrigger />
       </div>
-      <div className="px-3 pb-6">
-        <Button
-          className="w-full bg-destructive/10 text-destructive hover:bg-destructive/15"
-          variant="secondary"
-          onClick={stopCall}
-        >
-          {isEnding ? t('close') : t('end-call')}
-        </Button>
-      </div>
-    </>
+      {/* Ending a call is destructive and time-critical, so it is a solid
+          destructive button rather than a tinted secondary one. Once the call
+          is already over the same slot just dismisses, and drops the red. */}
+      <Button
+        variant={isEnding ? 'secondary' : 'destructive'}
+        // `size="lg"` is only h-8 in this library, under the 44px touch target
+        // this control deserves, so the height is set outright.
+        className="h-11 w-full text-sm"
+        onClick={stopCall}
+      >
+        {isEnding ? (
+          t('close')
+        ) : (
+          <>
+            <IconPhoneEnd />
+            {t('end-call')}
+          </>
+        )}
+      </Button>
+    </div>
   );
 };

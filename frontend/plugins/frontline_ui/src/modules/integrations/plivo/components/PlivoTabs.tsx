@@ -62,7 +62,9 @@ const PlivoTabsTrigger = ({
 }) => {
   return (
     <Button
-      className="flex-col h-12 gap-1 [&>svg]:size-5 data-[state=active]:hover:bg-accent-foreground/10 after:hidden"
+      // The active tab is marked by weight and a background as well as by
+      // colour, so it stays legible without relying on hue alone.
+      className="flex-col h-14 gap-1 px-1 text-xs [&>svg]:size-5 after:hidden data-[state=active]:bg-accent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:hover:bg-accent-foreground/10"
       variant="ghost"
       asChild
     >

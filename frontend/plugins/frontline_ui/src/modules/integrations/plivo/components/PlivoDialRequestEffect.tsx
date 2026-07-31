@@ -6,6 +6,7 @@ import {
   plivoNumberAtom,
   plivoReadyAtom,
   plivoStateAtom,
+  plivoUiAtom,
   plivoWidgetOpenAtom,
 } from '@/integrations/plivo/states/plivoStates';
 import {
@@ -31,6 +32,7 @@ export const PlivoDialRequestEffect = () => {
   const [dialRequest, setDialRequest] = useAtom(plivoDialRequestAtom);
   const setReady = useSetAtom(plivoReadyAtom);
   const setNumber = useSetAtom(plivoNumberAtom);
+  const setPlivoUi = useSetAtom(plivoUiAtom);
   const setWidgetOpen = useSetAtom(plivoWidgetOpenAtom);
 
   const canPlaceCall =
@@ -60,6 +62,10 @@ export const PlivoDialRequestEffect = () => {
 
     setDialRequest(null);
     setNumber(dialRequest.destination);
+    // The panel remembers whichever tab was last used, so a call started from
+    // the history tab (its own call-back button) would open the widget onto
+    // history and hide the call it just placed until the status left IDLE.
+    setPlivoUi('keypad');
     setWidgetOpen(true);
     startCall(dialRequest.destination);
   }, [
@@ -67,6 +73,7 @@ export const PlivoDialRequestEffect = () => {
     canPlaceCall,
     setDialRequest,
     setNumber,
+    setPlivoUi,
     setWidgetOpen,
     startCall,
   ]);

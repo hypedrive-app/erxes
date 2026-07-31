@@ -30,8 +30,10 @@ export const PlivoCallHistory = () => {
   const [totalCalls, setTotalCalls] = useState(0);
 
   return (
-    <Tabs defaultValue="all" className="flex h-96 flex-col">
-      <Tabs.List className="grid grid-cols-4 gap-1 px-2">
+    // Fixed height: the list inside scrolls, so the panel keeps one size no
+    // matter how many calls come back from the query.
+    <Tabs defaultValue="all" className="flex h-[26rem] flex-col">
+      <Tabs.List className="grid grid-cols-4 gap-1 px-3 pt-3">
         <Tabs.Trigger value="all">
           {t('all-count', { count: totalCalls })}
         </Tabs.Trigger>
@@ -149,7 +151,9 @@ export const PlivoCallHistoryList = ({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('search-by-phone-number')}
-          className="h-7"
+          aria-label={t('search-by-phone-number')}
+          // Matches the contacts search box, so the two list tabs line up.
+          className="h-8"
         />
       </div>
       <Separator />

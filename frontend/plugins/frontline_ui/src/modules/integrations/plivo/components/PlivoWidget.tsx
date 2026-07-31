@@ -1,3 +1,4 @@
+import { IconPhoneFilled } from '@tabler/icons-react';
 import { Button } from 'erxes-ui';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { Popover as PopoverPrimitive } from 'radix-ui';
@@ -44,7 +45,7 @@ export const PlivoDialpad = () => {
   const { phoneNumber } = usePlivo();
   const number = useAtomValue(plivoNumberAtom);
   const canCall = useCanPlaceCall();
-  const { dial } = usePlivoDialer();
+  const { dial, isReady } = usePlivoDialer();
   const { integrations, integrationId, selectIntegration } =
     usePlivoSoftphoneIntegrations();
 
@@ -52,34 +53,59 @@ export const PlivoDialpad = () => {
   // surface, so a number entered without a country code still reaches E.164
   // instead of being handed to the SDK as typed.
   const isDialable = !!toDialableNumber(number);
+  const isDisabled = !isDialable || !canCall;
+
+  // A greyed-out Call button with no explanation is the worst version of this
+  // control: the agent cannot tell a bad number from a dead connection. Each
+  // reason is named, in priority order, and shown as text beside the button.
+  const disabledReason = (() => {
+    if (!isReady) return t('plivo-cannot-call-offline');
+    if (!canCall) return t('plivo-cannot-call-busy');
+    if (!number.length) return t('plivo-cannot-call-empty');
+    if (!isDialable) return t('plivo-cannot-call-invalid');
+    return null;
+  })();
 
   return (
-    <div className="px-3 pt-3">
+    <div className="flex flex-col gap-3 p-3">
       <PlivoActions />
       {/* Only worth showing when there is actually a choice; with one number
           the caller id line below already says which one is in use. */}
       {integrations.length > 1 && (
-        <div className="py-3">
-          <PlivoNumberPicker
-            integrations={integrations}
-            value={integrationId}
-            onValueChange={selectIntegration}
-          />
-        </div>
+        <PlivoNumberPicker
+          integrations={integrations}
+          value={integrationId}
+          onValueChange={selectIntegration}
+        />
       )}
       <PlivoNumberInput />
-      {phoneNumber && (
-        <div className="text-xs text-accent-foreground text-center pb-2">
-          {t('plivo-calling-from')}: {phoneNumber}
-        </div>
-      )}
-      <Button
-        className="my-3 w-full"
-        disabled={!isDialable || !canCall}
-        onClick={() => dial(number)}
-      >
-        {t('call')}
-      </Button>
+      <div className="flex flex-col gap-1.5">
+        <Button
+          // `size="lg"` is only h-8 here; the primary action of the whole panel
+          // is sized to match the keypad keys it sits under.
+          className="h-11 w-full text-sm"
+          disabled={isDisabled}
+          onClick={() => dial(number)}
+        >
+          <IconPhoneFilled />
+          {t('call')}
+        </Button>
+        {/* The reason is text, not just a colour change, so it survives both a
+            colour-blind reader and a screen reader. */}
+        {disabledReason && (
+          <p
+            role="status"
+            className="text-center text-xs text-accent-foreground"
+          >
+            {disabledReason}
+          </p>
+        )}
+        {phoneNumber && !disabledReason && (
+          <p className="text-center text-xs text-accent-foreground">
+            {t('plivo-calling-from')}: {phoneNumber}
+          </p>
+        )}
+      </div>
     </div>
   );
 };

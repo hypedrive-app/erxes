@@ -53,6 +53,15 @@ const PLIVO_OPTIONS = {
   dscp: true,
 };
 
+/**
+ * The id of the `<audio>` element the SDK creates for the remote stream.
+ *
+ * Exported as `REMOTE_VIEW_ID` from the package's own constants and used in its
+ * `setupRemoteView()`; it is not part of the public API, so every read of it is
+ * guarded against the element being absent.
+ */
+const PLIVO_REMOTE_VIEW_ID = 'plivo_webrtc_remoteview';
+
 /** Plivo reports a phone number as a bare string or a `sip:user@host` URI. */
 const extractCounterpart = (value?: string | null): string => {
   if (!value) return '';
@@ -83,7 +92,6 @@ export const PlivoProvider = ({
   const [isUnregistered, setIsUnregistered] = useAtom(plivoUnregisteredAtom);
 
   const clientRef = useRef<Client | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Read inside SDK callbacks, which are registered once and would otherwise
@@ -91,6 +99,14 @@ export const PlivoProvider = ({
   const plivoStateRef = useRef(plivoState);
   const onTokenExpiredRef = useRef(onTokenExpired);
   const isUnregisteredRef = useRef(isUnregistered);
+  // The SDK handlers are attached once per token, so a `t` captured there would
+  // keep rendering the language that was active at login even after the agent
+  // switches it.
+  const tRef = useRef(t);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     plivoStateRef.current = plivoState;
@@ -105,36 +121,56 @@ export const PlivoProvider = ({
   }, [isUnregistered]);
 
   /**
-   * Plays the remote stream, retrying once through the autoplay policy.
+   * Nudges the remote stream through the autoplay policy.
    *
-   * A browser that has never seen a gesture on this origin rejects `play()`,
-   * which would leave a connected call with no audio and no error shown. The
-   * retry mirrors the Grandstream provider; if it also fails the agent is told,
-   * because a silent call is otherwise indistinguishable from a dead one.
+   * The element is the SDK's OWN `#plivo_webrtc_remoteview`, which it creates in
+   * `setupRemoteView()` and is the only element it ever assigns
+   * `remoteView.srcObject` to. This provider used to create and play its own
+   * `<audio id="plivo-provider-audio">`, which no stream was ever attached to:
+   * playing an empty element always resolves, so the retry never fired on a
+   * genuinely silent call, and when it did fire it reported "audio blocked" for
+   * a call whose audio was in fact fine. Looking the element up by the SDK's id
+   * is undocumented, so a miss is treated as "nothing to do" rather than as an
+   * error — the SDK's own autoplay handling still applies.
    */
   const playRemoteAudio = useCallback(() => {
-    const element = remoteAudioRef.current;
+    const element = document.getElementById(
+      PLIVO_REMOTE_VIEW_ID,
+    ) as HTMLAudioElement | null;
+
     if (!element) return;
+
+    // `onCallAnswered` and `onMediaConnected` both call this, so a pending retry
+    // from the first would otherwise still be armed and could raise a spurious
+    // "audio blocked" against a call whose audio is already playing.
+    if (audioRetryRef.current) {
+      clearTimeout(audioRetryRef.current);
+      audioRetryRef.current = null;
+    }
 
     const attempt = element.play();
     if (!attempt) return;
 
     attempt.catch(() => {
       audioRetryRef.current = setTimeout(() => {
-        remoteAudioRef.current?.play().catch(() => {
+        const retryElement = document.getElementById(
+          PLIVO_REMOTE_VIEW_ID,
+        ) as HTMLAudioElement | null;
+
+        retryElement?.play().catch(() => {
           setPlivoState((prev) => ({
             ...prev,
             plivoErrorType: PlivoErrorTypeEnum.AUDIO_PLAYBACK,
-            plivoErrorMessage: t('plivo-audio-blocked'),
+            plivoErrorMessage: tRef.current('plivo-audio-blocked'),
           }));
           toast({
-            title: t('plivo-audio-blocked'),
+            title: tRef.current('plivo-audio-blocked'),
             variant: 'warning',
           });
         });
       }, 2000);
     });
-  }, [setPlivoState, t]);
+  }, [setPlivoState]);
 
   const resetCallState = useCallback(() => {
     setPlivoState((prev) => ({
@@ -146,6 +182,15 @@ export const PlivoProvider = ({
       callId: null,
       callQuality: PlivoCallQualityEnum.UNKNOWN,
       isMuted: false,
+      // Audio faults belong to the call that raised them. Left set, a single
+      // blocked-autoplay call would keep the destructive banner on the in-call
+      // surface, and the mic-denied badge on the status row, for every later
+      // call in the session — including ones with working audio. Connection and
+      // registration faults are NOT cleared here: those outlive the call.
+      ...(prev.plivoErrorType === PlivoErrorTypeEnum.AUDIO_PLAYBACK ||
+      prev.plivoErrorType === PlivoErrorTypeEnum.MEDIA_PERMISSION
+        ? { plivoErrorType: null, plivoErrorMessage: null }
+        : {}),
     }));
   }, [setPlivoState]);
 
@@ -153,12 +198,6 @@ export const PlivoProvider = ({
   // because the SDK has no way to replace a listener after login.
   useEffect(() => {
     if (!accessToken) return;
-
-    const audioElement = document.createElement('audio');
-    audioElement.id = 'plivo-provider-audio';
-    audioElement.autoplay = true;
-    document.body.appendChild(audioElement);
-    remoteAudioRef.current = audioElement;
 
     const instance = new Plivo(PLIVO_OPTIONS);
     const client = instance.client;
@@ -195,7 +234,29 @@ export const PlivoProvider = ({
       onTokenExpiredRef.current();
     });
 
-    client.on('onLogout', () => {
+    /**
+     * Also the SDK's expiry signal.
+     *
+     * A plain `loginWithAccessToken` does not refresh itself: when the token
+     * dies the SDK emits `onLogout` with the cause `ACCESS_TOKEN_EXPIRED` and
+     * then logs out. Treating that like a deliberate sign-out left the agent
+     * silently offline mid-shift — the launcher went red and no call could
+     * arrive, with nothing saying why. A fresh token is requested instead,
+     * which remounts this effect and logs back in.
+     */
+    client.on('onLogout', (cause?: string) => {
+      if (cause === 'ACCESS_TOKEN_EXPIRED') {
+        setPlivoState((prev) => ({
+          ...prev,
+          plivoStatus: PlivoStatusEnum.CONNECTING,
+          callStatus: PlivoCallStatusEnum.IDLE,
+          callDirection: null,
+        }));
+
+        onTokenExpiredRef.current();
+        return;
+      }
+
       setPlivoState((prev) => ({
         ...prev,
         plivoStatus: PlivoStatusEnum.DISCONNECTED,
@@ -239,7 +300,7 @@ export const PlivoProvider = ({
     );
 
     client.on('onIncomingCallCanceled', () => {
-      toast({ title: t('plivo-missed-call'), variant: 'destructive' });
+      toast({ title: tRef.current('plivo-missed-call'), variant: 'destructive' });
       resetCallState();
     });
 
@@ -256,20 +317,31 @@ export const PlivoProvider = ({
       playRemoteAudio();
     });
 
-    client.on(
-      'onCallTerminated',
-      (_hangupInfo: { originator?: string }, _callInfo: unknown) => {
-        setCallNumber('');
-        resetCallState();
-      },
-    );
+    /**
+     * Both ends of a normal hangup.
+     *
+     * `originator` is `'local'` or `'remote'`, but the teardown is identical
+     * either way and the agent watched the call end in front of them, so it is
+     * not surfaced: a toast saying the other side hung up would fire on every
+     * ordinary completed call. It is NOT safe to call `hangup()` from here —
+     * the SDK raises INVALID_STATE_ERROR for a session it is already tearing
+     * down — which is why this only resets local state.
+     */
+    client.on('onCallTerminated', () => {
+      setCallNumber('');
+      resetCallState();
+    });
 
     client.on('onCallFailed', (cause: string) => {
       toast({
-        title: t('plivo-call-failed'),
+        title: tRef.current('plivo-call-failed'),
         description: cause,
         variant: 'destructive',
       });
+      // A failed call left the number on the dialpad while a terminated one
+      // cleared it, so the next call started from a half-filled field
+      // depending only on how the previous one happened to end.
+      setCallNumber('');
       resetCallState();
     });
 
@@ -288,11 +360,11 @@ export const PlivoProvider = ({
         setPlivoState((prev) => ({
           ...prev,
           plivoErrorType: PlivoErrorTypeEnum.MEDIA_PERMISSION,
-          plivoErrorMessage: event?.error || t('plivo-mic-denied'),
+          plivoErrorMessage: event?.error || tRef.current('plivo-mic-denied'),
         }));
 
         toast({
-          title: t('plivo-mic-denied'),
+          title: tRef.current('plivo-mic-denied'),
           variant: 'destructive',
         });
       },
@@ -320,7 +392,7 @@ export const PlivoProvider = ({
           ...prev,
           plivoStatus: PlivoStatusEnum.ERROR,
           plivoErrorType: PlivoErrorTypeEnum.CONNECTION,
-          plivoErrorMessage: t('plivo-connection-lost'),
+          plivoErrorMessage: tRef.current('plivo-connection-lost'),
         }));
       }
     });
@@ -335,8 +407,16 @@ export const PlivoProvider = ({
         audioRetryRef.current = null;
       }
 
-      // Drop every handler this effect attached.
+      // Teardown order matters: end the media session, then the SIP session,
+      // then the handlers.
       //
+      // A token refresh re-runs this effect while a call can still be up, and
+      // `logout()` alone drops that call's audio without releasing the session
+      // — leaving the far end connected to nothing. `hangup()` is a no-op when
+      // there is no current session, so it is safe unconditionally.
+      client.hangup();
+      client.logout();
+
       // logout() ends the SIP session but leaves the listeners on the client's
       // EventEmitter. The SDK does not hand out a fresh emitter per instance,
       // so a remount stacks another full set on top of the old ones: the
@@ -344,13 +424,10 @@ export const PlivoProvider = ({
       // its handler once per past mount, driving that many state updates for a
       // single call. removeAllListeners is used rather than tracking each
       // handler because every listener on this client belongs to this effect.
+      // It runs LAST so the two calls above can still report through it.
       client.removeAllListeners?.();
 
-      client.logout();
       clientRef.current = null;
-
-      remoteAudioRef.current?.parentNode?.removeChild(remoteAudioRef.current);
-      remoteAudioRef.current = null;
     };
     // Re-running on anything but the token would tear down a live call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -362,9 +439,37 @@ export const PlivoProvider = ({
 
       if (plivoStateRef.current.callStatus !== PlivoCallStatusEnum.IDLE) return;
 
+      // `plivoStateRef` is synced by an effect, which does not run until after
+      // the click handler returns — so two clicks in the same tick both read
+      // IDLE and both reach `call()`, placing two calls. Marking the ref
+      // immediately closes that window; the SDK has no idempotent dial.
+      plivoStateRef.current = {
+        ...plivoStateRef.current,
+        callStatus: PlivoCallStatusEnum.STARTING,
+      };
+
       // Second argument is required by the SDK's signature; no custom SIP
       // headers are sent, and any that were would have to start with `X-PH`.
-      clientRef.current.call(destination, {});
+      //
+      // `call()` NEVER throws. When the client is not registered it logs a
+      // warning and returns false, so without checking the result the UI would
+      // move to "Calling..." for a call that was never placed and sit there
+      // until the agent gave up — there is no event to bring it back.
+      const placed = clientRef.current.call(destination, {});
+
+      if (placed === false) {
+        plivoStateRef.current = {
+          ...plivoStateRef.current,
+          callStatus: PlivoCallStatusEnum.IDLE,
+        };
+
+        toast({
+          title: tRef.current('plivo-call-failed'),
+          description: tRef.current('plivo-not-registered'),
+          variant: 'destructive',
+        });
+        return;
+      }
 
       setPlivoState((prev) => ({
         ...prev,
@@ -393,8 +498,12 @@ export const PlivoProvider = ({
 
   const stopCall = useCallback(() => {
     clientRef.current?.hangup();
+    // `onCallTerminated` clears the dialpad, but it does not fire for a call
+    // that never connected — so hanging up while it was still ringing left the
+    // number behind when every other end-of-call path cleared it.
+    setCallNumber('');
     resetCallState();
-  }, [resetCallState]);
+  }, [resetCallState, setCallNumber]);
 
   const mute = useCallback(() => {
     if (!clientRef.current) return;
@@ -415,9 +524,19 @@ export const PlivoProvider = ({
   }, []);
 
   const unregisterPlivo = useCallback(() => {
+    // Going offline tears down the SIP session, which drops a live call without
+    // ever reporting it. The call is ended explicitly first so the state — and
+    // the dialpad — land in the same place they would after a normal hangup,
+    // rather than leaving a counterpart and a running timer on a dead call.
+    if (plivoStateRef.current.callStatus !== PlivoCallStatusEnum.IDLE) {
+      clientRef.current?.hangup();
+      setCallNumber('');
+      resetCallState();
+    }
+
     clientRef.current?.logout();
     setIsUnregistered(true);
-  }, [setIsUnregistered]);
+  }, [resetCallState, setCallNumber, setIsUnregistered]);
 
   const reconnectPlivo = useCallback(() => {
     setIsUnregistered(false);
