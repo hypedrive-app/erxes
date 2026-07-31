@@ -155,7 +155,11 @@ export const WhatsappNewConversation = () => {
   }, [integrationId, form]);
 
   const preview = selectedTemplate
-    ? buildTemplatePreview(selectedTemplate, headerValues || [], bodyValues || [])
+    ? buildTemplatePreview(
+        selectedTemplate,
+        headerValues || [],
+        bodyValues || [],
+      )
     : '';
 
   const onSubmit = (values: WhatsappNewConversationValues) => {
@@ -210,11 +214,15 @@ export const WhatsappNewConversation = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button variant="ghost" size="icon" aria-label={t('whatsapp-new-conversation')}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t('whatsapp-new-conversation')}
+        >
           <IconMessagePlus className="text-accent-foreground" />
         </Button>
       </Dialog.Trigger>
-      <Dialog.Content className="max-h-[90vh] overflow-y-auto">
+      <Dialog.Content className="flex max-h-[90vh] flex-col overflow-hidden">
         <Dialog.Header>
           <Dialog.Title>{t('whatsapp-new-conversation')}</Dialog.Title>
           <Dialog.Description>
@@ -238,201 +246,210 @@ export const WhatsappNewConversation = () => {
           </div>
         ) : (
           <Form {...form}>
+            {/* Only the fields scroll: a template with many variables used to
+                push the send button below the fold, leaving the dialog's one
+                action unreachable until the agent scrolled for it. */}
             <form
-              className="flex flex-col gap-4"
+              className="flex min-h-0 flex-1 flex-col"
               onSubmit={form.handleSubmit(onSubmit)}
             >
-              {integrations.length > 1 && (
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+                {integrations.length > 1 && (
+                  <Form.Field
+                    control={form.control}
+                    name="integrationId"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>
+                          {t('whatsapp-new-conversation-number')}
+                        </Form.Label>
+                        <Form.Control>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <Select.Trigger>
+                              <Select.Value
+                                placeholder={t(
+                                  'whatsapp-new-conversation-number-placeholder',
+                                )}
+                              />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {integrations.map((integration) => (
+                                <Select.Item
+                                  key={integration._id}
+                                  value={integration._id}
+                                >
+                                  {integration.displayPhoneNumber
+                                    ? `${integration.name} (${integration.displayPhoneNumber})`
+                                    : integration.name}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
+                        </Form.Control>
+                        <Form.Message />
+                      </Form.Item>
+                    )}
+                  />
+                )}
+
                 <Form.Field
                   control={form.control}
-                  name="integrationId"
+                  name="customerId"
                   render={({ field }) => (
                     <Form.Item>
                       <Form.Label>
-                        {t('whatsapp-new-conversation-number')}
+                        {t('whatsapp-new-conversation-contact')}
                       </Form.Label>
-                      <Form.Control>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <Select.Trigger>
-                            <Select.Value
-                              placeholder={t(
-                                'whatsapp-new-conversation-number-placeholder',
-                              )}
-                            />
-                          </Select.Trigger>
-                          <Select.Content>
-                            {integrations.map((integration) => (
-                              <Select.Item
-                                key={integration._id}
-                                value={integration._id}
-                              >
-                                {integration.displayPhoneNumber
-                                  ? `${integration.name} (${integration.displayPhoneNumber})`
-                                  : integration.name}
-                              </Select.Item>
-                            ))}
-                          </Select.Content>
-                        </Select>
-                      </Form.Control>
-                      <Form.Message />
-                    </Form.Item>
-                  )}
-                />
-              )}
-
-              <Form.Field
-                control={form.control}
-                name="customerId"
-                render={({ field }) => (
-                  <Form.Item>
-                    <Form.Label>
-                      {t('whatsapp-new-conversation-contact')}
-                    </Form.Label>
-                    <SelectCustomer.FormItem
-                      mode="single"
-                      value={field.value}
-                      onValueChange={(value) =>
-                        field.onChange(Array.isArray(value) ? value[0] : value)
-                      }
-                    />
-                    <Form.Description>
-                      {t('whatsapp-new-conversation-contact-description')}
-                    </Form.Description>
-                    <Form.Message />
-                  </Form.Item>
-                )}
-              />
-
-              {templatesLoading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Spinner size="sm" />
-                  {t('whatsapp-templates-loading')}
-                </div>
-              )}
-
-              {!!templatesError && (
-                <div className="flex flex-col items-center gap-3 py-4 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {t('whatsapp-templates-load-failed')}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => refetchTemplates()}
-                  >
-                    <IconRefresh />
-                    {t('whatsapp-templates-retry')}
-                  </Button>
-                </div>
-              )}
-
-              {!!integrationId &&
-                !templatesLoading &&
-                !templatesError &&
-                !templates.length && (
-                  <div className="py-4 text-center">
-                    <p className="text-sm font-medium">
-                      {t('whatsapp-templates-empty')}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {t('whatsapp-templates-empty-description')}
-                    </p>
-                  </div>
-                )}
-
-              {!!templates.length && (
-                <Form.Field
-                  control={form.control}
-                  name="templateId"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>{t('whatsapp-template')}</Form.Label>
-                      <Form.Control>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <Select.Trigger>
-                            <Select.Value
-                              placeholder={t('whatsapp-template-placeholder')}
-                            />
-                          </Select.Trigger>
-                          <Select.Content>
-                            {templates.map((template) => (
-                              <Select.Item
-                                key={template.id}
-                                value={template.id}
-                              >
-                                {template.name} ({template.language})
-                              </Select.Item>
-                            ))}
-                          </Select.Content>
-                        </Select>
-                      </Form.Control>
+                      <SelectCustomer.FormItem
+                        mode="single"
+                        value={field.value}
+                        onValueChange={(value) =>
+                          field.onChange(
+                            Array.isArray(value) ? value[0] : value,
+                          )
+                        }
+                      />
                       <Form.Description>
-                        {t('whatsapp-new-conversation-template-description')}
+                        {t('whatsapp-new-conversation-contact-description')}
                       </Form.Description>
                       <Form.Message />
                     </Form.Item>
                   )}
                 />
-              )}
 
-              {headerPlaceholders.map((placeholder, index) => (
-                <Form.Field
-                  key={`header-${placeholder}`}
-                  control={form.control}
-                  name={`headerValues.${index}` as const}
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>
-                        {t('whatsapp-template-header-variable', {
-                          index: placeholder,
-                        })}
-                      </Form.Label>
-                      <Form.Control>
-                        <Input {...field} autoComplete="off" />
-                      </Form.Control>
-                      <Form.Message />
-                    </Form.Item>
+                {templatesLoading && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Spinner size="sm" />
+                    {t('whatsapp-templates-loading')}
+                  </div>
+                )}
+
+                {!!templatesError && (
+                  <div className="flex flex-col items-center gap-3 py-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {t('whatsapp-templates-load-failed')}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => refetchTemplates()}
+                    >
+                      <IconRefresh />
+                      {t('whatsapp-templates-retry')}
+                    </Button>
+                  </div>
+                )}
+
+                {!!integrationId &&
+                  !templatesLoading &&
+                  !templatesError &&
+                  !templates.length && (
+                    <div className="py-4 text-center">
+                      <p className="text-sm font-medium">
+                        {t('whatsapp-templates-empty')}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {t('whatsapp-templates-empty-description')}
+                      </p>
+                    </div>
                   )}
-                />
-              ))}
 
-              {bodyPlaceholders.map((placeholder, index) => (
-                <Form.Field
-                  key={`body-${placeholder}`}
-                  control={form.control}
-                  name={`bodyValues.${index}` as const}
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>
-                        {t('whatsapp-template-body-variable', {
-                          index: placeholder,
-                        })}
-                      </Form.Label>
-                      <Form.Control>
-                        <Input {...field} autoComplete="off" />
-                      </Form.Control>
-                      <Form.Message />
-                    </Form.Item>
-                  )}
-                />
-              ))}
+                {!!templates.length && (
+                  <Form.Field
+                    control={form.control}
+                    name="templateId"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>{t('whatsapp-template')}</Form.Label>
+                        <Form.Control>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <Select.Trigger>
+                              <Select.Value
+                                placeholder={t('whatsapp-template-placeholder')}
+                              />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {templates.map((template) => (
+                                <Select.Item
+                                  key={template.id}
+                                  value={template.id}
+                                >
+                                  {template.name} ({template.language})
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
+                        </Form.Control>
+                        <Form.Description>
+                          {t('whatsapp-new-conversation-template-description')}
+                        </Form.Description>
+                        <Form.Message />
+                      </Form.Item>
+                    )}
+                  />
+                )}
 
-              {!!preview && (
-                <div className="rounded-lg border bg-background p-3">
-                  <p className="text-xs font-medium uppercase text-muted-foreground">
-                    {t('whatsapp-template-preview')}
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm">{preview}</p>
-                </div>
-              )}
+                {headerPlaceholders.map((placeholder, index) => (
+                  <Form.Field
+                    key={`header-${placeholder}`}
+                    control={form.control}
+                    name={`headerValues.${index}` as const}
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>
+                          {t('whatsapp-template-header-variable', {
+                            index: placeholder,
+                          })}
+                        </Form.Label>
+                        <Form.Control>
+                          <Input {...field} autoComplete="off" />
+                        </Form.Control>
+                        <Form.Message />
+                      </Form.Item>
+                    )}
+                  />
+                ))}
 
-              <Dialog.Footer>
+                {bodyPlaceholders.map((placeholder, index) => (
+                  <Form.Field
+                    key={`body-${placeholder}`}
+                    control={form.control}
+                    name={`bodyValues.${index}` as const}
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>
+                          {t('whatsapp-template-body-variable', {
+                            index: placeholder,
+                          })}
+                        </Form.Label>
+                        <Form.Control>
+                          <Input {...field} autoComplete="off" />
+                        </Form.Control>
+                        <Form.Message />
+                      </Form.Item>
+                    )}
+                  />
+                ))}
+
+                {!!preview && (
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="text-xs font-medium uppercase text-muted-foreground">
+                      {t('whatsapp-template-preview')}
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm">
+                      {preview}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <Dialog.Footer className="pt-4">
                 <Button type="submit" disabled={sending || !selectedTemplate}>
                   {sending ? <Spinner size="sm" /> : <IconSend />}
                   {t('whatsapp-new-conversation-send')}

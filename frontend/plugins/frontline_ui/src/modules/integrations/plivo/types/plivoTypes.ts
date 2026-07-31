@@ -93,6 +93,84 @@ export interface IPlivoSoftphoneIntegration {
   phoneNumber?: string | null;
 }
 
+/** Direction exactly as the backend stores it, which is how Plivo reports it. */
+export type PlivoHistoryDirection = 'inbound' | 'outbound';
+
+/**
+ * Call lifecycle as stored on the session row.
+ *
+ * Every ended call is reported by Plivo as `completed` regardless of whether it
+ * was answered, so `no-answer` / `busy` / `failed` are derived from the hangup
+ * cause on the backend and arrive here already resolved.
+ */
+export type PlivoHistoryStatus =
+  | 'ringing'
+  | 'in-progress'
+  | 'completed'
+  | 'no-answer'
+  | 'busy'
+  | 'failed';
+
+/** The contact a call was matched to, when it was matched to one. */
+export interface IPlivoCallContact {
+  _id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  primaryPhone?: string | null;
+  avatar?: string | null;
+}
+
+/** One row of Plivo call history. */
+export interface IPlivoCallHistory {
+  _id: string;
+  callUuid?: string | null;
+  conversationId?: string | null;
+  direction?: PlivoHistoryDirection | null;
+  status?: PlivoHistoryStatus | null;
+  from?: string | null;
+  to?: string | null;
+  /** The number of the party that is not this Plivo integration. */
+  counterpartNumber?: string | null;
+  duration?: number | null;
+  hangupCause?: string | null;
+  /** Storage key or absolute URL; `getPlivoRecordingUrl` accepts either. */
+  recordUrl?: string | null;
+  recordingDuration?: number | null;
+  /**
+   * True when the audio is a VOICEMAIL — a caller who could not reach anyone
+   * and still needs an agent to act — rather than a recording of a call that
+   * actually happened. The list keeps the two visually apart on this flag.
+   */
+  isVoicemail?: boolean | null;
+  voicemailLeftAt?: string | null;
+  startedAt?: string | null;
+  answeredAt?: string | null;
+  endedAt?: string | null;
+  createdAt?: string | null;
+  customer?: IPlivoCallContact | null;
+}
+
+/** A page of call history plus the count the list pages against. */
+export interface IPlivoCallHistoryList {
+  list: IPlivoCallHistory[];
+  totalCount: number;
+}
+
+/**
+ * How a call reads once direction and outcome are collapsed into one label.
+ *
+ * `voicemail` is deliberately its own outcome and not a flavour of `missed`:
+ * a voicemail is a missed call that left something to listen to, and treating
+ * it as merely missed is exactly the conflation this UI exists to prevent.
+ */
+export type PlivoCallOutcome =
+  | 'answered'
+  | 'voicemail'
+  | 'missed'
+  | 'busy'
+  | 'failed'
+  | 'in-progress';
+
 export interface PlivoContextValue {
   /** Logs the client in again with a freshly fetched token. */
   reconnectPlivo: () => void;

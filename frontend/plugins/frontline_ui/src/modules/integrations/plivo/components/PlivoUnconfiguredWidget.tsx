@@ -45,8 +45,11 @@ export const PlivoUnconfiguredWidget = ({
         <PopoverPrimitive.Portal>
           <PopoverPrimitive.Content
             sideOffset={12}
+            collisionPadding={8}
             onOpenAutoFocus={(e) => e.preventDefault()}
-            className="z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 rounded-lg bg-background text-foreground shadow-lg w-96"
+            // Matches the real widget's panel so the two cannot disagree about
+            // width when the client finishes mounting.
+            className="z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 rounded-lg bg-background text-foreground shadow-lg w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto"
           >
             <div className="flex flex-col gap-3 p-4">
               {connecting ? (

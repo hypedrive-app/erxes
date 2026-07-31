@@ -1,6 +1,7 @@
 import { CallWidget } from '@/integrations/call/components/CallWidget';
 import { SipContainer } from '@/integrations/call/components/SipContainer';
 import { PlivoContainer } from '@/integrations/plivo/components/PlivoContainer';
+import { PlivoDialRequestEffect } from '@/integrations/plivo/components/PlivoDialRequestEffect';
 import { PlivoWidget } from '@/integrations/plivo/components/PlivoWidget';
 
 /**
@@ -16,6 +17,7 @@ const FloatingWidget = () => {
         <CallWidget />
       </SipContainer>
       <PlivoContainer>
+        <PlivoDialRequestEffect />
         <PlivoWidget />
       </PlivoContainer>
     </>

@@ -14,11 +14,23 @@ const IgPostTrigger = lazy(() =>
   ),
 );
 
+/**
+ * Calling is offered on every channel, not just voice ones: an agent handling a
+ * chat or an email often needs to phone the customer back. The button hides
+ * itself when there is no dialable number or no softphone, so it is never dead.
+ */
+const PlivoConversationCallButton = lazy(() =>
+  import('@/integrations/plivo/components/PlivoConversationCallButton').then(
+    (module) => ({ default: module.PlivoConversationCallButton }),
+  ),
+);
+
 export const IntegrationActions = () => {
   const { integration, _id } = useConversationContext();
 
   return (
     <Suspense fallback={<div />}>
+      <PlivoConversationCallButton />
       {integration?.kind === IntegrationType.FACEBOOK_POST && (
         <FacebookPostTrigger erxesApiId={_id} />
       )}

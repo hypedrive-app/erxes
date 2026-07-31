@@ -22,9 +22,12 @@ import {
   useCanPlaceCall,
 } from '@/integrations/plivo/components/PlivoNumberInput';
 import { usePlivo } from '@/integrations/plivo/components/PlivoProvider';
+import { PlivoTabs } from '@/integrations/plivo/components/PlivoTabs';
 import { PlivoTriggerContent } from '@/integrations/plivo/components/PlivoTriggerContent';
 import { PlivoWidgetDraggableRoot } from '@/integrations/plivo/components/PlivoWidgetDraggable';
+import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
 import { usePlivoSoftphoneIntegrations } from '@/integrations/plivo/hooks/usePlivoSoftphoneIntegrations';
+import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
 import {
   plivoCallStartedAtAtom,
   plivoNumberAtom,
@@ -38,11 +41,17 @@ import {
 
 export const PlivoDialpad = () => {
   const { t } = useTranslation('frontline');
-  const { startCall, phoneNumber } = usePlivo();
+  const { phoneNumber } = usePlivo();
   const number = useAtomValue(plivoNumberAtom);
   const canCall = useCanPlaceCall();
+  const { dial } = usePlivoDialer();
   const { integrations, integrationId, selectIntegration } =
     usePlivoSoftphoneIntegrations();
+
+  // Typed digits are dialled through the same normaliser as every other call
+  // surface, so a number entered without a country code still reaches E.164
+  // instead of being handed to the SDK as typed.
+  const isDialable = !!toDialableNumber(number);
 
   return (
     <div className="px-3 pt-3">
@@ -66,8 +75,8 @@ export const PlivoDialpad = () => {
       )}
       <Button
         className="my-3 w-full"
-        disabled={!number.length || !canCall}
-        onClick={() => startCall(number)}
+        disabled={!isDialable || !canCall}
+        onClick={() => dial(number)}
       >
         {t('call')}
       </Button>
@@ -86,8 +95,10 @@ export const PlivoWidgetContent = () => {
     return <PlivoIncomingCall />;
   }
 
+  // The address book is only offered between calls: mid-call the panel belongs
+  // to the live call, and starting a second one from here is not possible.
   if (callStatus === PlivoCallStatusEnum.IDLE) {
-    return <PlivoDialpad />;
+    return <PlivoTabs keypad={<PlivoDialpad />} />;
   }
 
   return <PlivoInCall />;
@@ -147,6 +158,7 @@ export const PlivoWidget = () => {
           <PopoverPrimitive.Portal>
             <PopoverPrimitive.Content
               sideOffset={12}
+              collisionPadding={8}
               onOpenAutoFocus={(e) => e.preventDefault()}
               ref={popoverContentRef}
               style={
@@ -154,7 +166,10 @@ export const PlivoWidget = () => {
                   '--radix-popper-content-height': contentHeight,
                 } as CSSProperties
               }
-              className="z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 rounded-lg bg-background text-foreground shadow-lg w-96"
+              // A fixed w-96 is wider than a 375px phone, so the panel hung off
+              // the screen and the dialpad's right column was unreachable. It
+              // keeps its 24rem on anything roomier than that.
+              className="z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 rounded-lg bg-background text-foreground shadow-lg w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto"
             >
               <PlivoWidgetContent />
             </PopoverPrimitive.Content>

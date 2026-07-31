@@ -23,6 +23,9 @@ export const plivoStateAtom = atom<IPlivoState>({
 /** Number typed into the Plivo dialpad, before it is dialled. */
 export const plivoNumberAtom = atom<string>('');
 
+/** Which surface the softphone panel is showing: the keypad or the contacts. */
+export const plivoUiAtom = atom<string>('keypad');
+
 /** Whether the floating softphone panel is expanded. */
 export const plivoWidgetOpenAtom = atom<boolean>(false);
 
@@ -60,3 +63,31 @@ export const plivoIntegrationIdAtom = atomWithStorage<string | null>(
   undefined,
   { getOnInit: true },
 );
+
+/**
+ * A request to dial, raised by a surface outside the softphone.
+ *
+ * The provider is mounted inside the `floatingWidget` federation entry, while
+ * call buttons live on pages served from other entries (`frontline`, and any
+ * future host surface). Those are sibling React trees, so the Plivo context
+ * cannot be read across them — but `jotai` is a shared singleton library, so an
+ * atom is the one channel both sides genuinely share.
+ *
+ * The value carries an `id` as well as the number so that dialling the same
+ * number twice in a row is still seen as two distinct requests. The widget
+ * clears it back to `null` once consumed.
+ */
+export const plivoDialRequestAtom = atom<{
+  id: number;
+  destination: string;
+} | null>(null);
+
+/**
+ * Whether a softphone is mounted and logged in, published for the same
+ * cross-entry reason as `plivoDialRequestAtom`.
+ *
+ * Call buttons on other surfaces render only when this is true, so an account
+ * with no Plivo number — or an agent who has gone offline — is never offered a
+ * button that could not place a call.
+ */
+export const plivoReadyAtom = atom<boolean>(false);
