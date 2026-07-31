@@ -113,7 +113,12 @@ export const PlivoIncomingCall = () => {
           {t('decline')}
         </Button>
         <Button
-          className="h-14 text-sm font-semibold bg-success text-white hover:bg-success/90"
+          // Deliberately NOT white-on-green: the `--success` token is a light
+          // green (oklch L=0.72), so white text on it measures 2.30:1 and fails
+          // WCAG AA. Near-black on the same fill measures 9.14:1. Answer stays
+          // the only solid-filled button on the surface, which is what
+          // distinguishes it from Decline without relying on hue.
+          className="h-14 text-sm font-semibold bg-success text-black/85 hover:bg-success/90 hover:text-black"
           onClick={answerCall}
         >
           <IconPhone />
