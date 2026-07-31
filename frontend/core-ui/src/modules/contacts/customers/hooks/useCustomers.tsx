@@ -97,6 +97,9 @@ export const useCustomers = (
   const setCustomerTotalCount = useSetAtom(customerTotalCountAtom);
   // Customer Filter implementation
 
+  const { sessionKey } = useIsCustomerLeadSessionKey();
+  const { setCursor } = useRecordTableCursor({ sessionKey });
+
   const variables = useCustomersVariables(options?.variables);
   const { data, loading, fetchMore } = useQuery<ICursorListResponse<ICustomer>>(
     GET_CUSTOMERS,
@@ -104,6 +107,17 @@ export const useCustomers = (
       ...options,
       skip: options?.skip || isUndefinedOrNull(variables.cursor),
       variables,
+      onError: (error) => {
+        // A stale cursor persisted in sessionStorage (e.g. from a previous
+        // data set) is rejected server-side as "Invalid cursor format",
+        // which would otherwise leave the table permanently blank. Drop the
+        // bad cursor and fall back to the first page.
+        if (error.message?.includes('Invalid cursor format')) {
+          sessionStorage.removeItem(sessionKey);
+          setCursor('');
+        }
+        options?.onError?.(error);
+      },
     },
   );
 

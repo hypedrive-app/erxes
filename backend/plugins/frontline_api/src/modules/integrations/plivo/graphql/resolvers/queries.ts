@@ -5,7 +5,78 @@ import {
 } from '@/integrations/plivo/accessToken';
 import { ensurePlivoEndpoint } from '@/integrations/plivo/helpers';
 
+/** What the widget needs to offer a number, and nothing more. */
+export interface IPlivoSoftphoneIntegration {
+  _id: string;
+  name: string;
+  phoneNumber?: string;
+}
+
 export const plivoQueries = {
+  /**
+   * The Plivo numbers this agent can answer on in the browser.
+   *
+   * The floating softphone has no channel in scope — it is mounted app-wide —
+   * so it cannot use the channel-scoped `integrations` list. This returns every
+   * ACTIVE Plivo integration that is actually dialable, letting the widget
+   * auto-select when there is exactly one and offer a picker when there are
+   * several.
+   *
+   * Credentials never leave the server: only the id, name and caller id are
+   * exposed, and a token still has to be minted through `plivoAccessToken`.
+   *
+   * An integration with no stored credentials is omitted rather than offered,
+   * because picking it could only ever fail at the token step — which is the
+   * dead end this query exists to remove.
+   */
+  plivoSoftphoneIntegrations: async (
+    _root: undefined,
+    _args: undefined,
+    { models, user }: IContext,
+  ): Promise<IPlivoSoftphoneIntegration[]> => {
+    if (!user?._id) {
+      throw new Error('Login required');
+    }
+
+    const plivoIntegrations = await models.PlivoIntegrations.find({
+      authId: { $nin: [null, ''] },
+      authToken: { $nin: [null, ''] },
+      erxesApiId: { $nin: [null, ''] },
+    }).lean();
+
+    if (!plivoIntegrations.length) {
+      return [];
+    }
+
+    // The inbox row is the authority on the name the agent recognises and on
+    // whether the integration is still active; an archived one must not be
+    // offered as somewhere to receive calls.
+    const inboxIntegrations = await models.Integrations.find({
+      _id: { $in: plivoIntegrations.map((integration) => integration.erxesApiId) },
+      isActive: { $ne: false },
+    }).lean();
+
+    const phoneNumberById = new Map(
+      plivoIntegrations.map((integration) => [
+        integration.erxesApiId,
+        integration.plivoPhoneNumber,
+      ]),
+    );
+
+    return inboxIntegrations.map((integration) => {
+      const phoneNumber = phoneNumberById.get(integration._id);
+
+      return {
+        _id: integration._id,
+        // `name` is optional on the inbox row, and an unnamed integration must
+        // still be pickable — the number it dials from identifies it well
+        // enough for the widget's list.
+        name: integration.name || phoneNumber || integration._id,
+        phoneNumber,
+      };
+    });
+  },
+
   /**
    * Mints a browser softphone access token for the requesting agent.
    *

@@ -35,6 +35,7 @@ import {
 } from '@/integrations/instagram/graphql/schema/instagram';
 
 import {
+  mutations as WhatsappMutations,
   queries as WhatsappQueries,
   types as WhatsappTypes,
 } from '@/integrations/whatsapp/graphql/schema/whatsapp';
@@ -158,6 +159,7 @@ export const mutations = `
    ${DiscordMutations}
    ${InstagramMutations}
    ${CallMutations}
+   ${WhatsappMutations}
    ${ImapMutations}
    ${TicketMutations}
    ${WidgetMutations}

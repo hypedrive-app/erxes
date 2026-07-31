@@ -1,5 +1,32 @@
 import { gql } from '@apollo/client';
 
+export const GET_WHATSAPP_SENDER_INTEGRATIONS = gql`
+  query WhatsappSenderIntegrations {
+    whatsappSenderIntegrations {
+      _id
+      name
+      displayPhoneNumber
+    }
+  }
+`;
+
+export const GET_WHATSAPP_INTEGRATION_TEMPLATES = gql`
+  query WhatsappIntegrationTemplates($integrationId: String!) {
+    whatsappIntegrationTemplates(integrationId: $integrationId) {
+      id
+      name
+      language
+      status
+      category
+      components {
+        type
+        format
+        text
+      }
+    }
+  }
+`;
+
 export const GET_WHATSAPP_TEMPLATES = gql`
   query WhatsappTemplates($conversationId: String!) {
     whatsappTemplates(conversationId: $conversationId) {

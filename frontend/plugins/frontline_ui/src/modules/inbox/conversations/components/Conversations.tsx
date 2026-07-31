@@ -28,6 +28,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { refetchNewMessagesState } from '@/inbox/conversations/states/newMessagesCountState';
 import { conversationsContainerScrollState } from '@/inbox/conversations/states/conversationsContainerScrollState';
 import { ConversationActions } from './ConversationActions';
+import { WhatsappNewConversation } from '@/integrations/whatsapp/components/WhatsappNewConversation';
 
 export const Conversations = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -159,6 +160,7 @@ export const Conversations = () => {
         <Filter id="conversations">
           <ConversationsHeader>
             <ConversationActions />
+            <WhatsappNewConversation />
           </ConversationsHeader>
         </Filter>
         <Separator />

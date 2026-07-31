@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useCallDurationFromDate } from '@/integrations/call/hooks/useCallDuration';
 import { PlivoActions } from '@/integrations/plivo/components/PlivoActions';
 import { PlivoInCall } from '@/integrations/plivo/components/PlivoInCall';
+import { PlivoNumberPicker } from '@/integrations/plivo/components/PlivoNumberPicker';
 import {
   PlivoIncomingCall,
   PlivoIncomingCallAudio,
@@ -23,6 +24,7 @@ import {
 import { usePlivo } from '@/integrations/plivo/components/PlivoProvider';
 import { PlivoTriggerContent } from '@/integrations/plivo/components/PlivoTriggerContent';
 import { PlivoWidgetDraggableRoot } from '@/integrations/plivo/components/PlivoWidgetDraggable';
+import { usePlivoSoftphoneIntegrations } from '@/integrations/plivo/hooks/usePlivoSoftphoneIntegrations';
 import {
   plivoCallStartedAtAtom,
   plivoNumberAtom,
@@ -39,10 +41,23 @@ export const PlivoDialpad = () => {
   const { startCall, phoneNumber } = usePlivo();
   const number = useAtomValue(plivoNumberAtom);
   const canCall = useCanPlaceCall();
+  const { integrations, integrationId, selectIntegration } =
+    usePlivoSoftphoneIntegrations();
 
   return (
     <div className="px-3 pt-3">
       <PlivoActions />
+      {/* Only worth showing when there is actually a choice; with one number
+          the caller id line below already says which one is in use. */}
+      {integrations.length > 1 && (
+        <div className="py-3">
+          <PlivoNumberPicker
+            integrations={integrations}
+            value={integrationId}
+            onValueChange={selectIntegration}
+          />
+        </div>
+      )}
       <PlivoNumberInput />
       {phoneNumber && (
         <div className="text-xs text-accent-foreground text-center pb-2">

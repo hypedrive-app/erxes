@@ -86,6 +86,13 @@ export interface IPlivoAccessToken {
   phoneNumber?: string | null;
 }
 
+/** A Plivo number the agent can answer on, as offered by the widget picker. */
+export interface IPlivoSoftphoneIntegration {
+  _id: string;
+  name: string;
+  phoneNumber?: string | null;
+}
+
 export interface PlivoContextValue {
   /** Logs the client in again with a freshly fetched token. */
   reconnectPlivo: () => void;

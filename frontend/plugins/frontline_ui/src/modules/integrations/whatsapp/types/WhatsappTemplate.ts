@@ -23,6 +23,13 @@ export interface IWhatsappTemplate {
   components: IWhatsappTemplateComponent[];
 }
 
+/** A connected number a new conversation can be started from. */
+export interface IWhatsappSenderIntegration {
+  _id: string;
+  name: string;
+  displayPhoneNumber?: string | null;
+}
+
 /** Send-time parameters; positional `{{n}}` are filled by array order. */
 export interface IWhatsappTemplateSendComponent {
   type: 'header' | 'body';

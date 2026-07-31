@@ -37,7 +37,11 @@ export const RecordTableCursorProvider = ({
   const handleScroll = () => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     const firstVisibleRow = scrollRef.current?.querySelector('.in-view');
-    if (firstVisibleRow && sessionKey) {
+    // Only persist a real, non-empty cursor. Rows whose `cursor` field is
+    // null/undefined render with an empty `id`; storing that would send an
+    // invalid cursor on the next load and the query would error into a blank
+    // table. Skip those so the next load starts from the first page instead.
+    if (firstVisibleRow && firstVisibleRow.id && sessionKey) {
       sessionStorage.setItem(sessionKey, firstVisibleRow.id);
     }
     debounceTimer.current = setTimeout(() => {
