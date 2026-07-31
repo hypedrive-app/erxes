@@ -8,13 +8,13 @@ import {
   IconPlayerPlay,
 } from '@tabler/icons-react';
 import { Badge, Button, Collapsible, Tooltip, cn } from 'erxes-ui';
-import { useSetAtom } from 'jotai';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { PlivoRecordingPlayer } from '@/integrations/plivo/components/PlivoRecordingPlayer';
-import { plivoNumberAtom } from '@/integrations/plivo/states/plivoStates';
+import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
 import { IPlivoCallHistory } from '@/integrations/plivo/types/plivoTypes';
+import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
 import {
   PLIVO_CALL_OUTCOME_LABEL_KEYS,
   PLIVO_UNANSWERED_OUTCOMES,
@@ -38,7 +38,7 @@ export const PlivoCallHistoryRow = ({
 }) => {
   const { t } = useTranslation('frontline');
   const navigate = useNavigate();
-  const setNumber = useSetAtom(plivoNumberAtom);
+  const { dial, isReady } = usePlivoDialer();
   const [isOpen, setIsOpen] = useState(false);
 
   const {
@@ -57,6 +57,12 @@ export const PlivoCallHistoryRow = ({
   const outcome = getPlivoCallOutcome(callHistory);
   const isUnanswered = PLIVO_UNANSWERED_OUTCOMES.includes(outcome);
   const label = getPlivoCounterpartLabel(callHistory);
+
+  // Parsed here rather than at click time so a number that was stored malformed
+  // (or an anonymous/withheld caller) hides the button instead of failing on
+  // press. A missed call from a blocked number is exactly where a dead
+  // call-back button would otherwise sit.
+  const callBackNumber = toDialableNumber(counterpartNumber);
 
   const renderDirectionIcon = () => {
     if (isVoicemail) {
@@ -161,7 +167,7 @@ export const PlivoCallHistoryRow = ({
             </Tooltip.Provider>
           )}
 
-          {counterpartNumber && (
+          {callBackNumber && isReady && (
             <Tooltip.Provider>
               <Tooltip>
                 <Tooltip.Trigger asChild>
@@ -169,7 +175,8 @@ export const PlivoCallHistoryRow = ({
                     variant="ghost"
                     size="icon"
                     className="size-6"
-                    onClick={() => setNumber(counterpartNumber)}
+                    aria-label={t('plivo-call-back')}
+                    onClick={() => dial(callBackNumber)}
                   >
                     <IconPhoneOutgoing />
                   </Button>

@@ -335,6 +335,17 @@ export const PlivoProvider = ({
         audioRetryRef.current = null;
       }
 
+      // Drop every handler this effect attached.
+      //
+      // logout() ends the SIP session but leaves the listeners on the client's
+      // EventEmitter. The SDK does not hand out a fresh emitter per instance,
+      // so a remount stacks another full set on top of the old ones: the
+      // browser reports "11 onLogin listeners added" and each event then runs
+      // its handler once per past mount, driving that many state updates for a
+      // single call. removeAllListeners is used rather than tracking each
+      // handler because every listener on this client belongs to this effect.
+      client.removeAllListeners?.();
+
       client.logout();
       clientRef.current = null;
 

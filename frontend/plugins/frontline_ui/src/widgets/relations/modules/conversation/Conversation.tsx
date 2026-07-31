@@ -2,6 +2,7 @@ import { useConversations } from '@/inbox/conversations/hooks/useConversations';
 import { IRelationWidgetProps, useRelations } from 'ui-modules';
 import { ConversationRelationDetails } from './ConversationDetails';
 import { ConversationReportContent } from '@/inbox/conversations/conversation-detail/components/ConversationReportContent';
+import { PlivoContactCallButton } from '@/integrations/plivo/components/PlivoContactCallButton';
 
 export const ConversationRelationWidget = ({
   contentId,
@@ -32,6 +33,11 @@ export const ConversationRelationWidget = ({
   ) {
     return (
       <div className="flex flex-col flex-1 overflow-y-auto h-full gap-2 w-full p-2">
+        {contentType === 'core:customer' && (
+          <div className="flex justify-end">
+            <PlivoContactCallButton customerId={customerId || contentId} />
+          </div>
+        )}
         <ConversationReportContent
           customerId={customerId}
         />

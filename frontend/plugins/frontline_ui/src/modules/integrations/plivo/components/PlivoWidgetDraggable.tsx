@@ -17,6 +17,7 @@ import {
   plivoWidgetPositionAtom,
 } from '@/integrations/plivo/states/plivoStates';
 import { PlivoStatusEnum } from '@/integrations/plivo/types/plivoTypes';
+import { useCallUserIntegration } from '@/integrations/call/hooks/useCallUserIntegration';
 
 /** Keeps the launcher inside the viewport, matching the Grandstream widget. */
 const clampToViewport = (x: number, y: number) => ({
@@ -44,6 +45,11 @@ const PlivoWidgetDraggable = memo(
 
     const isOnline = plivoStatus === PlivoStatusEnum.REGISTERED;
 
+    // SipContainer renders nothing when the account has no call integration,
+    // so its slot at right-10 is only taken when one exists.
+    const { callUserIntegrations } = useCallUserIntegration();
+    const hasSipWidget = Boolean(callUserIntegrations?.length);
+
     const style = useMemo(
       () => ({
         transform: `translate(${position.x + (transform?.x ?? 0)}px, ${
@@ -61,7 +67,13 @@ const PlivoWidgetDraggable = memo(
             size="icon"
             aria-label={label}
             className={cn(
-              'fixed bottom-10 right-28 size-12 [&>svg]:size-6 rounded-full shadow-lg',
+              // The Grandstream widget occupies right-10. This one sits beside
+              // it ONLY when that one is actually there — SipContainer renders
+              // nothing without a call integration, and offsetting past an
+              // empty slot leaves this button stranded in open space, which
+              // reads as a misplaced control rather than a deliberate pair.
+              'fixed bottom-10 size-12 [&>svg]:size-6 rounded-full shadow-lg',
+              hasSipWidget ? 'right-28' : 'right-10',
               isOnline
                 ? 'bg-success hover:bg-success/90'
                 : 'bg-destructive hover:bg-destructive/90',

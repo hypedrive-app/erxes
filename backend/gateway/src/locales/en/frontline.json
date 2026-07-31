@@ -1278,7 +1278,7 @@
   "plivo-call-recording": "Call recording",
   "plivo-play-recording": "Play recording",
   "plivo-audio-unsupported": "Your browser cannot play this recording.",
-  "plivo-call-back": "Put this number on the dialpad",
+  "plivo-call-back": "Call this number back",
   "plivo-unknown-caller": "Unknown number",
   "plivo-call-history-error": "Could not load call history.",
   "plivo-call-answered": "Answered",
