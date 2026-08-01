@@ -1,8 +1,19 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "composite": true,
-    "declaration": true,
+    // Neither `composite` nor `declaration` is set here, and the two go
+    // together: TypeScript rejects `declaration: false` on a composite project
+    // (TS6304), so keeping composite means emitting declarations.
+    //
+    // core-ui is an application bundled by rspack — no target runs `tsc -b`
+    // and nothing consumes its .d.ts. Emitting declarations made tsc name
+    // types reached through the source-mapped `erxes-ui` and `ui-modules`
+    // paths, and under pnpm's nested store those names cannot be written, so
+    // 23 spurious TS2742 errors appeared in erxes-ui as soon as a barrel
+    // re-exported a hook importing from it.
+    //
+    // The sibling plugin apps (frontline_ui, sales_ui) reference their own
+    // tsconfig.app.json the same way and set neither option.
     "outDir": "dist/out-tsc",
     "types": [
       "node",
