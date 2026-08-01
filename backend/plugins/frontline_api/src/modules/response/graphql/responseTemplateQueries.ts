@@ -6,7 +6,7 @@ import {
 } from '@/response/@types/responseTemplates';
 
 const generateFilter = (args: ResponseTemplatesFilter) => {
-  const { channelId, searchValue } = args;
+  const { channelId, searchValue } = args || {};
 
   const filter: any = {};
 
@@ -35,7 +35,7 @@ export const responseTemplateQueries = {
 
     filterQuery.channelId = { $exists: true, $ne: null };
 
-    if (filter.channelId) {
+    if (filter?.channelId) {
       filterQuery.channelId = filter.channelId;
     }
 
