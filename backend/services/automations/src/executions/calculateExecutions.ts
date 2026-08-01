@@ -1,5 +1,4 @@
 import { IModels } from '../connectionResolver';
-import { debugError } from '../debugger';
 import { isInSegment } from '../utils/isInSegment';
 import { isDiffValue } from '../utils/utils';
 import {
@@ -38,9 +37,7 @@ const checkIsValidCustomTigger = async (
       eventUpdateDescription,
     },
     defaultValue: false,
-  }).catch((e) =>
-    debugError(`An error occurred while check trigger: ${e.message}`),
-  );
+  });
 
   return response;
 };
