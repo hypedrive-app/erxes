@@ -24,7 +24,7 @@ export const fieldMutations = {
   /**
    * Adds field object
    */
-  async fieldsAdd(_root, args: IField, { user, models }: IContext) {
+  async frontlineFieldsAdd(_root, args: IField, { user, models }: IContext) {
     const field = await models.Fields.createField({
       ...args,
       lastUpdatedUserId: user._id,
@@ -155,7 +155,7 @@ export const fieldMutations = {
   /**
    * Updates field object
    */
-  async fieldsEdit(
+  async frontlineFieldsEdit(
     _root,
     { _id, ...doc }: IFieldsEdit,
     { user, models }: IContext,
@@ -169,14 +169,18 @@ export const fieldMutations = {
   /**
    * Remove a channel
    */
-  async fieldsRemove(_root, { _id }: { _id: string }, { models }: IContext) {
+  async frontlineFieldsRemove(
+    _root,
+    { _id }: { _id: string },
+    { models }: IContext,
+  ) {
     return models.Fields.removeField(_id);
   },
 
   /**
    * Update field orders
    */
-  async fieldsUpdateOrder(
+  async frontlineFieldsUpdateOrder(
     _root,
     { orders }: { orders: IOrderInput[] },
     { models }: IContext,
@@ -187,7 +191,7 @@ export const fieldMutations = {
   /**
    * Update field's visible
    */
-  async fieldsUpdateVisible(
+  async frontlineFieldsUpdateVisible(
     _root,
     { _id, isVisible, isVisibleInDetail }: IUpdateVisibleParams,
     { user, models }: IContext,
@@ -203,7 +207,7 @@ export const fieldMutations = {
   /**
    * Update field's visible to create
    */
-  async fieldsUpdateSystemFields(
+  async frontlineFieldsUpdateSystemFields(
     _root,
     {
       _id,
