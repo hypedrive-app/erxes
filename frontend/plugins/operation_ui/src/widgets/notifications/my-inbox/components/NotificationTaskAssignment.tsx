@@ -14,7 +14,7 @@ const formatDate = (isoDate: string) => {
 
 export const NotificationTaskAssignment = ({
   contentTypeId,
-  title,
+  action: notificationAction,
   fromUser,
   fromUserId,
   createdAt,
@@ -25,8 +25,12 @@ export const NotificationTaskAssignment = ({
     skip: !contentTypeId,
   });
 
-  const isAssigned = title === 'Task Assigned';
-  const action = isAssigned ? 'assigned you to' : 'changed status on';
+  // Read from `action`, not `title`. The backend writes the bare content type
+  // ('Task') as the title — 'Task Assigned' is only the label shown in the
+  // notification settings screen — so a title comparison never matched and
+  // every notification, assignments included, claimed a status change.
+  const isAssigned = notificationAction === 'assignee';
+  const description = isAssigned ? 'assigned you to' : 'changed status on';
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-md mx-auto justify-center items-center h-full text-muted-foreground">
@@ -53,12 +57,18 @@ export const NotificationTaskAssignment = ({
         </div>
 
         <p className="text-foreground">
-          {action}{' '}
+          {description}{' '}
           {loading ? (
             <Skeleton className="inline-block w-24 h-4 align-middle" />
           ) : (
             <span className="font-bold text-foreground">
-              {task?.name || `Task #${task?.number}`}
+              {/* The `#number` fallback covers a task with no name. It cannot
+                  cover a task that no longer exists — a notification outlives
+                  the task it references, so `task` is undefined and the
+                  template literal rendered the string "Task #undefined". */}
+              {task
+                ? task.name || `Task #${task.number}`
+                : t('deleted-task', 'a task that has since been deleted')}
             </span>
           )}
         </p>
