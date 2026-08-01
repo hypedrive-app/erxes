@@ -158,5 +158,10 @@ export const sendWorkerMessage = async ({
     throw err;
   });
 
-  return result || defaultValue;
+  // `??`, not `||` — same defect as the two tRPC transports. A worker that
+  // legitimately returns `false`, `0` or `''` had that answer discarded and
+  // replaced by the caller's default. Only the falsy-collapse half applies
+  // here: this helper already rethrows on failure (the .catch above), so
+  // "could not answer" was never confused with "answered".
+  return result ?? defaultValue;
 };

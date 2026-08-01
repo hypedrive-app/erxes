@@ -20,6 +20,23 @@ export type MessageProps = {
   defaultValue?: any;
   options?: TRPCRequestOptions;
   context?: CommonTRPCContext;
+  /**
+   * Raise instead of returning `defaultValue` when the call could not be made
+   * or did not complete — plugin disabled, no registered address, or any
+   * transport/RPC error.
+   *
+   * Off by default, so existing callers are unaffected. Opt in wherever a
+   * falsy `defaultValue` is indistinguishable from a real answer: with
+   * `defaultValue: false`, "the service says no" and "the service never
+   * answered" are the same value, and a caller that branches on it will take
+   * the negative path during an outage while reporting nothing wrong.
+   *
+   * A caller that opts in MUST have somewhere for the error to go. tRPC already
+   * models this correctly — a procedure signals failure by throwing, and the
+   * client promise rejects — so this only stops discarding a signal the
+   * transport was already given.
+   */
+  throwOnFailure?: boolean;
 };
 
 type CommonTRPCContext = {
@@ -105,12 +122,18 @@ export const sendTRPCMessage = async ({
   defaultValue,
   options,
   context,
+  throwOnFailure = false,
 }: MessageProps) => {
   if (!method) {
     method = 'query';
   }
 
   if (pluginName && !(await isEnabled(pluginName))) {
+    if (throwOnFailure) {
+      throw new Error(
+        `[TRPC] Cannot call ${module}.${action}: plugin "${pluginName}" is not enabled`,
+      );
+    }
     return defaultValue;
   }
 
@@ -138,6 +161,11 @@ export const sendTRPCMessage = async ({
     } else {
       // Validate plugin address before constructing URL
       if (!pluginInfo.address || pluginInfo.address.trim() === '') {
+        if (throwOnFailure) {
+          throw new Error(
+            `[TRPC] Cannot call ${module}.${action}: plugin "${pluginName}" address is not available`,
+          );
+        }
         console.warn(
           `Plugin "${pluginName}" address is not available. Returning defaultValue.`,
         );
@@ -157,8 +185,29 @@ export const sendTRPCMessage = async ({
     }
 
     const result = await client[method](`${module}.${action}`, input, options);
-    return result || defaultValue;
-  } catch (e) {
+
+    // `??`, not `||`. With `||` a legitimate falsy answer — `false` from a
+    // boolean predicate, `0` from a count, `''` from a formatter — was
+    // discarded and replaced by the caller's default, so a successful call
+    // could not return the very value it was asked for. `segment.isInSegment`
+    // is the clearest case: it returns `count > 0`, and every real `false` was
+    // being overwritten. `??` substitutes only for null/undefined, which is
+    // what "no value" was always meant to mean.
+    return result ?? defaultValue;
+  } catch (e: any) {
+    if (throwOnFailure) {
+      throw e;
+    }
+
+    // Previously this catch discarded `e` entirely — no log, no rethrow — so a
+    // plugin outage and a legitimate negative answer were indistinguishable at
+    // BOTH ends: the caller got the same value and nothing was written
+    // anywhere. Its sibling sendCoreModuleProducer already logs here; matching
+    // that is the minimum needed to tell the two apart after the fact.
+    console.warn(
+      `[TRPC] Error calling ${module}.${action} on plugin "${pluginName}": ` +
+        `${e?.message || 'Unknown error'}. Returning defaultValue.`,
+    );
     return defaultValue;
   }
 };

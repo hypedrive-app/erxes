@@ -41,12 +41,23 @@ export const handleTrigger = async (
       );
     }
   } else {
-    const waitingAction = await checkIsWaitingAction(
-      subdomain,
-      models,
-      type,
-      targets,
-    );
+    // Finding the waiting action runs a segment check, which now raises when
+    // the segment service cannot answer rather than reporting a false "no
+    // match". That must not stop the fresh trigger processing below — the same
+    // rule the inner catch already applies to executing the wait, and the
+    // reason receiveTrigger sits outside this branch.
+    let waitingAction: Awaited<ReturnType<typeof checkIsWaitingAction>> = null;
+
+    try {
+      waitingAction = await checkIsWaitingAction(
+        subdomain,
+        models,
+        type,
+        targets,
+      );
+    } catch (error: any) {
+      debugError(`Failed to check for a waiting action: ${error.message}`);
+    }
 
     if (waitingAction) {
       // A broken wait must not block fresh trigger processing below

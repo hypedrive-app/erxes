@@ -760,7 +760,13 @@ export const checkScoreAviableSubtractScoreCampaign = async (
           targetId: order._id,
           target: { ...order, paidAmounts },
         },
-        defaultValue: false,
+        // This call is a VALIDATION, not a read — its return value is never
+        // used, and the .catch below exists to turn "not enough score" into a
+        // user-facing error. But sendTRPCMessage swallowed every error into
+        // `defaultValue`, so that .catch could never fire and an order was
+        // allowed through as if the check had passed. Opting in is what makes
+        // the handler that was already written here actually run.
+        throwOnFailure: true,
       }).catch((error) => {
         if (error.message === 'There has no enough score to subtract') {
           throw new Error(
@@ -799,7 +805,12 @@ export const checkCouponCode = async ({
         code: couponCode,
         totalAmount: rawTotalAmount,
       },
-      defaultValue: false,
+      // Same shape as the score check above: a validation whose return value is
+      // discarded, wrapped in a try/catch that rethrows. The swallow meant an
+      // invalid or expired coupon — or loyalty being unreachable — raised
+      // nothing and the coupon was accepted. The catch below only works if the
+      // error is allowed to escape.
+      throwOnFailure: true,
     });
   } catch (error) {
     throw new Error(error.message);

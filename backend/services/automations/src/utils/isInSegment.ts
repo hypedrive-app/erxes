@@ -10,18 +10,24 @@ import {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// NOTE (known defect, deliberately not worked around here): both transports end
-// in `return result || defaultValue`, so with `defaultValue: false` below, a
-// plugin outage, a disabled plugin, a deleted segment id or an Elasticsearch
-// failure is indistinguishable from a legitimate "this record is not in the
-// segment" — the automation silently never enrols and reports nothing wrong.
-//
-// It cannot be fixed from this call site. A sentinel `defaultValue` is defeated
-// by that same `||`: a real `false` would be replaced by the sentinel and every
-// genuine non-match would then raise. The fix belongs in the transports, which
-// must stop collapsing a falsy result into the default and must distinguish
-// "did not answer" from "answered no" — a change that touches every call site
-// and so needs its own pass.
+/**
+ * Answers whether a record is in a segment, and RAISES rather than guessing
+ * when it cannot find out.
+ *
+ * `segment.isInSegment` returns `count > 0` — a genuine boolean — so "not in
+ * the segment" is a real, common answer. Previously both calls below passed
+ * `defaultValue: false`, which made that answer indistinguishable from a plugin
+ * outage, a disabled plugin, a deleted segment id or an Elasticsearch failure:
+ * every one of those produced `false`, so an automation silently enrolled
+ * nothing and reported nothing wrong. The transports compounded it by
+ * collapsing a legitimate `false` into the default as well, so even a
+ * successful call could not return `false`.
+ *
+ * Both halves are now fixed in the transports (`?? ` instead of `||`, plus an
+ * opt-in `throwOnFailure`), and this function opts in: a failure to evaluate is
+ * an error, not a "no". Every caller is inside an error path that records the
+ * failure — see the audit in the commit that introduced this.
+ */
 export const isInSegment = async (
   subdomain: string,
   segmentId: string,
@@ -53,7 +59,7 @@ export const isInSegment = async (
           targetId,
           selector,
         },
-        defaultValue: false,
+        throwOnFailure: true,
       });
     }
   }
@@ -67,7 +73,7 @@ export const isInSegment = async (
     module: 'segment',
     action: 'isInSegment',
     input: { segmentId, idToCheck: targetId },
-    defaultValue: false,
+    throwOnFailure: true,
   });
 };
 

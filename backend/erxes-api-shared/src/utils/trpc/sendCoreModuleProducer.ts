@@ -56,6 +56,16 @@ type TCoreModuleProducer<
   defaultValue?: any;
   options?: TRPCRequestOptions;
   context?: TRPCContext;
+  /**
+   * Raise instead of returning `defaultValue` when the call could not be made —
+   * plugin disabled or no registered address. Transport errors already throw
+   * from the catch below regardless of this flag.
+   *
+   * Off by default, so existing callers are unaffected. See the same option on
+   * `sendTRPCMessage` for why a falsy `defaultValue` makes an outage
+   * indistinguishable from a real negative answer.
+   */
+  throwOnFailure?: boolean;
 };
 
 export const sendCoreModuleProducer = async <
@@ -73,8 +83,14 @@ export const sendCoreModuleProducer = async <
   defaultValue,
   options,
   context,
+  throwOnFailure = false,
 }: TCoreModuleProducer<TModuleName, TProducerName>): Promise<any> => {
   if (pluginName && !(await isEnabled(pluginName))) {
+    if (throwOnFailure) {
+      throw new Error(
+        `[TRPC] Cannot call ${String(producerName)}: plugin "${pluginName}" is not enabled`,
+      );
+    }
     return defaultValue;
   }
 
@@ -82,6 +98,11 @@ export const sendCoreModuleProducer = async <
 
   // Validate plugin address before constructing URL
   if (!pluginInfo.address || pluginInfo.address.trim() === '') {
+    if (throwOnFailure) {
+      throw new Error(
+        `[TRPC] Cannot call ${String(producerName)}: plugin "${pluginName}" address is not available`,
+      );
+    }
     console.warn(
       `Plugin "${pluginName}" address is not available. Returning defaultValue.`,
     );
@@ -109,7 +130,11 @@ export const sendCoreModuleProducer = async <
       options,
     );
 
-    return result || defaultValue;
+    // `??`, not `||` — see the matching comment in sendTRPCMessage. A
+    // legitimate falsy answer (a boolean predicate's `false`, a count's `0`)
+    // was being discarded and replaced by the caller's default, so a call that
+    // succeeded could not return the value it was asked for.
+    return result ?? defaultValue;
   } catch (error: any) {
     const errorMessage = error?.message || 'Unknown error';
     const errorCode = error?.cause?.code || error?.code;

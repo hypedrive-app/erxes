@@ -112,7 +112,13 @@ export const assignmentQueries = {
             module: 'segment',
             action: 'isInSegment',
             input: { segmentId, idToCheck: customerId },
-            defaultValue: false,
+            // A failed check must not be recorded as a confirmed non-match.
+            // The result is not merely read here — the else branch WRITES the
+            // customer into negativeSegments, which then drives assignment, so
+            // a segment-service outage silently produced wrong reward outcomes
+            // that are indistinguishable from a real negative. This is a query
+            // resolver, so raising surfaces a GraphQL error instead.
+            throwOnFailure: true,
           });
 
           if (isIn) {

@@ -36,7 +36,13 @@ const checkIsValidCustomTigger = async (
       config,
       eventUpdateDescription,
     },
-    defaultValue: false,
+    // A plugin that is down, absent from ENABLED_PLUGINS, or throwing inside
+    // its own checkCustomTrigger must not read as "this record does not match".
+    // The throw reaches calculateExecution's catch, which records an execution
+    // row with status ERROR and the message on it — the outcome this code
+    // always intended, and which the old `defaultValue: false` silently
+    // replaced with "no match" and no row at all.
+    throwOnFailure: true,
   });
 
   return response;

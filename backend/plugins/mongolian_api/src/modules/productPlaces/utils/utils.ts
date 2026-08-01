@@ -234,7 +234,11 @@ export const checkCondition = async (
           segmentId,
           idToCheck: pdata.productId,
         },
-        defaultValue: false,
+        // Same OR-accumulator as splitData.ts: `segmentRes` starts false and
+        // only an affirmative flips it, so a failed check silently became
+        // "matched no segment" and `if (!segmentRes) return false` rejected the
+        // product — indistinguishable from a real non-match.
+        throwOnFailure: true,
       });
 
       if (inSegment) {

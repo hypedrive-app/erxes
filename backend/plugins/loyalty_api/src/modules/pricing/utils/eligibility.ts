@@ -70,7 +70,12 @@ export const isInSegment = async (
     module: 'segment',
     action: 'isInSegment',
     input: { segmentId, idToCheck },
-    defaultValue: false,
+    // A failed check must not be cached as a confirmed non-membership. The
+    // result is memoised on the line below, so with `defaultValue: false` a
+    // single transport failure poisoned every later check for that
+    // segment/entity pair in the request — a transient outage became a
+    // durable, silent "not eligible" for pricing.
+    throwOnFailure: true,
   });
 
   const isMember = result === true;

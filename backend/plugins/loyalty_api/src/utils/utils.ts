@@ -583,10 +583,19 @@ export const isInSegment = async (
     subdomain,
     pluginName: 'core',
     method: 'query',
-    module: 'segments',
+    // 'segment', not 'segments'. core-api mounts the procedure at
+    // segmentsRouter -> `segment.isInSegment` (segments/trpc/segments.ts:31),
+    // and every other call site in the codebase uses the singular. With the
+    // plural this procedure never resolved, so the call ALWAYS failed and
+    // `defaultValue: false` reported "not in segment" for every customer,
+    // permanently — the swallow is precisely what kept a 100% failure
+    // invisible.
+    module: 'segment',
     action: 'isInSegment',
     input: { segmentId, idToCheck: targetId },
-    defaultValue: false,
+    // Callers branch on this to decide loyalty eligibility, so a failed check
+    // must not masquerade as a confirmed "no".
+    throwOnFailure: true,
   });
 };
 

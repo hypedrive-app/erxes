@@ -69,7 +69,12 @@ const checkSplit = async (
           segmentId,
           idToCheck: pdata.productId,
         },
-        defaultValue: false,
+        // `segmentRes` is seeded false and only an affirmative answer flips it,
+        // so with `defaultValue: false` a segment-service outage made every
+        // product fail its placement check below and the split was skipped
+        // silently, with nothing to distinguish it from products that
+        // legitimately matched no segment.
+        throwOnFailure: true,
       });
 
       if (isInSegment) {
