@@ -837,6 +837,19 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Required even though this service serves no GraphQL of its own, because
+      # it CALLS the plugins: sendCoreModuleProducer opens with
+      #   if (pluginName && !(await isEnabled(pluginName))) return defaultValue;
+      # and isEnabled() reads getPlugins(), which is built purely from this env
+      # var. Without it every cross-plugin producer call silently returns its
+      # defaultValue instead of reaching the plugin.
+      #
+      # That failure is invisible: AI knowledge indexing asks frontline for the
+      # knowledge base articles, gets the `{documents: []}` default back, and
+      # marks all 13 published articles "skipped — the source is unavailable or
+      # not published" while the BullMQ job still reports success. Confirmed on
+      # this instance: frontline logged nothing at all during a reindex.
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
       # LOAD_BALANCER_ADDRESS is intentionally unset: it would override the
       # container-DNS address the service registers for itself.
       #
@@ -891,6 +904,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Same reason as automations-service: this service calls back INTO the
+      # plugins. afterProcess/utils.ts sendProducer() dispatches to
+      # context.pluginName, and sendCoreModuleProducer drops the call to its
+      # defaultValue unless isEnabled(pluginName) is true — which is decided
+      # solely by this env var. Without it every afterProcess hook is a no-op,
+      # and because sendProducer swallows errors it fails silently.
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
       # Lighter than automations: two Mongo-writing queue workers, no AI path.
       NODE_OPTIONS: --max-old-space-size=192
     healthcheck:
