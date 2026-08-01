@@ -5,6 +5,7 @@ import {
   IconCalendarPlus,
   IconCalendarX,
   IconSearch,
+  IconUser,
 } from '@tabler/icons-react';
 import {
   SelectBranches,
@@ -202,11 +203,13 @@ const SalesFilterBar = ({ queries }: { queries: SalesFilterState }) => {
         />
       )}
       {customerIds && (
-        <SelectCustomer.FilterBar
-          mode="multiple"
-          filterKey="customerIds"
-          label={t('by-customer', 'By Customer')}
-        />
+        <Filter.BarItem queryKey="customerIds">
+          <Filter.BarName>
+            <IconUser />
+            {t('by-customer', 'By Customer')}
+          </Filter.BarName>
+          <SelectCustomer.FilterBar mode="multiple" filterKey="customerIds" />
+        </Filter.BarItem>
       )}
       {assignedUserIds && (
         <SelectMember.FilterBar

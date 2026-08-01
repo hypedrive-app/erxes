@@ -126,7 +126,7 @@ export const PageSidebarPanel = (props: PageSidebarPanelProps) => {
       </div>
       <div className="p-4 space-y-4">
         {activeTab === 'content' && <ContentTab {...props} />}
-        {activeTab === 'media' && <MediaSection form={props.form} />}
+        {activeTab === 'media' && <MediaSection />}
       </div>
     </div>
   );

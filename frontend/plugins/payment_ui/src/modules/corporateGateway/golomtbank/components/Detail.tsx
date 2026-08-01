@@ -7,10 +7,15 @@ import TransactionsContainer from '../corporateGateway/transactions/containers/L
 
 const Detail = () => {
   const [accountId] = useQueryState<string>('account');
+  const [configId] = useQueryState<string>('_id');
 
   if (!accountId) {
     return <>please select corporate gateway</>;
   }
+
+  // Both tabs read the selected gateway from the URL, written by the account
+  // sidebar rows (see corporateGateway/accounts/components/Row).
+  const queryParams = { _id: configId ?? undefined, account: accountId };
 
   return (
     <Tabs defaultValue="account" className="w-full">
@@ -21,13 +26,13 @@ const Detail = () => {
 
       <Tabs.Content value="account">
         <div className="p-4">
-          <DetailContainer />
+          <DetailContainer queryParams={queryParams} />
         </div>
       </Tabs.Content>
 
       <Tabs.Content value="transactions">
         <div className="p-4">
-          <TransactionsContainer />
+          <TransactionsContainer queryParams={queryParams} />
         </div>
       </Tabs.Content>
     </Tabs>

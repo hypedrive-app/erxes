@@ -84,7 +84,7 @@ export const PostSidebarPanel = ({
             handleLanguageChange={handleLanguageChange}
           />
         )}
-        {activeTab === 'media' && <MediaSection form={form} />}
+        {activeTab === 'media' && <MediaSection />}
       </form>
     </div>
   );

@@ -4,7 +4,7 @@ import { IconUpload, IconX } from '@tabler/icons-react';
 import {
   UseFormReturn,
   ControllerRenderProps,
-  FieldValues,
+  useFormContext,
 } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { GalleryUploader } from '../../GalleryUploader';
@@ -24,12 +24,12 @@ export type MediaFormData = {
   attachments?: string[];
 };
 
-// Shared by the post and page sidebars; both mount it with a FieldValues-shaped
-// form (UseFormReturn is invariant, so a narrower media-only type would not be
-// assignable from either caller).
-interface MediaSectionProps {
-  form: UseFormReturn<FieldValues>;
-}
+/**
+ * Shared by the post and page sidebars. The form is read from the surrounding
+ * Form provider rather than passed down: RHF's UseFormReturn is invariant, so a
+ * prop could not accept both callers' form shapes without a cast, while
+ * useFormContext lets each caller keep its own form type intact.
+ */
 
 interface FileInfo {
   name: string;
@@ -44,12 +44,13 @@ interface UploadValue {
 }
 
 interface ThumbnailUploaderProps {
-  field: ControllerRenderProps<FieldValues, 'thumbnail'>;
-  form: UseFormReturn<FieldValues>;
+  field: ControllerRenderProps<MediaFormData, 'thumbnail'>;
+  form: UseFormReturn<MediaFormData>;
 }
 
-export const MediaSection = ({ form }: MediaSectionProps) => {
+export const MediaSection = () => {
   const { t } = useTranslation('content');
+  const form = useFormContext<MediaFormData>();
   return (
   <div>
     <div className="mt-1 space-y-4">

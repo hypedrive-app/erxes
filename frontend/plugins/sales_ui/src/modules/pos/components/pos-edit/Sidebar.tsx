@@ -4,11 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { getSteps } from '@/pos/constants';
 
 interface PosEditSidebarProps {
-  posType?: string;
   activeTab: string;
 }
 
-export const PosEditSidebar = ({ posType, activeTab }: PosEditSidebarProps) => {
+export const PosEditSidebar = ({ activeTab }: PosEditSidebarProps) => {
   const { t } = useTranslation('sales');
   const steps = getSteps();
 
