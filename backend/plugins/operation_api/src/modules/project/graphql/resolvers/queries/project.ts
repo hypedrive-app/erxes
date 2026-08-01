@@ -25,14 +25,17 @@ export const projectQueries: Record<string, Resolver> = {
 
   getProjects: async (
     _parent: undefined,
-    { filter }: { filter: IProjectFilter },
+    // `filter` is nullable in the schema and every field on the IProjectFilter
+    // input is optional, so default it rather than let the lookups below throw
+    // on an omitted argument.
+    { filter = {} }: { filter?: Partial<IProjectFilter> },
     { models, checkPermission }: IContext,
   ) => {
     await checkPermission('projectRead');
 
     const filterQuery: FilterQuery<IProjectDocument> = {};
 
-    if (filter?._ids && filter?._ids?.length) {
+    if (filter._ids && filter._ids.length) {
       filterQuery._id = { $in: filter._ids };
     }
 
