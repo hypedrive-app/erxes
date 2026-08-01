@@ -20,13 +20,7 @@ const getDate = (isoDate: string) => {
   return display;
 };
 
-const type: any = {
-  'Removed from Channel': 'removed',
-  'Added on Channel': 'assigned',
-};
-
 export const NotificationChannelContent = ({
-  title,
   fromUser,
   createdAt,
   contentTypeId,
@@ -35,8 +29,6 @@ export const NotificationChannelContent = ({
   const { t } = useTranslation('frontline');
   const { channelDetail, loading } = useChannel(contentTypeId);
   const date = getDate(createdAt);
-
-  const action = type[title as string];
   return (
     <div className="flex flex-col gap-2 w-full max-w-md mx-auto justify-center items-center h-full text-muted-foreground">
       <div className="size-36 bg-sidebar rounded-2xl border-2 border-dashed flex flex-col items-center justify-center">
@@ -67,7 +59,15 @@ export const NotificationChannelContent = ({
           </div>
         </div>
         <p className="text-foreground">
-          {`${action} you on `}
+          {/* Statically "assigned". This used to be a `title`-keyed lookup
+              ({'Added on Channel': 'assigned', 'Removed from Channel':
+              'removed'}), but the only channel notification the backend ever
+              sends writes the title 'Assigned on Channel' — neither key — so
+              the lookup always yielded undefined and this rendered
+              "undefined you on". There is no removal notification to
+              distinguish, and `action` is 'resolved', which carries no
+              add/remove meaning, so there is nothing to branch on. */}
+          {`${t('assigned-you-on', 'assigned you on')} `}
           {loading ? (
             <Skeleton className="w-8 h-2" />
           ) : (
