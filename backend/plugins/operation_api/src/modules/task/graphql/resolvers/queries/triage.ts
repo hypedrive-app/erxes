@@ -1,5 +1,5 @@
 import { IContext } from '~/connectionResolvers';
-import { ITriageDocument } from '@/task/@types/triage';
+import { ITriageDocument, ITriageFilter } from '@/task/@types/triage';
 import { FilterQuery } from 'mongoose';
 import { cursorPaginate } from 'erxes-api-shared/utils';
 
@@ -16,7 +16,10 @@ export const triageQueries = {
 
   operationGetTriageList: async (
     _parent: undefined,
-    { filter }: { filter: ITriageDocument },
+    // `filter` is nullable in the schema and every field on the ITriageFilter
+    // input is optional, so default it rather than let the first lookup below
+    // throw on an omitted argument.
+    { filter = {} }: { filter?: Partial<ITriageFilter> },
     { models, checkPermission }: IContext,
   ) => {
     await checkPermission('triageRead');

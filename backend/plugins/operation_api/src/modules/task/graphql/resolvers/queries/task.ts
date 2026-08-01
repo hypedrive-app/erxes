@@ -37,7 +37,10 @@ export const taskQueries = {
 
   getTasks: async (
     _parent: undefined,
-    { filter }: { filter: ITaskFilter },
+    // `filter` is nullable in the schema and every field on the ITaskFilter
+    // input is optional, so default it rather than let the first lookup below
+    // throw on an omitted argument.
+    { filter = {} }: { filter?: Partial<ITaskFilter> },
     { models, checkPermission }: IContext,
   ) => {
     await checkPermission('taskRead');
