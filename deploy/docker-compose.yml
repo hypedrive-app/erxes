@@ -791,6 +791,121 @@ services:
         limits:
           memory: 192M
 
+  # ── automations-service: the engine that actually RUNS automations ────────
+  # Without this container an automation can be created, listed and edited, but
+  # never executes. Producers across core-api/frontline/sales enqueue onto
+  # BullMQ (sendAutomationMessage.ts defaults transport to 'bullmq'), and the
+  # ONLY consumer is initMQWorkers() inside this image. The jobs were piling up
+  # in a Redis running --maxmemory-policy noeviction.
+  #
+  # THE SERVICE NAME IS LOAD-BEARING, and the `plugin-<name>-api` rule above
+  # does NOT apply. This service never calls joinErxesGateway(); it writes its
+  # own address into Redis (services/automations/src/main.ts:84-88):
+  #     const address = LOAD_BALANCER_ADDRESS
+  #       || `http://${isDev ? 'localhost' : serviceName}:${port}`;
+  # with serviceName = 'automations-service'. Rename this key and the address
+  # stops resolving.
+  #
+  # DO NOT add it to ENABLED_PLUGINS. The gateway federation-introspects every
+  # name there and process.exit(1)s on failure; this service serves no
+  # /graphql, so listing it would take the whole gateway down. It needs no
+  # gateway route at all — work arrives over Redis, not HTTP.
+  #
+  # `image:` rather than `build:` is deliberate here. The service has zero fork
+  # divergence (`git log badf583..HEAD` over it is empty), and its sibling
+  # Dockerfile is a CI packaging recipe that COPYs a gitignored dist/ — it
+  # cannot build from a clean Dokploy checkout without a new Dockerfile.build.
+  # The published image is amd64-only; the host was verified amd64 by reading
+  # the running redis container's image manifest before this was added.
+  automations-service:
+    image: erxes/erxes-next-automations:${ERXES_AUTOMATIONS_VERSION:-3.0.64}
+    depends_on:
+      mongo: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      # NODE_ENV carries more weight than usual: isDev picks `localhost` in the
+      # self-registered address above, so leaving it unset publishes
+      # http://localhost:3302 and nothing can ever reach this service.
+      NODE_ENV: production
+      VERSION: os
+      PORT: "3302"
+      DOMAIN: https://${ERXES_UI_DOMAIN}
+      ALLOWED_DOMAINS: https://${ERXES_UI_DOMAIN}
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Redis is this service's transport, not a cache. erxes-api-shared reads
+      # these three names specifically — there is no REDIS_URL support.
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # LOAD_BALANCER_ADDRESS is intentionally unset: it would override the
+      # container-DNS address the service registers for itself.
+      #
+      # AI Agent action. getEnv reads process.env only — unlike the mail
+      # settings there is no Configs-collection fallback, so an AI agent
+      # configured in the UI still needs the key here (per-agent DB config wins
+      # when set). Model defaults to gpt-5-mini when unset.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_DEFAULT_MODEL: ${OPENAI_DEFAULT_MODEL:-}
+      NODE_OPTIONS: --max-old-space-size=384
+    # Liveness only. Nothing blocks on this service the way the gateway blocks
+    # on the federated plugin APIs, so it needs none of their 180s start_period.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3302)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+    # `erxes` only — never addressed from the internet.
+    networks: [erxes]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── logs-service: audit trail, activity log and revert history ────────────
+  # Same self-registration contract as automations: serviceName is the literal
+  # 'logs-service' (services/logs/src/main.ts), so the compose key must match.
+  # Also must NOT appear in ENABLED_PLUGINS — it serves no /graphql either.
+  #
+  # This is not optional in practice. The services ALREADY running enqueue onto
+  # 'logs-put_log' (erxes-api-shared utils/logs, createEventHandlers,
+  # revertCapture) and the only consumers live in this image, so those jobs
+  # accumulate unbounded in a noeviction Redis. Without it the activity-log
+  # panel stays permanently empty and the revert feature has no history to
+  # invert. It is also a producer for automations.
+  #
+  # Published multi-arch, so unlike automations it is arch-safe either way.
+  logs-service:
+    image: erxes/erxes-next-logs:${ERXES_LOGS_VERSION:-3.0.64}
+    depends_on:
+      mongo: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      NODE_ENV: production
+      VERSION: os
+      PORT: "3301"
+      DOMAIN: https://${ERXES_UI_DOMAIN}
+      ALLOWED_DOMAINS: https://${ERXES_UI_DOMAIN}
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Lighter than automations: two Mongo-writing queue workers, no AI path.
+      NODE_OPTIONS: --max-old-space-size=192
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3301)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+    networks: [erxes]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
 volumes:
   mongo-data:
   redis-data:
