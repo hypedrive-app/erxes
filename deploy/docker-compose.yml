@@ -812,13 +812,22 @@ services:
   # gateway route at all — work arrives over Redis, not HTTP.
   #
   # `image:` rather than `build:` is deliberate here. The service has zero fork
-  # divergence (`git log badf583..HEAD` over it is empty), and its sibling
-  # Dockerfile is a CI packaging recipe that COPYs a gitignored dist/ — it
-  # cannot build from a clean Dokploy checkout without a new Dockerfile.build.
-  # The published image is amd64-only; the host was verified amd64 by reading
-  # the running redis container's image manifest before this was added.
+  # NOW BUILT FROM SOURCE. It used to pull erxes/erxes-next-automations, which
+  # was defensible only while this service carried ZERO fork divergence. It no
+  # longer does: checkValidTrigger in src/executions/calculateExecutions.ts now
+  # treats a trigger with no segment as "enrol" instead of passing an empty
+  # contentId to isInSegment, where Segments.getSegment('') throws and
+  # sendTRPCMessage swallows the throw into a `false` — silently rejecting every
+  # event, with no execution row written and 15s burned per event on the way to
+  # that non-answer. Pulling would revert that fix with no deploy-time signal.
+  #
+  # The sibling Dockerfile still cannot build from a clean checkout (it COPYs a
+  # gitignored dist/), which is exactly why Dockerfile.build was added — same
+  # split core-api, gateway and the three plugin APIs already use.
   automations-service:
-    image: erxes/erxes-next-automations:${ERXES_AUTOMATIONS_VERSION:-3.0.64}
+    build:
+      context: ..
+      dockerfile: backend/services/automations/Dockerfile.build
     depends_on:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
