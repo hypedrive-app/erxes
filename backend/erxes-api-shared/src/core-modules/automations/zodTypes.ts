@@ -6,52 +6,90 @@ export const AutomationBaseInput = z.object({
   data: z.any().optional(),
 });
 
+/**
+ * An optional field on a document read back out of Mongo.
+ *
+ * `.optional()` alone permits `undefined` and REJECTS `null`, which is the
+ * wrong shape here: these fields are declared `{ type: String, optional: true }`
+ * in definitions/, and an unset optional path materialises as `null`, not
+ * `undefined`, once the document crosses the tRPC/queue JSON boundary.
+ * Validation therefore failed for every cross-service action dispatch with
+ *   {"code":"invalid_type","expected":"string","received":"null",
+ *    "path":["data","action","workflowId"]}
+ * and the automation died immediately after its trigger matched — the split
+ * evaluated correctly, then nothing was tagged and no task was created.
+ *
+ * Accepting `null` and normalising it to `undefined` fixes the boundary
+ * WITHOUT widening the types every consumer sees: IAutomationExecution and
+ * friends still declare `field?: string`, so no downstream code has to learn
+ * about a null it never received before. Widening the schema alone does not
+ * work — it makes the inferred type `string | null | undefined` and breaks
+ * assignment to those interfaces in core-api, sales, frontline and operation.
+ */
+const storedOptional = <T extends z.ZodTypeAny>(schema: T) =>
+  schema
+    .nullish()
+    .transform((value) => (value === null ? undefined : value)) as z.ZodType<
+    z.infer<T> | undefined,
+    z.ZodTypeDef,
+    z.infer<T> | null | undefined
+  >;
+
+// STORED subdocument, nested inside AutomationExecutionInput.actions — so it
+// is on the same failing path. See AutomationActionInput for why `.optional()`
+// is wrong for a field read back out of Mongo.
 export const AutomationExecActionInput = z.object({
-  createdAt: z.string().optional(),
-  startedAt: z.string().optional(),
-  finishedAt: z.string().optional(),
-  durationMs: z.number().optional(),
-  status: z.enum(['success', 'error', 'waiting']).optional(),
+  createdAt: storedOptional(z.string()),
+  startedAt: storedOptional(z.string()),
+  finishedAt: storedOptional(z.string()),
+  durationMs: storedOptional(z.number()),
+  status: storedOptional(z.enum(['success', 'error', 'waiting'])),
   actionId: z.string(),
   actionType: z.string(),
   actionConfig: z.any().optional(),
-  nextActionId: z.string().optional(),
+  nextActionId: storedOptional(z.string()),
   result: z.any().optional(),
 });
 
+// Also a STORED document — see AutomationActionInput below for why every
+// absent field arrives as `null` rather than `undefined`, and why `.optional()`
+// is the wrong validator for that.
 export const AutomationExecutionInput = z.object({
   _id: z.string(),
-  createdAt: z.string().optional(),
-  modifiedAt: z.string().optional(),
+  createdAt: storedOptional(z.string()),
+  modifiedAt: storedOptional(z.string()),
   automationId: z.string(),
   triggerId: z.string(),
   triggerType: z.string(),
   triggerConfig: z.record(z.any()),
-  nextActionId: z.string().optional(),
+  nextActionId: storedOptional(z.string()),
   targetId: z.string(),
   target: z.record(z.any()),
   status: z.string(),
   description: z.string(),
-  actions: z.array(AutomationExecActionInput).optional(),
+  actions: storedOptional(z.array(AutomationExecActionInput)),
   // Arrives as a Date in-process but as an ISO string after crossing the
   // queue/producer JSON boundary (same reason createdAt is a string above)
-  startWaitingDate: z.date().optional(),
-  waitingActionId: z.string().optional(),
-  objToCheck: z.record(z.any()).optional(),
-  responseActionId: z.string().optional(),
+  startWaitingDate: storedOptional(z.date()),
+  waitingActionId: storedOptional(z.string()),
+  objToCheck: storedOptional(z.record(z.any())),
+  responseActionId: storedOptional(z.string()),
 });
 
+// Mirrors a STORED action document — `workflowId` and `targetActionId` here are
+// the two fields whose `null` broke every cross-service dispatch. See
+// storedOptional above.
 export const AutomationActionInput = z.object({
   id: z.string(),
   type: z.string(),
-  nextActionId: z.string().optional(),
+  nextActionId: storedOptional(z.string()),
   config: z.any().optional(),
   style: z.any(),
-  icon: z.string().optional(),
-  label: z.string().optional(),
-  description: z.string().optional(),
-  workflowId: z.string().optional(),
-  targetActionId: z.string().optional(),
+  icon: storedOptional(z.string()),
+  label: storedOptional(z.string()),
+  description: storedOptional(z.string()),
+  workflowId: storedOptional(z.string()),
+  targetActionId: storedOptional(z.string()),
 });
 
 export const ReceiveActionsInputData = z.object({
@@ -70,17 +108,22 @@ export const CheckCustomTriggerInputData = z.object({
   collectionType: z.string(),
   relationType: z.string().optional(),
   automationId: z.string(),
+  // STORED trigger document — same null-vs-undefined problem as
+  // AutomationActionInput. `workflowId` in particular was already worked around
+  // once by stripping nulls out of the stored automations by hand; widening the
+  // validator fixes the cause instead, for every automation rather than the
+  // ones that happened to be repaired.
   trigger: z.object({
     id: z.string(),
     type: z.string(),
     config: z.record(z.any()),
-    actionId: z.string().optional(),
-    style: z.any().optional(),
-    icon: z.string().optional(),
-    label: z.string().optional(),
-    description: z.string().optional(),
-    isCustom: z.boolean().optional(),
-    workflowId: z.string().optional(),
+    actionId: storedOptional(z.string()),
+    style: z.any().nullish(),
+    icon: storedOptional(z.string()),
+    label: storedOptional(z.string()),
+    description: storedOptional(z.string()),
+    isCustom: storedOptional(z.boolean()),
+    workflowId: storedOptional(z.string()),
   }),
   target: z.record(z.any()),
   config: z.record(z.any()),
