@@ -326,6 +326,46 @@ const mergeModifier = (
   return base;
 };
 
+/**
+ * MongoDB rejects a single update document that touches the same field path
+ * from two different operators ("Updating the path 'x' would create a conflict
+ * at 'x'"). Rules such as `addToSet tagIds` + `pull tagIds` merge into exactly
+ * that shape, so the modifier is split into the fewest sequential batches that
+ * are individually conflict-free. Non-conflicting operators stay in one batch,
+ * preserving the previous single-update behaviour.
+ */
+const splitModifierByFieldConflicts = (
+  modifier: TAutomationSetPropertyModifier,
+): TAutomationSetPropertyModifier[] => {
+  const batches: TAutomationSetPropertyModifier[] = [];
+  const claimedPaths: Set<string>[] = [];
+
+  for (const key of Object.keys(modifier) as TModifierKey[]) {
+    const operation = modifier[key];
+
+    if (!operation) {
+      continue;
+    }
+
+    for (const [fieldPath, value] of Object.entries(operation)) {
+      let batchIndex = claimedPaths.findIndex((paths) => !paths.has(fieldPath));
+
+      if (batchIndex === -1) {
+        batches.push({});
+        claimedPaths.push(new Set<string>());
+        batchIndex = batches.length - 1;
+      }
+
+      const batch = batches[batchIndex];
+
+      batch[key] = { ...(batch[key] || {}), [fieldPath]: value };
+      claimedPaths[batchIndex].add(fieldPath);
+    }
+  }
+
+  return batches;
+};
+
 const buildArrayAddModifierValue = (value: unknown) =>
   Array.isArray(value) ? { $each: value } : value;
 
@@ -923,17 +963,27 @@ export const setProperty = async <TModels>({
     }
 
     try {
-      const updateResult = await updateRecord({
-        selector: baseSelector,
-        modifier,
-      });
+      let count = 0;
+
+      for (const modifierBatch of splitModifierByFieldConflicts(modifier)) {
+        const updateResult = await updateRecord({
+          selector: baseSelector,
+          modifier: modifierBatch,
+        });
+
+        count = Math.max(
+          count,
+          getUpdateResultCount(
+            updateResult,
+            getSelectorCountFallback(baseSelector),
+          ),
+        );
+      }
+
       return buildSetPropertyResult({
         module,
         setPropertyTarget,
-        count: getUpdateResultCount(
-          updateResult,
-          getSelectorCountFallback(baseSelector),
-        ),
+        count,
         changes,
       });
     } catch {
@@ -971,12 +1021,19 @@ export const setProperty = async <TModels>({
     const itemSelector = getItemSelector(baseSelector, relatedItem);
 
     try {
-      const updateResult = await updateRecord({
-        selector: itemSelector,
-        modifier,
-        item: relatedItem,
-      });
-      updatedCount += getUpdateResultCount(updateResult, 1);
+      let itemCount = 0;
+
+      for (const modifierBatch of splitModifierByFieldConflicts(modifier)) {
+        const updateResult = await updateRecord({
+          selector: itemSelector,
+          modifier: modifierBatch,
+          item: relatedItem,
+        });
+
+        itemCount = Math.max(itemCount, getUpdateResultCount(updateResult, 1));
+      }
+
+      updatedCount += itemCount;
       changes.push(...ruleUpdate.changes);
     } catch {
       changes.push(...markChangesStatus(ruleUpdate.changes, 'failed'));
