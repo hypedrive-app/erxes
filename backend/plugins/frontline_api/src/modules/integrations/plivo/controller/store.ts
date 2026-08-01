@@ -175,6 +175,20 @@ export interface IPlivoCallMessageOptions {
    * inbox list.
    */
   replacesConversationContent: boolean;
+  /**
+   * The agent who placed the call, for an OUTBOUND call only.
+   *
+   * The inbox renders a message as agent-side or customer-side from `userId`
+   * alone. A call message is written by a Plivo callback rather than by a person
+   * typing, so without this every call — including one the agent placed
+   * themselves — arrives with `userId` unset and renders left-aligned and
+   * untinted, visually identical to an inbound message from the customer.
+   *
+   * It is deliberately NOT set for inbound calls: the customer initiated those,
+   * so customer-side is the correct rendering and there is no agent to attribute
+   * them to at the time the row is written.
+   */
+  userId?: string;
 }
 
 /**
@@ -199,7 +213,7 @@ export const createCallMessage = async (
   customerId: string | undefined,
   content: string,
   createdAt: Date,
-  { audio, replacesConversationContent }: IPlivoCallMessageOptions = {
+  { audio, replacesConversationContent, userId }: IPlivoCallMessageOptions = {
     replacesConversationContent: true,
   },
 ): Promise<string> => {
@@ -212,6 +226,7 @@ export const createCallMessage = async (
         conversationId,
         customerId,
         createdAt,
+        ...(userId ? { userId } : {}),
         ...(audio
           ? {
               attachments: [audio.attachment],

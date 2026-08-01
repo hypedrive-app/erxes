@@ -104,8 +104,21 @@ export const MessageItem = () => {
 
   const isDeleted = Boolean(extraData?.discordDeletedAt);
 
+  // A call recording and a voicemail arrive as a caption plus an audio
+  // attachment, but the player card already carries its own "Call recording" /
+  // "Voicemail" heading — so rendering the caption too stacks two boxes saying
+  // the same words. The card wins: it holds the icon, the voicemail styling and
+  // the audio control itself, and dropping the caption leaves the message as
+  // one coherent unit rather than a label above a card repeating it.
+  const isAudioOnlyMessage =
+    attachments?.length === 1 &&
+    Boolean(attachments[0]?.type?.startsWith('audio'));
+
   const hasTextBubble =
-    !isDeleted && Boolean(displayContent) && displayContent !== HAS_ATTACHMENT;
+    !isDeleted &&
+    Boolean(displayContent) &&
+    displayContent !== HAS_ATTACHMENT &&
+    !isAudioOnlyMessage;
 
   const hasRenderableContent =
     isDeleted ||

@@ -277,6 +277,7 @@
   "message-sent": "Message sent!",
   "failed-to-send": "Failed to send: {{message}}",
   "internal-note": "Internal Note",
+  "internal-note-only": "This conversation has no reply channel, so only internal notes can be added",
   "loading": "Loading...",
   "view-attachments": "View attachments",
   "save": "Save",

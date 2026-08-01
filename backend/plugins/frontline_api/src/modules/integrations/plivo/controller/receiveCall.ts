@@ -105,20 +105,77 @@ const describeEndedCall = (
 };
 
 /**
+ * Who a call message should be attributed to in the inbox.
+ *
+ * The inbox decides agent-side vs customer-side rendering from `userId` alone,
+ * so an OUTBOUND call carries the agent who placed it and an inbound one carries
+ * nobody — the customer initiated it, and customer-side is then correct. Every
+ * message about one call resolves this the same way, so the ringing line, the
+ * outcome and the recording cannot end up on opposite sides of the thread.
+ */
+const readCallAuthor = (session: IPlivoCallSessionDocument): string | undefined =>
+  session.direction === 'outbound' ? session.userId || undefined : undefined;
+
+/**
+ * Surfaces a failed re-host on a stream that is on in production.
+ *
+ * Falling back to Plivo's own URL keeps the recording playable, which is why
+ * that fallback is correct — but Plivo deletes recordings after 90 days, so a
+ * silent fallback becomes a dead link with no warning. `debugError` alone is not
+ * enough: it is the `debug` package, which prints NOTHING unless `DEBUG` is set,
+ * and it is not set in the deployed environment — which is exactly why this
+ * failure went unnoticed. `console.error` matches how the sibling call and
+ * discord integrations report real faults and is always on.
+ *
+ * The URL carries no credentials; the auth token is never logged.
+ */
+const reportRehostFailure = (
+  recordUrl: string,
+  callUuid: string | undefined,
+  failureReason: string | undefined,
+): void => {
+  console.error(
+    `[plivo] Failed to copy recording into erxes storage for call ${
+      callUuid || 'unknown'
+    }; falling back to the provider URL ${recordUrl}, which Plivo deletes after ` +
+      `90 days: ${failureReason || 'no reason reported'}`,
+  );
+};
+
+/**
+ * Keeps only a value that can honestly be called a length.
+ *
+ * Plivo sends `RecordingDuration: -1` when a `recordSession` recording is still
+ * being written and its length is not yet known, so the raw parameter is NOT a
+ * duration and must never reach a label, an attachment, or the session row —
+ * `-1` is truthy, so every naive `duration ? ... : ...` check renders it. An
+ * unknown length is dropped entirely rather than guessed at: a message that
+ * reads "Call recording" is correct, one that reads "(-1s)" is not.
+ */
+const readDuration = (value: number | undefined): number | undefined =>
+  value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+
+/**
  * The line the agent reads when a caller left a voicemail.
  *
  * Worded so it is unmistakably an unhandled contact rather than a recording of
  * a conversation that already happened, matching how mature platforms surface a
  * voicemail as work still to do.
  */
-const describeVoicemail = (duration: number | undefined): string =>
-  duration
-    ? `Missed call — voicemail (${duration}s)`
+const describeVoicemail = (duration: number | undefined): string => {
+  const seconds = readDuration(duration);
+
+  return seconds
+    ? `Missed call — voicemail (${seconds}s)`
     : 'Missed call — voicemail';
+};
 
 /** The line that carries a recording of a call that was actually answered. */
-const describeRecording = (duration: number | undefined): string =>
-  duration ? `Call recording (${duration}s)` : 'Call recording';
+const describeRecording = (duration: number | undefined): string => {
+  const seconds = readDuration(duration);
+
+  return seconds ? `Call recording (${seconds}s)` : 'Call recording';
+};
 
 /** Plivo writes WAV by default and MP3 when the application asks for it. */
 const RECORDING_MIME_BY_EXTENSION: Record<string, string> = {
@@ -163,11 +220,13 @@ const buildRecordingAttachment = (
     // Not a URL we can parse; the default extension stands.
   }
 
+  const seconds = readDuration(duration);
+
   return {
     url: recordUrl,
     name: `${isVoicemail ? 'voicemail' : 'call-recording'}.${extension}`,
     type: RECORDING_MIME_BY_EXTENSION[extension],
-    ...(duration === undefined ? {} : { duration }),
+    ...(seconds === undefined ? {} : { duration: seconds }),
   };
 };
 
@@ -362,6 +421,7 @@ export const registerOutgoingCall = async (
       customer.erxesApiId,
       content,
       startedAt,
+      { replacesConversationContent: true, userId },
     );
     await session.save();
   } catch (e: any) {
@@ -452,6 +512,10 @@ export const registerCallHangup = async (
     session.customerId,
     describeEndedCall(session.direction, status, duration),
     endedAt,
+    {
+      replacesConversationContent: true,
+      userId: readCallAuthor(session),
+    },
   );
 };
 
@@ -497,22 +561,29 @@ export const registerCallVoicemail = async (
     return;
   }
 
-  const seconds = readNumber(params.RecordingDuration);
-  const milliseconds = readNumber(params.RecordingDurationMs);
+  // Plivo reports `-1` while the file is still being written, so each form is
+  // validated before it is accepted and the millisecond fallback is only
+  // reached when the seconds value was absent or unusable.
+  const seconds = readDuration(readNumber(params.RecordingDuration));
+  const milliseconds = readDuration(readNumber(params.RecordingDurationMs));
   const recordingDuration =
     seconds !== undefined
       ? seconds
       : milliseconds === undefined
         ? undefined
-        : Math.round(milliseconds / 1000);
+        : readDuration(Math.round(milliseconds / 1000));
 
-  const { storageKey } = await rehostPlivoRecording({
+  const { storageKey, failureReason } = await rehostPlivoRecording({
     subdomain,
     recordUrl: params.RecordUrl,
     callUuid: params.CallUUID,
     authId: integration.authId,
     authToken: integration.authToken,
   });
+
+  if (!storageKey) {
+    reportRehostFailure(params.RecordUrl, params.CallUUID, failureReason);
+  }
 
   const leftAt = new Date();
 
@@ -569,6 +640,7 @@ export const registerCallVoicemail = async (
       },
       // A waiting voicemail IS the call's outcome, so it takes the preview.
       replacesConversationContent: true,
+      userId: readCallAuthor(session),
     },
   );
 };
@@ -622,22 +694,29 @@ export const registerCallRecording = async (
   // used as the fallback so a callback that only carries the millisecond form
   // still records a duration.
   // https://www.plivo.com/docs/voice/xml/record
-  const recordingSeconds = readNumber(params.RecordingDuration);
-  const recordingMs = readNumber(params.RecordingDurationMs);
+  // Plivo sends `-1` for a `recordSession` recording whose length is not known
+  // when this callback fires, so each form is validated before it is accepted
+  // rather than stored verbatim and rendered as "(-1s)".
+  const recordingSeconds = readDuration(readNumber(params.RecordingDuration));
+  const recordingMs = readDuration(readNumber(params.RecordingDurationMs));
   const recordingDuration =
     recordingSeconds !== undefined
       ? recordingSeconds
       : recordingMs === undefined
         ? undefined
-        : Math.round(recordingMs / 1000);
+        : readDuration(Math.round(recordingMs / 1000));
 
-  const { storageKey } = await rehostPlivoRecording({
+  const { storageKey, failureReason } = await rehostPlivoRecording({
     subdomain,
     recordUrl: params.RecordUrl,
     callUuid: params.CallUUID,
     authId: integration.authId,
     authToken: integration.authToken,
   });
+
+  if (!storageKey) {
+    reportRehostFailure(params.RecordUrl, params.CallUUID, failureReason);
+  }
 
   const storedAt = new Date();
 
@@ -702,6 +781,7 @@ export const registerCallRecording = async (
       // The hangup already set the preview to the call's real outcome; this is
       // an addendum to that call, so it must not overwrite it.
       replacesConversationContent: false,
+      userId: readCallAuthor(session),
     },
   );
 };

@@ -571,10 +571,16 @@ export const MessageInput = ({
         )}
 
         <div className="flex px-6 gap-4 items-center mt-2">
+          {/* On a thread with no reply channel — a phone call — the note is the
+              only thing that can be sent, so the toggle is genuinely disabled
+              rather than merely ignoring presses: an enabled-looking control
+              that does nothing reads as broken. */}
           <Toggle
             pressed={isInternalNote}
             size="lg"
             variant="outline"
+            disabled={onlyInternal}
+            title={onlyInternal ? t('internal-note-only') : undefined}
             onPressedChange={() =>
               !onlyInternal && setIsInternalNote(!isInternalNote)
             }
