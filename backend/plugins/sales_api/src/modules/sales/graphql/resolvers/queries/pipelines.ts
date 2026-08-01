@@ -243,6 +243,17 @@ export const pipelineQueries: Record<string, Resolver> = {
   },
 
   /**
+   *  Pipeline detail for the client portal
+   */
+  async cpSalesPipelineDetail(
+    _root,
+    { _id }: { _id: string },
+    { models }: IContext,
+  ) {
+    return models.Pipelines.findOne({ _id }).lean();
+  },
+
+  /**
    *  Pipeline related assigned users
    */
   async salesPipelineAssignedUsers(
@@ -267,5 +278,9 @@ export const pipelineQueries: Record<string, Resolver> = {
 };
 
 pipelineQueries.cpSalesPipelines.wrapperConfig = {
+  forClientPortal: true,
+};
+
+pipelineQueries.cpSalesPipelineDetail.wrapperConfig = {
   forClientPortal: true,
 };
