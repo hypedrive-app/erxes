@@ -14,7 +14,7 @@ const formatDate = (isoDate: string) => {
 
 export const NotificationProjectAssignment = ({
   contentTypeId,
-  title,
+  action: notificationAction,
   fromUser,
   fromUserId,
   createdAt,
@@ -25,8 +25,14 @@ export const NotificationProjectAssignment = ({
     skip: !contentTypeId,
   });
 
-  const isAssigned = title === 'Project Assigned';
-  const action = isAssigned ? t('assigned-you-to') : t('changed-status-on');
+  // Read from `action`, not `title`. The backend writes the bare content type
+  // ('Project') as the title — 'Project Assigned' is only the label shown in
+  // the notification settings screen — so a title comparison never matched and
+  // every notification, assignments included, claimed a status change.
+  const isAssigned = notificationAction === 'assignee';
+  const description = isAssigned
+    ? t('assigned-you-to')
+    : t('changed-status-on');
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-md mx-auto justify-center items-center h-full text-muted-foreground">
@@ -53,7 +59,7 @@ export const NotificationProjectAssignment = ({
         </div>
 
         <p className="text-foreground">
-          {action}{' '}
+          {description}{' '}
           {loading ? (
             <Skeleton className="inline-block w-24 h-4 align-middle" />
           ) : (
