@@ -54,8 +54,25 @@ query GolomtBankAccountBalance($configId: String!, $accountId: String!) {
   }
 `;
 
+const statementsQuery = `
+query GolomtBankStatements($configId: String!, $accountId: String!, $page: Int, $perPage: Int, $startDate: String, $endDate: String) {
+    golomtBankStatements(configId: $configId, accountId: $accountId, page: $page, perPage: $perPage, startDate: $startDate, endDate: $endDate) {
+      requestId
+      accountId
+      statements {
+        requestId
+        tranDesc
+        tranPostedDate
+        tranAmount
+        balance
+      }
+    }
+  }
+`;
+
 export default {
   listQuery,
   accountDetailQuery,
   accountBalanceQuery,
+  statementsQuery,
 };

@@ -6,14 +6,16 @@ import { Spinner } from 'erxes-ui/components/spinner';
 import List from '../components/List';
 import { queries } from '../../../graphql';
 
-import { IGolomtBankStatement } from '../../../types/ITransactions';
-
-type StatementQueryResponse = {
-  golomtBankStatements: IGolomtBankStatement;
-};
+import { StatementQueryResponse } from '../../../types/ITransactions';
 
 type Props = {
-  queryParams: any;
+  queryParams: {
+    _id?: string;
+    account?: string;
+    startDate?: string;
+    endDate?: string;
+    type?: string;
+  };
   showLatest?: boolean;
   refetch?: () => void;
 };
@@ -22,27 +24,26 @@ export default function ListContainer({
   queryParams,
   showLatest = false,
 }: Props) {
-  const accountId = queryParams.account;
-  const configId = queryParams._id;
-
-  let startDate = queryParams.startDate;
-  let endDate = queryParams.endDate;
+  const { _id: configId, account: accountId } = queryParams;
 
   // Latest transactions mode (last 24 hours)
-  if (showLatest) {
-    startDate = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
-    endDate = dayjs().format('YYYY-MM-DD');
-  }
+  const startDate = showLatest
+    ? dayjs().subtract(1, 'day').format('YYYY-MM-DD')
+    : queryParams.startDate;
+  const endDate = showLatest
+    ? dayjs().format('YYYY-MM-DD')
+    : queryParams.endDate;
 
   const { data, loading, error } = useQuery<StatementQueryResponse>(
-    gql(queries.listQuery),
+    gql(queries.statementsQuery),
     {
       variables: {
-        accountId,
         configId,
+        accountId,
         startDate,
         endDate,
       },
+      skip: !configId || !accountId,
       fetchPolicy: 'network-only',
     },
   );
@@ -52,7 +53,11 @@ export default function ListContainer({
   }
 
   if (error) {
-    return <div className="text-sm text-destructive">{error.message}</div>;
+    return (
+      <div className="p-4 text-sm rounded-md bg-destructive/10 text-destructive">
+        {error.message}
+      </div>
+    );
   }
 
   const statement = data?.golomtBankStatements;
