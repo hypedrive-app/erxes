@@ -29,6 +29,20 @@ export const triggerHandlerWorker = async (job: Job<ITriggerJobData>) => {
     await handleTrigger(subdomain, data);
   } catch (error: any) {
     debugError(`Error processing job ${job.id}: ${error.message}`);
-    // Error is logged but not thrown to prevent job retries
+
+    // Rethrow. Swallowing here resolved the processor, so BullMQ marked the job
+    // COMPLETED and createMQWorkerWithListeners' 'completed' listener logged
+    // "completed successfully" — a total failure to process a trigger reported
+    // as a success, with no failed-job record and nothing to alert on.
+    //
+    // The original comment justified the swallow as preventing job retries.
+    // That does not hold: no `attempts` is configured for this worker
+    // (initMQWorkers -> createMQWorkerWithListeners passes no workerOptions),
+    // and BullMQ's default is a single attempt. So there is no retry to
+    // prevent — the only effect was hiding the failure.
+    //
+    // The 'failed' listener already logs the error and BullMQ records the job
+    // as failed, which is what makes these visible at all.
+    throw error;
   }
 };
