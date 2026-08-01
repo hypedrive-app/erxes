@@ -24,11 +24,11 @@ const getMessage = (contentType: string, notificationType: string) => {
     case 'taskAssignee':
       return 'You have been assigned to task';
     case 'taskStatus':
-      return 'You have been assigned to task';
+      return 'Task status has changed';
     case 'projectAssignee':
       return 'You have been assigned to project';
     case 'projectStatus':
-      return 'You have been assigned to project';
+      return 'Project status has changed';
     case 'note':
       return `You have been mentioned in ${contentType}'s note`;
     case 'team':
