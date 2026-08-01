@@ -25,7 +25,7 @@ export const ticketQueries = {
       model: models.Ticket,
       params: {
         ...filter,
-        orderBy: filter.orderBy ?? { updatedAt: -1 },
+        orderBy: filter?.orderBy ?? { updatedAt: -1 },
       },
       query,
     });

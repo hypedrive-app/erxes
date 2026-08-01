@@ -1,11 +1,14 @@
-import { ITicketDocument } from '@/ticket/@types/ticket';
+import { ITicketDocument, ITicketFilter } from '@/ticket/@types/ticket';
 import { FilterQuery } from 'mongoose';
 import { IUserDocument } from 'erxes-api-shared/core-types';
 import { IModels } from '~/connectionResolvers';
 import { escapeRegExp } from 'erxes-api-shared/utils';
 
 export const generateFilter = async (
-  filter: any,
+  // `filter` is nullable on every query that reaches here, so default it rather
+  // than let the first lookup below throw on an omitted argument. myTicketsOnly
+  // is read below but is not part of ITicketFilter, so it is spelled out here.
+  filter: Partial<ITicketFilter> & { myTicketsOnly?: boolean } = {},
   user: IUserDocument,
   models: IModels,
 ) => {
