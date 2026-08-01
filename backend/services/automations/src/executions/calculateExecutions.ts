@@ -66,7 +66,24 @@ const checkValidTrigger = async (
     );
 
     return isValidCustomTigger;
-  } else if (!(await isInSegment(subdomain, contentId, target._id))) {
+  }
+
+  // An unset contentId means the trigger carries no segment filter, so every
+  // record of its content type qualifies. Passing it through anyway made
+  // `Segments.getSegment('')` throw 'Segment not found'; sendTRPCMessage
+  // catches every error and substitutes its default, which is `false`, so the
+  // trigger was rejected silently — no execution row, not even a failed one,
+  // and a 15s delay burned per event on the way to that non-answer.
+  //
+  // This only concerns the non-custom path. A custom trigger returns above and
+  // never reaches here, which matters because `contentId` does not mean the
+  // same thing there: sales' stageChanged handler reads it as a PIPELINE id,
+  // not a segment.
+  if (!contentId) {
+    return true;
+  }
+
+  if (!(await isInSegment(subdomain, contentId, target._id))) {
     return false;
   }
 
