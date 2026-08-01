@@ -1,0 +1,187 @@
+# plugin UIs — ALL Module Federation remotes, built from a CLEAN GIT CHECKOUT
+# and served by ONE nginx.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHY A CONTAINER AT ALL — UI PLUGINS ARE NORMALLY CDN ARTIFACTS
+# ─────────────────────────────────────────────────────────────────────────────
+# Upstream never containerises a UI plugin. Every `.github/workflows/ci-ui-*.yml`
+# runs `pnpm nx build <plugin>_ui` on the runner and then
+#   aws s3 sync dist/frontend/plugins/<plugin>_ui s3://erxes-next/$FOLDER/<plugin>_ui/
+# i.e. the artifact is pushed to erxes' R2 bucket behind plugins.erxes.io. That
+# is why no UI plugin in this repo has a Dockerfile of its own.
+#
+# We cannot use that CDN. `origin` here is github.com/hypedrive-app/erxes, a
+# FORK; our WhatsApp + Plivo frontline_ui is not on plugins.erxes.io, and the
+# builds that ARE there are upstream's, whose GraphQL documents would not match
+# our *_api schemas. Publishing to our own R2 bucket would work but adds a
+# second deploy channel (CI creds, bucket, custom domain). Since Dokploy already
+# clones this repo and runs compose, serving the same `dist/` trees from a
+# container in the same stack is strictly less moving parts.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ONE IMAGE FOR ALL PLUGINS — THIS IS THE UPSTREAM DISTRIBUTION MODEL
+# ─────────────────────────────────────────────────────────────────────────────
+# This file REPLACES the three per-plugin Dockerfile.build recipes that used to
+# live in frontline_ui/, sales_ui/ and operation_ui/ (now under archive/).
+#
+# It is not a packaging convenience — it is what upstream actually does. All ten
+# ci-ui-*.yml workflows sync into the SAME bucket under a per-plugin prefix:
+#   s3://erxes-next/$FOLDER/frontline_ui/
+#   s3://erxes-next/$FOLDER/sales_ui/
+#   s3://erxes-next/$FOLDER/operation_ui/   … and seven more
+# One bucket, one CDN host, N folders. There is no per-plugin host anywhere in
+# the model, and core-api's remoteEntry() helper encodes exactly that: it takes
+# ONE base URL and lets the PATH select the plugin (see the next section).
+#
+# The per-plugin-container variant appeared to work only because frontline was
+# alone on the host. Adding sales and operation forced a choice between a
+# hostname per plugin (three DNS names + three Dokploy Domains for three static
+# file trees, and PLUGIN_CDN_URL is a SINGLE value so it cannot address them
+# all) or Traefik path routing on one hostname. The latter was attempted and
+# does not work: Dokploy's PathPrefix Domain attaches an `addprefix` middleware,
+# which re-prepends the very prefix the request already carries
+#   /latest/sales_ui/remoteEntry.js -> /latest/sales_ui/latest/sales_ui/remoteEntry.js
+# -> 404, and `stripprefix` fails symmetrically by removing the prefix the file
+# actually lives under. Both are workarounds for a self-inflicted problem.
+# Serving all the prefixes from one docroot removes the problem instead: one
+# hostname, one Dokploy Domain, no middleware, and PLUGIN_CDN_URL keeps being
+# the single value core-api expects. Do not reintroduce path routing.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THE URL LAYOUT IS LOAD-BEARING: /<version>/<plugin>_ui/remoteEntry.js
+# ─────────────────────────────────────────────────────────────────────────────
+# core-api answers GET /get-frontend-plugins with
+#   `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
+# (backend/core-api/src/modules/organization/routes.ts). `version` comes from
+# getPluginVersion() = `pluginInfo?.config?.releaseVersion || 'latest'`, so with
+# no releaseVersion configured the browser requests
+#   ${PLUGIN_CDN_URL}/latest/frontline_ui/remoteEntry.js
+#   ${PLUGIN_CDN_URL}/latest/sales_ui/remoteEntry.js
+#   ${PLUGIN_CDN_URL}/latest/operation_ui/remoteEntry.js
+# from that ONE origin. The COPYs below therefore land each build at
+#   /usr/share/nginx/html/latest/<plugin>_ui/
+# which reproduces the exact `$FOLDER/<plugin>_ui/` shape the CI s3 sync
+# creates. Keep the two in lockstep: this path IS the contract with routes.ts.
+#
+# `latest` is baked rather than parameterised on purpose. It is the value
+# getPluginVersion() falls back to, and the erxes admin UI can set a per-plugin
+# releaseVersion at runtime — but a container can only serve directories that
+# exist at build time, so honouring an arbitrary runtime version would require
+# fetching artifacts on boot. If you ever set a releaseVersion in the org
+# config, add a matching directory here; otherwise leave it alone.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ADDING A PLUGIN
+# ─────────────────────────────────────────────────────────────────────────────
+# A name in ENABLED_PLUGINS makes core-api emit a remote entry URL for it, so
+# the browser WILL request /latest/<plugin>_ui/remoteEntry.js from this origin
+# and Module Federation init() rejects on a 404. Adding a plugin therefore means
+# three edits HERE, not a new service: one `nx build`, one `test -f` assertion,
+# and one COPY in the serve stage. Nothing in deploy/docker-compose.yml changes.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD COST (measured, not estimated)
+# ─────────────────────────────────────────────────────────────────────────────
+# MEASURED per plugin via `/usr/bin/time -v pnpm nx build <p> --skip-nx-cache`
+# on this tree: frontline_ui peak RSS 1.88 GB / ~48 s / 13 MB of output;
+# sales_ui 1.69 GB / ~21 s / 7.5 MB; operation_ui 1.65 GB / ~14 s / 6.7 MB.
+# The three `RUN`s are SEQUENTIAL, so peak memory is the max (~1.9 GB), not the
+# sum — consolidating does not raise the OOM ceiling. What it does remove is two
+# redundant `pnpm install`s: that step dominates first-deploy time, and it now
+# happens once instead of three times.
+#
+# For contrast, the backend plugin builds are reported to peak near 13.9 GB
+# against ~9.9 GB free on the Hostinger box (not re-measured here). The
+# order-of-magnitude gap is what matters: an OOMed compose build wedges
+# Dokploy's queue (dokploy#4461) with no working Cancel, taking the whole stack
+# down, and these builds fit comfortably.
+#
+# NOTE ON TYPECHECK: `nx build <plugin>_ui` is an @nx/rspack:rspack target and
+# does NOT gate on `tsc`. sales_ui currently has 4 known type errors confined to
+# its POS module (IPos lacks a `type` field; a stale SalesFilter call site).
+# They do not fail this build — verified, exit 0 — and POS is not deployed here.
+# Do not "fix" them from this file; if a typecheck target is ever added to the
+# build chain, this image will start failing and that is the correct signal.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD CONTEXT IS THE REPO ROOT
+# ─────────────────────────────────────────────────────────────────────────────
+#   docker build -f frontend/plugins/Dockerfile.plugins .
+# Nx, the pnpm workspace and tsconfig.base.json aliases only resolve from the
+# root. It sits in frontend/plugins/ rather than in any one plugin directory
+# because it belongs to none of them. Named `.plugins` rather than `.build`
+# because it is not the per-project build recipe the `*_api/Dockerfile.build`
+# convention names — there is no `frontend/plugins` project.
+
+# ── Stage 1: compile every remote ────────────────────────────────────────────
+FROM node:22-alpine3.22 AS build
+WORKDIR /app
+
+# Same Nx environment as the backend Dockerfile.build files — see
+# backend/plugins/frontline_api/Dockerfile.build for why NX_SOCKET_DIR is NOT
+# redundant with NX_DAEMON=false (nx asserts socket paths <= 95 chars and pnpm's
+# virtual store blows past it on the plugin-worker path, surfacing as a
+# cause-free "Failed to process project graph"). The ci-ui-*.yml workflows
+# likewise export NX_DAEMON=false.
+ENV NX_DAEMON=false \
+    NX_SOCKET_DIR=/tmp/nx-sock \
+    NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
+    CI=true
+
+RUN npm install -g pnpm@9
+
+# Whole tree, not a curated subset: nx.json's inference plugins load
+# eslint.config.js / jest.config.ts / jest.preset.js from the ROOT while
+# crawling the project graph. .dockerignore already strips node_modules, dist,
+# .git and .nx. Same trap documented at length in frontline_api/Dockerfile.build.
+COPY . .
+
+# ONCE for all three plugins — they share this workspace. This is the dominant
+# cost of the image; the compiles below are comparatively cheap.
+RUN pnpm install --frozen-lockfile
+
+# rspack + Module Federation -> dist/frontend/plugins/<plugin>_ui/
+#
+# One layer, chained with && rather than three RUNs: these targets share the nx
+# project graph and the same node_modules, and splitting them buys no useful
+# cache granularity (any source change invalidates the preceding `COPY . .`
+# anyway) while paying for three graph crawls.
+#
+# operation_ui's target additionally emits src/assets (declared in its
+# project.json `assets`), which lands beside remoteEntry.js and is served by the
+# `location /` block in nginx/default.conf.
+RUN pnpm nx build frontline_ui \
+ && pnpm nx build sales_ui \
+ && pnpm nx build operation_ui
+
+# Fail HERE rather than shipping an nginx that 404s the one file that matters.
+# Per plugin, because a partial build is the failure mode this catches: MF
+# init() rejects on the FIRST missing remote, so one absent remoteEntry.js takes
+# down the whole UI, not just its own plugin's screens.
+RUN test -f dist/frontend/plugins/frontline_ui/remoteEntry.js \
+ && test -f dist/frontend/plugins/sales_ui/remoteEntry.js \
+ && test -f dist/frontend/plugins/operation_ui/remoteEntry.js \
+ && echo "frontline_ui + sales_ui + operation_ui build OK"
+
+# ── Stage 2: static server ───────────────────────────────────────────────────
+FROM nginx:alpine
+
+# See the URL-layout note above: these directory shapes are the contract with
+# core-api's remoteEntry() helper, not a stylistic choice. Serving all three
+# from one docroot is what lets a single PLUGIN_CDN_URL address every plugin.
+COPY --from=build /app/dist/frontend/plugins/frontline_ui \
+                  /usr/share/nginx/html/latest/frontline_ui
+COPY --from=build /app/dist/frontend/plugins/sales_ui \
+                  /usr/share/nginx/html/latest/sales_ui
+COPY --from=build /app/dist/frontend/plugins/operation_ui \
+                  /usr/share/nginx/html/latest/operation_ui
+
+# The frontline_ui vhost, reused verbatim for all three. Its rules are per-URL,
+# not per-plugin: no-cache on the stable-named remoteEntry.js manifests,
+# immutable on the content-hashed chunks, CORS on fonts. Nothing in it names a
+# plugin, and the three per-plugin copies it was forked into differed only in
+# comments. It lives under frontline_ui/ because that is where it was written;
+# it is the shared config now, so edit it there.
+COPY frontend/plugins/frontline_ui/nginx/default.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

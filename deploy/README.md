@@ -89,7 +89,7 @@ Then open `https://$ERXES_UI_DOMAIN` and complete the owner signup.
 2. Register **three Dokploy Domains** on the compose app, one per hostname:
    - `ERXES_UI_DOMAIN` → service `core-ui`, port `80`
    - `ERXES_API_DOMAIN` → service `gateway`, port `4000`
-   - `ERXES_PLUGINS_DOMAIN` → service `frontline-ui`, port `80`
+   - `ERXES_PLUGINS_DOMAIN` → service `plugins-ui`, port `80`, **no path rule**
 
    Do **not** add `traefik.*` labels to the compose file for any of these.
 3. Deploy. Verify the plugin remote is actually being served and pointed at:
@@ -118,7 +118,7 @@ same Host and Traefik would refuse to bind it).
 | --- | --- | --- | --- |
 | `ERXES_UI_DOMAIN` | `core-ui` | 80 | The SPA |
 | `ERXES_API_DOMAIN` | `gateway` | 4000 | GraphQL + WebSocket + core-api passthrough |
-| `ERXES_PLUGINS_DOMAIN` | `frontline-ui` | 80 | Module Federation remotes (`remoteEntry.js`) |
+| `ERXES_PLUGINS_DOMAIN` | `plugins-ui` | 80 | Module Federation remotes (`remoteEntry.js`) for **every** plugin |
 
 All three resolve via the existing `*.sharksmarketing.com` wildcard, so **no new
 DNS record is needed** — but each must still be registered in Dokploy.
@@ -193,20 +193,31 @@ serves **upstream's** build — not our fork's WhatsApp/Plivo one, and with a
 GraphQL schema that would not match our `frontline_api`. It is now the
 `PLUGIN_CDN_URL` env var, defaulting to the upstream CDN for compatibility.
 
-The `frontline-ui` service serves our own build at that path layout. It is built
-from source via `frontend/plugins/frontline_ui/Dockerfile.build` (context = repo
-root) — upstream never containerises a UI plugin, because
-`.github/workflows/ci-ui-frontline.yml` builds it on the runner and `aws s3 sync`s
-`dist/frontend/plugins/frontline_ui` to `s3://erxes-next/latest/frontline_ui/`.
-Our Dockerfile copies the same output to
-`/usr/share/nginx/html/latest/frontline_ui`, reproducing that shape.
+The single `plugins-ui` service serves our own builds at that path layout. It is
+built from source via `frontend/plugins/Dockerfile.plugins` (context = repo
+root) — upstream never containerises a UI plugin, because each
+`.github/workflows/ci-ui-<plugin>.yml` builds it on the runner and
+`aws s3 sync`s `dist/frontend/plugins/<plugin>_ui` to
+`s3://erxes-next/$FOLDER/<plugin>_ui/`. Our Dockerfile copies the same outputs to
+`/usr/share/nginx/html/latest/<plugin>_ui`, reproducing that shape.
+
+**One container, not one per plugin.** All ten upstream `ci-ui-*.yml` workflows
+sync into the *same* bucket under a per-plugin prefix — one origin, N folders —
+and `PLUGIN_CDN_URL` is a single base URL whose *path* selects the plugin. Three
+containers cannot be addressed by one value, and routing one hostname to three
+of them needs a Dokploy PathPrefix Domain, whose `addprefix` middleware
+re-prepends the prefix the request already carries
+(`/latest/sales_ui/latest/sales_ui/remoteEntry.js` → 404) while `stripprefix`
+strips the prefix the file lives under. Serving every prefix from one docroot
+removes the problem: one hostname, one Domain, no middleware. Adding a plugin is
+an edit to `Dockerfile.plugins`, not a new service.
 
 **So `PLUGIN_CDN_URL` must be browser-reachable.** It is dereferenced by the
-browser, not by any container, so `http://frontline-ui` (the compose DNS name)
+browser, not by any container, so `http://plugins-ui` (the compose DNS name)
 would fail, and any `http://` value would be blocked as mixed content on an
-HTTPS page. It is wired as `https://${ERXES_PLUGINS_DOMAIN}`, and
-`frontline-ui` is on `dokploy-network` (like `gateway` and `core-ui`) so
-Dokploy's Traefik can route to it.
+HTTPS page. It is wired as `https://${ERXES_PLUGINS_DOMAIN}`, and `plugins-ui`
+is on `dokploy-network` (like `gateway` and `core-ui`) so Dokploy's Traefik can
+route to it.
 
 Unlike `plugin-frontline-api`, this build is **cheap**. Measured directly
 (`/usr/bin/time -v pnpm nx build frontline_ui` on this tree): **peak RSS
@@ -254,7 +265,7 @@ this and works through the gateway regardless.
   plugin (sales, loyalty, …) is enabled — and enabling one means not just adding
   a `plugin-<name>-api` service but also serving its `<name>_ui` build under
   `PLUGIN_CDN_URL`, or the browser 404s on that remote's `remoteEntry.js`.
-- **`frontline-ui` serves only the `latest/` version directory.** `getPluginVersion()`
+- **`plugins-ui` serves only the `latest/` version directory.** `getPluginVersion()`
   falls back to `latest`, but if anyone sets a per-plugin `releaseVersion` in the
   org config, core-api will emit a URL for a directory the container does not
   have and the plugin silently stops loading. Either leave `releaseVersion`
@@ -265,10 +276,12 @@ this and works through the gateway regardless.
   `/graphql`. If `plugin-frontline-api` fails to boot, core GraphQL goes down
   with it — see the runbook below. `MAX_PLUGIN_RETRY=60` does **not** bound the
   damage; it only bounds how quickly the failure shows up in the logs.
-- First deploy is **slow**: `frontline_api` and `frontline-ui` are separate
-  builds and each runs its own full `pnpm install` (~3700 packages) before its
-  Nx build(s). The installs dominate; the `frontline_ui` compile itself is only
-  ~48 s / 1.88 GB peak.
+- First deploy is **slow**: each backend plugin image and `plugins-ui` are
+  separate builds and each runs its own full `pnpm install` (~3700 packages)
+  before its Nx build(s). The installs dominate; consolidating the three UI
+  remotes into `plugins-ui` removed two of them. The compiles themselves are
+  cheap — frontline_ui ~48 s / 1.88 GB peak, sales_ui ~21 s / 1.69 GB,
+  operation_ui ~14 s / 1.65 GB, run sequentially so peak is the max, not the sum.
 - Version pinning is essential; `main` is pushed to many times a day.
 
 ## RUNBOOK: frontline took down the whole stack

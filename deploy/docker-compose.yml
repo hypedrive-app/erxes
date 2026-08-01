@@ -185,23 +185,27 @@ services:
       # (frontend/core-ui/src/bootstrap.tsx). Each name in this list yields one
       # remote entry URL built from PLUGIN_CDN_URL below, so a plugin listed
       # here MUST have its UI served from there or the browser 404s on it.
-      # That is why adding sales/operation to this list REQUIRES the sales-ui
-      # and operation-ui services below, and why EVERY ENABLED_PLUGINS
-      # occurrence in this file (core-api, each plugin api, and the gateway)
-      # must stay identical — the gateway compares its list against what the
-      # plugins actually registered.
+      # That is why every name here MUST also be built into the `plugins-ui`
+      # service below (one image, one `/latest/<plugin>_ui/` directory per
+      # plugin — see frontend/plugins/Dockerfile.plugins), and why EVERY
+      # ENABLED_PLUGINS occurrence in this file (core-api, each plugin api, and
+      # the gateway) must stay identical — the gateway compares its list
+      # against what the plugins actually registered.
       ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
       # ENABLED_PLUGINS_ONLY_API stays ABSENT — same empty-string trap.
       # ── PLUGIN_CDN_URL: where the BROWSER fetches plugin remotes ─────────
       # routes.ts builds `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
       # and core-ui hands that string to Module Federation's runtime init(),
       # so it is dereferenced BY THE BROWSER. It must therefore be a public,
-      # TLS-terminated origin — `http://frontline-ui` (the compose DNS name)
+      # TLS-terminated origin — `http://plugins-ui` (the compose DNS name)
       # would resolve only inside the docker network and fail in the browser,
       # and any http:// value would be blocked as mixed content on an https
       # page. Default is upstream's CDN, which serves upstream's build and NOT
       # our WhatsApp/Plivo fork — so this must be set for frontline to work.
-      # See the frontline-ui service and deploy/README.md.
+      #
+      # It is ONE base URL and the PATH selects the plugin, which is why all
+      # the remotes come from ONE origin. See the plugins-ui service and
+      # deploy/README.md.
       PLUGIN_CDN_URL: https://${ERXES_PLUGINS_DOMAIN}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # erxes resolves storage config as `configs[CODE] ?? getEnv(CODE)`
@@ -705,10 +709,12 @@ services:
         limits:
           memory: 256M
 
-  # ── frontline_ui: the Module Federation remote ────────────────────────────
+  # ── plugins-ui: EVERY Module Federation remote, from ONE origin ───────────
   #
-  # Static nginx serving our fork's built frontline_ui bundle. This is the
-  # container that makes the WhatsApp/Plivo UI actually render inside core-ui.
+  # Static nginx serving our fork's built frontline_ui, sales_ui and
+  # operation_ui bundles side by side under /latest/<plugin>_ui/. This is the
+  # container that makes the WhatsApp/Plivo, deals and tasks UIs actually
+  # render inside core-ui.
   #
   # ── How a v3 frontend plugin loads (the whole chain) ─────────────────────
   #   1. frontend/core-ui/src/bootstrap.tsx, in the NODE_ENV!=='development'
@@ -732,93 +738,58 @@ services:
   # 404) rather than our fork's. That is now an env var, and this service is
   # what it points at.
   #
-  # ── Built from source, like plugin-frontline-api ──────────────────────────
-  # No published image exists: upstream never containerises a UI plugin.
-  # .github/workflows/ci-ui-frontline.yml builds it on the runner and
-  # `aws s3 sync`s dist/frontend/plugins/frontline_ui to erxes' R2 bucket
-  # behind plugins.erxes.io. UI plugins are CDN artifacts, so no UI plugin in
-  # this repo has a Dockerfile — frontline_ui/Dockerfile.build is the first,
-  # and it reproduces that same `<version>/frontline_ui/` directory shape
-  # locally. See its header.
+  # ── ONE SERVICE, NOT ONE PER PLUGIN ───────────────────────────────────────
+  # Step 2 above is the reason: PLUGIN_CDN_URL is ONE base URL and the PATH
+  # selects the plugin. Upstream's own distribution matches — all ten
+  # .github/workflows/ci-ui-*.yml sync into the SAME bucket under a per-plugin
+  # prefix (s3://erxes-next/$FOLDER/<plugin>_ui/), one CDN host for all of them.
   #
-  # ── Build cost: SAFE, unlike frontline_api ────────────────────────────────
-  # MEASURED on this tree (/usr/bin/time -v pnpm nx build frontline_ui):
-  # peak RSS 1.88 GB, ~48 s, 13 MB of output. frontline_api's build is REPORTED
-  # to peak near 13.9 GB against ~9.9 GB free on the box (not re-measured here).
-  # The order-of-magnitude gap is the point: this build does not put the stack
-  # at OOM risk (dokploy#4461: an OOMed compose build wedges the queue with no
-  # working Cancel). The two do serialise behind their own `pnpm install`,
-  # which dominates first-deploy time.
-  frontline-ui:
+  # This service previously existed three times over (frontline-ui, sales-ui,
+  # operation-ui). That shape has no way to be addressed: a hostname per plugin
+  # cannot work because PLUGIN_CDN_URL is a single value, and routing one
+  # hostname to three containers by path needs a Dokploy PathPrefix Domain,
+  # whose `addprefix` middleware re-prepends the prefix the request already
+  # carries (/latest/sales_ui/latest/sales_ui/remoteEntry.js -> 404), while
+  # `stripprefix` strips the prefix the file actually lives under. Serving all
+  # three prefixes from one docroot removes the problem rather than working
+  # around it: one hostname, one Dokploy Domain, no middleware. Do NOT split
+  # this back out, and do not add Traefik path rules.
+  #
+  # ── Built from source, like the plugin APIs ───────────────────────────────
+  # No published image exists: upstream never containerises a UI plugin, it
+  # ships them to R2 behind plugins.erxes.io — which serves UPSTREAM's builds,
+  # not our fork's. frontend/plugins/Dockerfile.plugins reproduces the same
+  # `<version>/<plugin>_ui/` directory shape locally. See its header; adding a
+  # plugin is an edit THERE, not a new service here.
+  #
+  # ── Build cost: SAFE, unlike the plugin APIs ──────────────────────────────
+  # MEASURED per plugin on this tree (/usr/bin/time -v pnpm nx build <p>
+  # --skip-nx-cache): frontline_ui peak RSS 1.88 GB / ~48 s / 13 MB of output;
+  # sales_ui 1.69 GB / ~21 s / 7.5 MB; operation_ui 1.65 GB / ~14 s / 6.7 MB.
+  # The three compiles run SEQUENTIALLY in one image, so peak is the max
+  # (~1.9 GB), not the sum — and the `pnpm install` that dominates first-deploy
+  # time now happens ONCE instead of three times. The backend plugin builds are
+  # REPORTED to peak near 13.9 GB against ~9.9 GB free on the box (not
+  # re-measured here); the order-of-magnitude gap is the point, since an OOMed
+  # compose build wedges Dokploy's queue (dokploy#4461) with no working Cancel.
+  plugins-ui:
     build:
       context: ..
-      dockerfile: frontend/plugins/frontline_ui/Dockerfile.build
+      dockerfile: frontend/plugins/Dockerfile.plugins
     restart: unless-stopped
     # ── MUST be on dokploy-network ────────────────────────────────────────
-    # Unlike plugin-frontline-api, this one IS addressed from the internet:
-    # the browser — not the gateway — fetches remoteEntry.js. An internal-only
-    # service would be unreachable and the plugin would silently fail to load.
-    # Mirrors gateway and core-ui exactly.
+    # Unlike the plugin APIs, this one IS addressed from the internet: the
+    # browser — not the gateway — fetches remoteEntry.js. An internal-only
+    # service would be unreachable and every plugin would silently fail to
+    # load. Mirrors gateway and core-ui exactly.
     networks: [erxes, dokploy-network]
     # NO traefik.* labels — Dokploy owns routing, same as gateway and core-ui.
-    # Register the hostname as a Dokploy Domain (port 80). See deploy/README.md.
+    # Register ERXES_PLUGINS_DOMAIN as a Dokploy Domain on THIS service, port
+    # 80, with NO path rule. See deploy/README.md.
     deploy:
       resources:
         limits:
-          memory: 128M
-
-  # ── sales_ui: the Module Federation remote for the sales plugin ───────────
-  #
-  # Static nginx serving our fork's built sales_ui bundle. Loaded by the browser
-  # exactly like frontline-ui — see that service for the full three-step chain
-  # (core-ui bootstrap.tsx -> core-api /get-frontend-plugins -> browser fetches
-  # ${PLUGIN_CDN_URL}/latest/sales_ui/remoteEntry.js).
-  #
-  # This service is MANDATORY given `sales` is in ENABLED_PLUGINS: core-api
-  # emits a remote entry URL for every listed plugin, so without an origin
-  # serving /latest/sales_ui/remoteEntry.js the browser 404s on it and Module
-  # Federation init() rejects.
-  #
-  # ── Build cost: SAFE ──────────────────────────────────────────────────────
-  # MEASURED (/usr/bin/time -v pnpm nx build sales_ui --skip-nx-cache):
-  # peak RSS 1.69 GB, ~21 s, 7.5 MB of output. Same order as frontline_ui.
-  sales-ui:
-    build:
-      context: ..
-      dockerfile: frontend/plugins/sales_ui/Dockerfile.build
-    restart: unless-stopped
-    # ── MUST be on dokploy-network ────────────────────────────────────────
-    # Unlike plugin-sales-api, this one IS addressed from the internet: the
-    # browser — not the gateway — fetches remoteEntry.js. An internal-only
-    # service would be unreachable and the plugin would silently fail to load.
-    # Mirrors frontline-ui exactly.
-    networks: [erxes, dokploy-network]
-    # NO traefik.* labels — Dokploy owns routing. Serve this under the SAME
-    # hostname as frontline-ui (ERXES_PLUGINS_DOMAIN), path-routed by the
-    # /latest/<plugin>_ui/ prefix each image already bakes in. See
-    # deploy/README.md.
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-
-  # ── operation_ui: the Module Federation remote for the operation plugin ───
-  #
-  # Same role, contract and constraints as sales-ui above.
-  #
-  # ── Build cost: SAFE ──────────────────────────────────────────────────────
-  # MEASURED (/usr/bin/time -v pnpm nx build operation_ui --skip-nx-cache):
-  # peak RSS 1.65 GB, ~14 s, 6.7 MB of output.
-  operation-ui:
-    build:
-      context: ..
-      dockerfile: frontend/plugins/operation_ui/Dockerfile.build
-    restart: unless-stopped
-    networks: [erxes, dokploy-network]
-    deploy:
-      resources:
-        limits:
-          memory: 128M
+          memory: 192M
 
 volumes:
   mongo-data:
