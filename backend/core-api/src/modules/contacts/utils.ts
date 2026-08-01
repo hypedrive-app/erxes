@@ -22,6 +22,10 @@ export const generateFilter = async (
     status,
     ids,
     excludeIds,
+    conformityMainType,
+    conformityMainTypeId,
+    conformityRelType,
+    conformityIsRelated,
   } = params;
 
   const filter: any = {
@@ -53,6 +57,26 @@ export const generateFilter = async (
 
   if (ids?.length) {
     filter['_id'] = excludeIds ? { $nin: ids } : { $in: ids };
+  }
+
+  // conformityIsRelated asks for the contacts reachable through the main
+  // record's links rather than the ones linked to it directly.
+  if (conformityMainType && conformityMainTypeId && conformityRelType) {
+    const conformityIds = conformityIsRelated
+      ? await models.Conformities.relatedConformity({
+          mainType: conformityMainType,
+          mainTypeId: conformityMainTypeId,
+          relType: conformityRelType,
+        })
+      : await models.Conformities.savedConformity({
+          mainType: conformityMainType,
+          mainTypeId: conformityMainTypeId,
+          relTypes: [conformityRelType],
+        });
+
+    const matchedIds = (conformityIds || []).filter((id) => id);
+
+    filter['$and'] = [...(filter['$and'] || []), { _id: { $in: matchedIds } }];
   }
 
   if (brandIds || integrationIds || integrationTypes) {
