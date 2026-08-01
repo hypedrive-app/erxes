@@ -1,4 +1,4 @@
-import { IconInfoCircle } from '@tabler/icons-react';
+import { IconInfoCircle, type IconProps } from '@tabler/icons-react';
 import { cn } from 'erxes-ui';
 import type { ComponentType, ReactNode } from 'react';
 import ReactJson from 'react-json-view';
@@ -9,10 +9,7 @@ type LogDetailJsonSource =
   | { value: string }
   | null;
 
-type LogDetailIconProps = {
-  size?: number;
-  className?: string;
-};
+type LogDetailIconProps = Pick<IconProps, 'size' | 'className'>;
 
 const normalizeJsonSource = (value: unknown): LogDetailJsonSource => {
   if (value === null || value === undefined || value === '') {

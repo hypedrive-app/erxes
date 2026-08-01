@@ -3,6 +3,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useCallback, useEffect } from 'react';
 import { PLIVO_SOFTPHONE_INTEGRATIONS } from '@/integrations/plivo/graphql/queries/plivoQueries';
 import {
+  plivoDefaultCountryCodeAtom,
   plivoIntegrationIdAtom,
   plivoUnregisteredAtom,
 } from '@/integrations/plivo/states/plivoStates';
@@ -57,6 +58,21 @@ export const usePlivoSoftphoneIntegrations = () => {
   });
 
   const integrations = data?.plivoSoftphoneIntegrations;
+
+  const selectedIntegration = integrations?.find(
+    (integration) => integration._id === integrationId,
+  );
+
+  // Published rather than returned because the surfaces that need it — the call
+  // buttons and the contact list — render from other module federation entries
+  // and cannot call this hook. `plivoReadyAtom` crosses the same boundary for
+  // the same reason.
+  const setDefaultCountryCode = useSetAtom(plivoDefaultCountryCodeAtom);
+  const defaultCountryCode = selectedIntegration?.defaultCountryCode ?? null;
+
+  useEffect(() => {
+    setDefaultCountryCode(defaultCountryCode);
+  }, [defaultCountryCode, setDefaultCountryCode]);
 
   useEffect(() => {
     // Only reconcile once the list has actually arrived: mid-flight `undefined`

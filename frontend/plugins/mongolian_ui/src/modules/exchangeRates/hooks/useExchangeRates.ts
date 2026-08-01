@@ -54,11 +54,14 @@ export const useExchangeRates = (searchValue?: string) => {
 
           return {
             ...prev,
-            exchangeRatesMain: mergeCursorData({
-              direction,
-              fetchMoreResult: fetchMoreResult.exchangeRatesMain,
-              prevResult: prev.exchangeRatesMain,
-            }),
+            exchangeRatesMain: {
+              ...mergeCursorData({
+                direction,
+                fetchMoreResult: fetchMoreResult.exchangeRatesMain,
+                prevResult: prev.exchangeRatesMain,
+              }),
+              totalCount: fetchMoreResult.exchangeRatesMain.totalCount,
+            },
           };
         },
       });

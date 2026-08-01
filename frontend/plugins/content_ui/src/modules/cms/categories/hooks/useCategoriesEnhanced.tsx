@@ -111,8 +111,8 @@ export const useCategories = (
         if (!fetchMoreResult) return prev;
 
         const isForward = direction === EnumCursorDirection.FORWARD;
-        const fetchPageInfo = fetchMoreResult.cmsCategories?.pageInfo || {};
-        const prevPageInfo = prev.cmsCategories?.pageInfo || {};
+        const fetchPageInfo = fetchMoreResult.cmsCategories?.pageInfo;
+        const prevPageInfo = prev.cmsCategories?.pageInfo;
         const fetchList = fetchMoreResult.cmsCategories?.list || [];
         const prevList = prev.cmsCategories?.list || [];
 
@@ -124,17 +124,17 @@ export const useCategories = (
               : [...fetchList, ...prevList],
             pageInfo: {
               endCursor: isForward
-                ? fetchPageInfo.endCursor
-                : prevPageInfo.endCursor,
+                ? fetchPageInfo?.endCursor
+                : prevPageInfo?.endCursor,
               hasNextPage: isForward
-                ? fetchPageInfo.hasNextPage
-                : prevPageInfo.hasNextPage,
+                ? fetchPageInfo?.hasNextPage
+                : prevPageInfo?.hasNextPage,
               hasPreviousPage: isForward
-                ? prevPageInfo.hasPreviousPage
-                : fetchPageInfo.hasPreviousPage,
+                ? prevPageInfo?.hasPreviousPage
+                : fetchPageInfo?.hasPreviousPage,
               startCursor: isForward
-                ? prevPageInfo.startCursor
-                : fetchPageInfo.startCursor,
+                ? prevPageInfo?.startCursor
+                : fetchPageInfo?.startCursor,
             },
           },
         });

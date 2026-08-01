@@ -6,6 +6,7 @@ import {
   plivoDialRequestAtom,
   plivoReadyAtom,
 } from '@/integrations/plivo/states/plivoStates';
+import { usePlivoCountry } from '@/integrations/plivo/hooks/usePlivoCountry';
 import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
 
 /**
@@ -25,12 +26,13 @@ export const usePlivoDialer = () => {
   const { t } = useTranslation('frontline');
   const requestDial = useSetAtom(plivoDialRequestAtom);
   const isReady = useAtomValue(plivoReadyAtom);
+  const country = usePlivoCountry();
 
   const dial = useCallback(
     (rawNumber?: string | null) => {
       if (!isReady) return;
 
-      const destination = toDialableNumber(rawNumber);
+      const destination = toDialableNumber(rawNumber, country);
 
       if (!destination) {
         toast({
@@ -45,7 +47,7 @@ export const usePlivoDialer = () => {
       // does not treat a redial as an already-handled request.
       requestDial({ id: Date.now(), destination });
     },
-    [isReady, requestDial, t],
+    [country, isReady, requestDial, t],
   );
 
   return { dial, isReady };

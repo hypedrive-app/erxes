@@ -1,4 +1,12 @@
-import { Accordion, Form, Input, Select, Textarea, Switch } from 'erxes-ui';
+import {
+  Accordion,
+  Form,
+  Input,
+  Select,
+  Textarea,
+  Switch,
+  type MultiSelectOption,
+} from 'erxes-ui';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { CategoryField } from './CategoryField';
@@ -14,7 +22,9 @@ export interface PostUrlSource {
   count?: number | null;
 }
 
-export interface SelectOption {
+// Options feed erxes-ui MultipleSelector (CategoryField/TagField), which
+// requires the shared option contract.
+export interface SelectOption extends MultiSelectOption {
   label: string;
   value: string;
 }

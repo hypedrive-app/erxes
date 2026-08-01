@@ -19,6 +19,36 @@ interface ProductFormProps {
   onSuccess?: () => void;
 }
 
+interface DurationTier {
+  minDays: number;
+  maxDays: number;
+  fee: number;
+}
+
+interface RegionFormula {
+  regionId: string;
+  regionName: string;
+  slope21: number;
+  intercept21: number;
+  slope21plus: number;
+  intercept21plus: number;
+}
+
+/**
+ * Pricing configuration is a per-mode bag (percentage / baseRate / dailyRate /
+ * durationTiers / formula), so entries vary by the selected pricing mode.
+ */
+type PricingConfigValue =
+  | number
+  | string
+  | string[]
+  | DurationTier[]
+  | RegionFormula[]
+  | Record<string, number>
+  | undefined;
+
+type PricingConfig = Record<string, PricingConfigValue>;
+
 // Reusable region fields component for travel insurance modes
 const RegionFields = ({
   pricingConfig,
@@ -27,11 +57,8 @@ const RegionFields = ({
   setNewCountry,
   regions,
 }: {
-  pricingConfig: Record<
-    string,
-    number | string | string[] | Record<string, number>
-  >;
-  onFieldChange: (field: string, value: unknown) => void;
+  pricingConfig: PricingConfig;
+  onFieldChange: (field: string, value: PricingConfigValue) => void;
   newCountry: string;
   setNewCountry: (v: string) => void;
   regions: { id: string; name: string; countries: string[] }[];
@@ -178,10 +205,7 @@ export const ProductForm = ({
     insuranceTypeId: '',
     pdfContent: '',
     coveredRisks: [] as { riskId: string; coveragePercentage: number }[],
-    pricingConfig: { percentage: 3 } as Record<
-      string,
-      number | Record<string, number>
-    >,
+    pricingConfig: { percentage: 3 } as PricingConfig,
     additionalCoverages: [] as {
       name: string;
       limits: number[];
@@ -209,7 +233,10 @@ export const ProductForm = ({
     }[]
   >([]);
 
-  const handlePricingFieldChange = (field: string, value: unknown) => {
+  const handlePricingFieldChange = (
+    field: string,
+    value: PricingConfigValue,
+  ) => {
     setFormData({
       ...formData,
       pricingConfig: { ...formData.pricingConfig, [field]: value },
@@ -416,6 +443,7 @@ export const ProductForm = ({
         additionalCoverages: [],
         compensationCalculations: [],
         deductibleConfig: { levels: [] },
+        regionIds: [],
       });
       onOpenChange(false);
       onSuccess?.();
@@ -707,7 +735,8 @@ export const ProductForm = ({
                     | 'percentage'
                     | 'baseRate'
                     | 'dailyRate'
-                    | 'durationTiers',
+                    | 'durationTiers'
+                    | 'formula',
                 ) => {
                   setPricingMode(value);
                   if (value === 'durationTiers') {

@@ -56,14 +56,19 @@ const List = ({ statement, queryParams, loading, showLatest }: Props) => {
           <div className="flex gap-3 items-center">
             <Select
               value={type}
-              onChange={(e) => {
-                setType(e.target.value);
-                updateParams('type', e.target.value);
+              onValueChange={(value) => {
+                setType(value);
+                updateParams('type', value);
               }}
             >
-              <option value="all">All</option>
-              <option value="income">Income</option>
-              <option value="outcome">Outcome</option>
+              <Select.Trigger>
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="all">All</Select.Item>
+                <Select.Item value="income">Income</Select.Item>
+                <Select.Item value="outcome">Outcome</Select.Item>
+              </Select.Content>
             </Select>
 
             <Input

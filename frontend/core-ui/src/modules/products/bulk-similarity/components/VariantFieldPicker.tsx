@@ -235,6 +235,7 @@ const AddFieldSheet = ({
             groupId={createGroup}
             refetchFields={refetchFields}
             onCreated={handleCreated}
+            onCancel={() => setCreateGroup(null)}
           />
         ) : (
           <Sheet.Content className="flex-auto p-5 overflow-auto">
@@ -301,7 +302,9 @@ const AddFieldSheet = ({
                                   asChild
                                 >
                                   <div>
-                                    {fieldTypeObject?.icon}
+                                    {fieldTypeObject?.icon && (
+                                      <fieldTypeObject.icon className="size-4" />
+                                    )}
                                     {fieldTypeObject?.label}
                                   </div>
                                 </Button>
@@ -326,10 +329,12 @@ const CreatePropertyForm = ({
   groupId,
   refetchFields,
   onCreated,
+  onCancel,
 }: {
   groupId: string;
   refetchFields: () => Promise<unknown>;
   onCreated: (fieldId: string, value: string) => void;
+  onCancel: () => void;
 }) => {
   const { t } = useTranslation('product', { keyPrefix: 'bulk-similarity' });
   const { addProperty, loading } = useAddProperty();
@@ -365,11 +370,18 @@ const CreatePropertyForm = ({
             onSubmit={handleSubmit}
             loading={loading}
             disableType
+            onCancel={onCancel}
+            contentType={CONTENT_TYPE}
             defaultValues={{
               icon: '123',
               name: '',
               type: 'multiSelect',
+              groupId,
               isSearchable: false,
+              isVisible: true,
+              isVisibleToCreate: false,
+              isRequired: false,
+              isVisibleInCard: false,
               description: '',
               code: '',
               validation: '',

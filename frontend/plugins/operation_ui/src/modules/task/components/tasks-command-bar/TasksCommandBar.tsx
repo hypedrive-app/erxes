@@ -104,36 +104,39 @@ export const TasksCommandBar = () => {
                 <Command.Input></Command.Input>
                 <Command.List className="p-0">
                   <Command.Group className="p-1">
-                    <Command.Item
-                      className="w-full"
-                      onSelect={async () => {
-                        await Promise.all(
-                          taskIds.map((taskId) =>
-                            updateTask({
-                              variables: {
-                                _id: taskId,
-                                assigneeId: currentUser._id,
-                              },
-                            }),
-                          ),
-                        );
-                        setOpen(false);
-                      }}
-                    >
-                      <div className="flex gap-2 justify-start">
-                        <div className="flex items-center justify-center">
-                          <Avatar className="size-4">
-                            <Avatar.Image
-                              src={readImage(currentUser.details.avatar)}
-                            />
-                            <Avatar.Fallback className="text-xs">
-                              {currentUser.details.fullName.charAt(0) || '-'}
-                            </Avatar.Fallback>
-                          </Avatar>
+                    {currentUser && (
+                      <Command.Item
+                        className="w-full"
+                        onSelect={async () => {
+                          await Promise.all(
+                            taskIds.map((taskId) =>
+                              updateTask({
+                                variables: {
+                                  _id: taskId,
+                                  assigneeId: currentUser._id,
+                                },
+                              }),
+                            ),
+                          );
+                          setOpen(false);
+                        }}
+                      >
+                        <div className="flex gap-2 justify-start">
+                          <div className="flex items-center justify-center">
+                            <Avatar className="size-4">
+                              <Avatar.Image
+                                src={readImage(currentUser.details?.avatar)}
+                              />
+                              <Avatar.Fallback className="text-xs">
+                                {currentUser.details?.fullName?.charAt(0) ||
+                                  '-'}
+                              </Avatar.Fallback>
+                            </Avatar>
+                          </div>
+                          {t('assign-to-me')}
                         </div>
-                        {t('assign-to-me')}
-                      </div>
-                    </Command.Item>
+                      </Command.Item>
+                    )}
                     <TasksAssignToTrigger
                       setCurrentContent={setCurrentContent}
                     />

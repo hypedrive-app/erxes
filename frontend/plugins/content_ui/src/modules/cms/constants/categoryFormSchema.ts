@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FieldDefinition } from '../posts/CustomFieldInput';
+import { CustomFieldValue, FieldDefinition } from '../posts/CustomFieldInput';
 
 // Base schema without custom fields
 export const baseCategoryFormSchema = z.object({
@@ -12,7 +12,7 @@ export const baseCategoryFormSchema = z.object({
     .array(
       z.object({
         field: z.string(),
-        value: z.unknown().optional(),
+        value: z.custom<CustomFieldValue>().optional(),
       }),
     )
     .default([]),
@@ -52,7 +52,7 @@ export const createCategoryFormSchema = (fields: FieldDefinition[]) => {
     .array(
       z.object({
         field: z.string(),
-        value: z.unknown().optional(),
+        value: z.custom<CustomFieldValue>().optional(),
       }),
     )
     .default([])

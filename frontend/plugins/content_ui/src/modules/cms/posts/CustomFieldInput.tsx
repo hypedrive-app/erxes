@@ -129,6 +129,9 @@ export const CustomFieldInput = ({
   const selectPlaceholder =
     field.placeholder || `Select ${field.label.toLowerCase()}`;
   const options = field.options || [];
+  // CustomFieldValue spans every field kind; text-like inputs only accept the
+  // string projection, so booleans/arrays collapse to an empty value here.
+  const textValue = typeof value === 'string' ? value : '';
   const selectedValues = Array.isArray(value) ? value : [];
   const multiOptions = options.map((option: string) => ({
     label: option,
@@ -145,7 +148,7 @@ export const CustomFieldInput = ({
       <Input
         type="text"
         placeholder={enterPlaceholder}
-        value={value || ''}
+        value={textValue}
         onChange={(e) => onChange(e.target.value)}
         className="w-full"
       />
@@ -154,7 +157,7 @@ export const CustomFieldInput = ({
       <Input
         type="email"
         placeholder={enterPlaceholder}
-        value={value || ''}
+        value={textValue}
         onChange={(e) => onChange(e.target.value)}
         className="w-full"
       />
@@ -163,7 +166,7 @@ export const CustomFieldInput = ({
       <Input
         type="url"
         placeholder={enterPlaceholder}
-        value={value || ''}
+        value={textValue}
         onChange={(e) => onChange(e.target.value)}
         className="w-full"
       />
@@ -172,7 +175,7 @@ export const CustomFieldInput = ({
       <Textarea
         placeholder={enterPlaceholder}
         rows={10}
-        value={value || ''}
+        value={textValue}
         onChange={(e) => onChange(e.target.value)}
         className="w-full resize-none"
       />
@@ -181,14 +184,14 @@ export const CustomFieldInput = ({
       <Input
         type="number"
         placeholder={enterPlaceholder}
-        value={value || ''}
+        value={textValue}
         onChange={(e) => onChange(e.target.value)}
         className="w-full"
       />
     ),
     date: (
       <DatePicker
-        value={value ? new Date(value) : undefined}
+        value={textValue ? new Date(textValue) : undefined}
         onChange={(date) => onChange(date ? (date as Date).toISOString() : '')}
         placeholder={field.placeholder || t('select-date')}
       />
@@ -206,7 +209,7 @@ export const CustomFieldInput = ({
       />
     ),
     select: options.length ? (
-      <Select value={value || ''} onValueChange={onChange}>
+      <Select value={textValue} onValueChange={onChange}>
         <Select.Trigger className="w-full">
           <Select.Value placeholder={selectPlaceholder} />
         </Select.Trigger>
@@ -300,7 +303,7 @@ export const CustomFieldInput = ({
     fieldInputs[field.type as keyof typeof fieldInputs] || (
       <Input
         placeholder={enterPlaceholder}
-        value={value || ''}
+        value={textValue}
         onChange={(e) => onChange(e.target.value)}
         className="w-full"
       />

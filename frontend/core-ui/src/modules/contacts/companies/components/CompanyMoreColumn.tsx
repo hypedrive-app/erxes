@@ -1,6 +1,6 @@
 import { TCompany } from '@/contacts/types/companyType';
 import { IconEdit } from '@tabler/icons-react';
-import { Cell } from '@tanstack/react-table';
+import { Cell, ColumnDef } from '@tanstack/react-table';
 import { Combobox, Command, Popover, RecordTable } from 'erxes-ui';
 import { useSearchParams } from 'react-router-dom';
 import { Can } from 'ui-modules';
@@ -39,9 +39,9 @@ export const CompanyMoreColumnCell = ({
   );
 };
 
-export const companyMoreColumn = {
+export const companyMoreColumn: ColumnDef<TCompany> = {
   id: 'more',
-  header: RecordTable.ColumnSelector,
+  header: () => <RecordTable.ColumnSelector />,
   cell: CompanyMoreColumnCell,
   size: 33,
 };

@@ -22,7 +22,11 @@ import {
   showPhoneInputFamilyState,
   editingPhoneFamilyState,
 } from '../states/phoneFieldStates';
-import { formatPhoneNumber } from 'erxes-ui/utils/format';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  formatPhoneNumber,
+} from 'erxes-ui/utils/format';
+import { CountryCode } from 'libphonenumber-js';
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { cn } from 'erxes-ui/lib';
@@ -233,9 +237,9 @@ PhoneOptions.displayName = 'PhoneOptions';
 const PhoneForm = forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & {
-    defaultCountry?: string;
+    defaultCountry?: CountryCode;
   }
->(({ className, defaultCountry = 'MN', ...props }, ref) => {
+>(({ className, defaultCountry = DEFAULT_PHONE_COUNTRY, ...props }, ref) => {
   const { recordId } = usePhoneFields();
   const phones = useAtomValue(phonesFamilyState(recordId));
   const [newPhone, setNewPhone] = useState<string>('');
@@ -302,7 +306,7 @@ const PhoneForm = forwardRef<
         <div className="px-1 pb-1">
           <PhoneInput
             placeholder={editingPhone ? t('edit-phone') : t('add-phone')}
-            defaultCountry="MN"
+            defaultCountry={defaultCountry}
             value={newPhone}
             onChange={(phone) => {
               setNewPhone(phone);

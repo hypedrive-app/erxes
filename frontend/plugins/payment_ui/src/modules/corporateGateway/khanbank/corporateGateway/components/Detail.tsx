@@ -35,18 +35,18 @@ const Detail = ({ queryParams }: Props) => {
   return (
     <div className="space-y-6">
       <Tabs value={currentTab} onValueChange={setCurrentTab}>
-        <TabsList>
-          <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
-        </TabsList>
+        <Tabs.List>
+          <Tabs.Trigger value="account">Account</Tabs.Trigger>
+          <Tabs.Trigger value="transactions">Transactions</Tabs.Trigger>
+        </Tabs.List>
 
-        <TabsContent value="account">
+        <Tabs.Content value="account">
           <DetailContainer queryParams={queryParams} />
-        </TabsContent>
+        </Tabs.Content>
 
-        <TabsContent value="transactions">
+        <Tabs.Content value="transactions">
           <TransactionsContainer queryParams={queryParams} />
-        </TabsContent>
+        </Tabs.Content>
       </Tabs>
     </div>
   );

@@ -16,7 +16,11 @@ import {
   plivoWidgetOpenAtom,
   plivoWidgetPositionAtom,
 } from '@/integrations/plivo/states/plivoStates';
-import { PlivoStatusEnum } from '@/integrations/plivo/types/plivoTypes';
+import {
+  PlivoCallDirectionEnum,
+  PlivoCallStatusEnum,
+  PlivoStatusEnum,
+} from '@/integrations/plivo/types/plivoTypes';
 import { useCallUserIntegration } from '@/integrations/call/hooks/useCallUserIntegration';
 
 /**
@@ -61,9 +65,13 @@ const PlivoWidgetDraggable = memo(
       id: 'plivo-widget',
     });
     const [open, setOpen] = useAtom(plivoWidgetOpenAtom);
-    const { plivoStatus } = useAtomValue(plivoStateAtom);
+    const { plivoStatus, callStatus, callDirection } =
+      useAtomValue(plivoStateAtom);
 
     const isOnline = plivoStatus === PlivoStatusEnum.REGISTERED;
+    const isRinging =
+      callDirection === PlivoCallDirectionEnum.INCOMING &&
+      callStatus === PlivoCallStatusEnum.STARTING;
 
     // SipContainer renders nothing when the account has no call integration,
     // so its slot at right-10 is only taken when one exists.
@@ -94,6 +102,12 @@ const PlivoWidgetDraggable = memo(
               // reads as a misplaced control rather than a deliberate pair.
               'fixed bottom-10 size-12 [&>svg]:size-6 rounded-full shadow-lg',
               hasSipWidget ? 'right-28' : 'right-10',
+              // A ringing call gets a ring rather than a different fill: the
+              // launcher may be anywhere on screen after a drag, and a halo
+              // reads as "this is happening now" from the corner of the eye in
+              // a way a hue swap on a 48px circle does not.
+              isRinging &&
+                'ring-4 ring-success/40 motion-safe:animate-pulse',
               isOnline
                 ? 'bg-success hover:bg-success/90'
                 : 'bg-destructive hover:bg-destructive/90',

@@ -26,9 +26,9 @@ export const PrintInvMoveDocument = ({
     return {
       name: d.product?.name || d.account?.name || '',
       unit: d.product?.uom || '',
-      from: d.branch?.title || '',
+      from: transaction?.branch?.title || '',
       fromAccount: d.account?.code || '',
-      to: d.department?.title || '',
+      to: transaction?.department?.title || '',
       toAccount: '',
       count,
       unitPrice,

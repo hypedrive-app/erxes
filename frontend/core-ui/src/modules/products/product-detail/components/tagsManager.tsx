@@ -5,8 +5,8 @@ import { useProductTags } from '@/products/hooks/useProductTags';
 import { AlertDialog, Button, useToast } from 'erxes-ui';
 import { useProductsEdit } from '../../hooks/useProductsEdit';
 import { TagsManagerProps } from '../types/tagsTypes';
-import { useRemoveTag } from '@/settings/tags/hooks/useRemoveTag';
-import { CreateTagForm, ITag } from 'ui-modules';
+import { CreateTagForm, ITag, SelectTags } from 'ui-modules';
+import { useRemoveTag } from 'ui-modules/modules/tags/hooks/useRemoveTag';
 
 export function TagsManager({
   productId,
@@ -120,6 +120,27 @@ export function TagsManager({
     });
   };
 
+  // SelectTags.Provider reports the selected ids; CreateTagForm selects the
+  // tag it just created, so the newest id is the one that was added.
+  const handleTagsSelected = (selected: string[] | string) => {
+    const selectedIds = Array.isArray(selected) ? selected : [selected];
+    const createdId = selectedIds.find((tagId) => !tags.includes(tagId));
+
+    if (!createdId) {
+      return;
+    }
+
+    const createdTag = availableTags.find(
+      (tag: ITag | string) => typeof tag !== 'string' && tag._id === createdId,
+    );
+
+    handleTagCreated(
+      typeof createdTag === 'string' || !createdTag
+        ? { _id: createdId, name: createdId, type: 'core:product', order: '' }
+        : createdTag,
+    );
+  };
+
   return (
     <div className="space-y-4">
       <Button
@@ -134,15 +155,19 @@ export function TagsManager({
 
       {showTagCreator && (
         <div className="mb-4">
-          <CreateTagForm
+          <SelectTags.Provider
             tagType="core:product"
-            onCompleted={handleTagCreated}
-          />
+            mode="multiple"
+            value={tags}
+            onValueChange={handleTagsSelected}
+          >
+            <CreateTagForm />
+          </SelectTags.Provider>
         </div>
       )}
 
       <div className="flex flex-wrap gap-2">
-        {availableTags.map((tag) => {
+        {availableTags.map((tag: ITag | string) => {
           const tagId = typeof tag === 'string' ? tag : tag._id;
           const tagName = typeof tag === 'string' ? tag : tag.name;
 

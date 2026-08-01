@@ -1,22 +1,34 @@
 import { Form, Upload, Button, Input } from 'erxes-ui';
 import { readImage } from 'erxes-ui/utils/core';
 import { IconUpload, IconX } from '@tabler/icons-react';
-import { UseFormReturn, ControllerRenderProps } from 'react-hook-form';
+import {
+  UseFormReturn,
+  ControllerRenderProps,
+  FieldValues,
+} from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { GalleryUploader } from '../../GalleryUploader';
 import { DocumentsUploader } from '../../DocumentsUploader';
 import { AttachmentsUploader } from '../../AttachmentsUploader';
 
-type MediaFormData = {
-  thumbnail?: string | { url: string; name: string };
+/**
+ * The form fields this section reads and writes. Callers (post and page
+ * sidebars) must provide a form carrying these; cleared thumbnails are written
+ * back as null (see ThumbnailUploader) and stored thumbnails may carry no name.
+ */
+export type MediaFormData = {
+  thumbnail?: string | { url: string; name?: string; type?: string } | null;
   gallery?: string[];
   videoUrl?: string;
   documents?: string[];
   attachments?: string[];
 };
 
+// Shared by the post and page sidebars; both mount it with a FieldValues-shaped
+// form (UseFormReturn is invariant, so a narrower media-only type would not be
+// assignable from either caller).
 interface MediaSectionProps {
-  form: UseFormReturn<MediaFormData>;
+  form: UseFormReturn<FieldValues>;
 }
 
 interface FileInfo {
@@ -32,8 +44,8 @@ interface UploadValue {
 }
 
 interface ThumbnailUploaderProps {
-  field: ControllerRenderProps<MediaFormData, 'thumbnail'>;
-  form: UseFormReturn<MediaFormData>;
+  field: ControllerRenderProps<FieldValues, 'thumbnail'>;
+  form: UseFormReturn<FieldValues>;
 }
 
 export const MediaSection = ({ form }: MediaSectionProps) => {

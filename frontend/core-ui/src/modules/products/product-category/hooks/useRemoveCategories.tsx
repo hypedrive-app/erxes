@@ -1,6 +1,6 @@
 import { productsMutations, productsQueries } from '@/products/graphql';
 import { OperationVariables, useMutation, ApolloCache } from '@apollo/client';
-import { IProductCategory } from 'ui-modules';
+import { IProductCategory } from 'ui-modules/modules/products/categories/types/category';
 import { useState } from 'react';
 
 const normalizeCategoryIds = (categoryIds: string | string[]) => {

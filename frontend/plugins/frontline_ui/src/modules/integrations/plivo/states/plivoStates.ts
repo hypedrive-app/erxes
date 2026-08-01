@@ -91,3 +91,18 @@ export const plivoDialRequestAtom = atom<{
  * button that could not place a call.
  */
 export const plivoReadyAtom = atom<boolean>(false);
+
+/**
+ * Dialing code of the integration the agent is answering for, as stored on it
+ * (digits, no `+` — e.g. `'91'`).
+ *
+ * Published for the same cross-entry reason as `plivoReadyAtom`: the softphone
+ * knows which integration is selected, but the call buttons and the contact
+ * list that need to parse a number into E.164 are rendered from other
+ * federation entries and cannot read that selection any other way.
+ *
+ * `null` means no integration is selected yet, or the admin has not set a
+ * dialing code on it — see `resolvePlivoCountry`, which deliberately declines
+ * to guess a country in that case rather than assigning a wrong one.
+ */
+export const plivoDefaultCountryCodeAtom = atom<string | null>(null);

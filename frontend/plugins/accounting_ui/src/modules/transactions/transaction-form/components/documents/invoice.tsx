@@ -211,7 +211,7 @@ export const PrintInvoiceDocument = ({
                 {row?.unitPrice ? formatNumber(row.unitPrice) : ' '}
               </td>
               <td className="border border-black/60 px-2 py-1.5 text-right">
-                {formatNumber(row.amount)}
+                {row ? formatNumber(row.amount) : ' '}
               </td>
             </tr>
           ))}

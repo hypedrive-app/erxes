@@ -31,6 +31,16 @@ interface IPageItem {
   status: FixedPricingStatus;
 }
 
+// The subset of IPageItem written into the `fixedValues` field array.
+interface IFixedValueRow {
+  _id?: string;
+  productId: string;
+  sortField: string;
+  uom: string;
+  unitPrice: number;
+  newPrice: number;
+}
+
 interface IProductRow {
   _id: string;
   name: string;
@@ -170,7 +180,10 @@ export const FixedPricingTable = ({
   const [customPageSize, setCustomPageSize] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
 
-  const watchedFixedValues = useWatch({ control, name: 'fixedValues' });
+  const watchedFixedValues: IFixedValueRow[] | undefined = useWatch({
+    control,
+    name: 'fixedValues',
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {

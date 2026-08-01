@@ -17,22 +17,37 @@ const DonateOwnerSelect = ({
   value: string;
   onChange: (val: string) => void;
 }) => {
+  // The selects are in `single` mode, so they emit one id; the shared prop
+  // type still allows an array, so take the first entry when one arrives.
+  const handleValueChange = (val: string | string[] | null) => {
+    if (val === null) return onChange('');
+    onChange(Array.isArray(val) ? val[0] ?? '' : val);
+  };
+
   if (ownerType === 'company') {
     return (
-      <SelectCompany value={value} onValueChange={onChange} mode="single" />
+      <SelectCompany
+        value={value}
+        onValueChange={handleValueChange}
+        mode="single"
+      />
     );
   }
   if (ownerType === 'user') {
     return (
       <SelectMember.FormItem
         value={value}
-        onValueChange={(val) => onChange(val as string)}
+        onValueChange={handleValueChange}
         mode="single"
       />
     );
   }
   return (
-    <SelectCustomer value={value} onValueChange={onChange} mode="single" />
+    <SelectCustomer
+      value={value}
+      onValueChange={handleValueChange}
+      mode="single"
+    />
   );
 };
 

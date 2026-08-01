@@ -1,10 +1,10 @@
 import { IconBackspace } from '@tabler/icons-react';
-import { Button, Input, cn, formatPhoneNumber } from 'erxes-ui';
+import { Button, Input, cn } from 'erxes-ui';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
-import { PLIVO_DEFAULT_COUNTRY } from '@/integrations/plivo/utils/plivoPhone';
+import { sanitizeDialInput } from '@/integrations/plivo/utils/plivoPhone';
 import {
   plivoNumberAtom,
   plivoStateAtom,
@@ -30,9 +30,50 @@ export const PlivoNumberInput = () => {
   const { dial } = usePlivoDialer();
   const canCall = useCanPlaceCall();
 
-  // Enter goes through the same dialler as the Call button. Calling `startCall`
-  // with the raw atom would hand the SDK exactly what was typed — `99112233`
-  // rather than `+97699112233` — which the carrier rejects.
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Where the caret must land after the atom round-trips back into `value`.
+  // Null except on the render that follows an edit, so keypad presses and calls
+  // that clear the field do not fight the browser for the caret.
+  const caretRef = useRef<number | null>(null);
+
+  /**
+   * Keeps the field in step with the atom without stealing the caret.
+   *
+   * The displayed value IS the atom now, but sanitising still shortens the
+   * string when a paste or a keystroke carries characters a dial string cannot
+   * hold. React restores the caret to the end of the value whenever it replaces
+   * one, so editing mid-string — deleting a digit out of the middle, or pasting
+   * into it — would otherwise jump the caret to the end and send the next
+   * keystroke to the wrong place. Written in a layout effect so the correction
+   * happens before the browser paints and the caret is never seen to move.
+   */
+  useLayoutEffect(() => {
+    const caret = caretRef.current;
+    caretRef.current = null;
+
+    if (caret === null || !inputRef.current) return;
+
+    inputRef.current.setSelectionRange(caret, caret);
+  }, [number]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const selectionStart = e.target.selectionStart ?? raw.length;
+    const sanitized = sanitizeDialInput(raw);
+
+    // The caret is placed by counting how many dialable characters precede it,
+    // not by reusing the raw offset: sanitising removes characters from before
+    // the caret as well as after it, so a raw offset would drift right by one
+    // for every space or bracket a paste contributed.
+    caretRef.current = sanitizeDialInput(raw.slice(0, selectionStart)).length;
+
+    setNumber(sanitized);
+  };
+
+  // Enter goes through the same dialler as the Call button, which normalises to
+  // E.164 against the integration's country. Calling `startCall` with the raw
+  // atom would hand the SDK exactly what was typed — `9876543210` rather than
+  // `+919876543210` — which the carrier rejects.
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -49,6 +90,7 @@ export const PlivoNumberInput = () => {
             where it stole a key's worth of grid and left the last row ragged. */}
         <div className="flex items-center gap-1">
           <Input
+            ref={inputRef}
             // The number is the one thing on this surface worth reading
             // carefully, so it gets display size and tabular figures — the
             // proportional default made 1s and 7s jitter as digits arrived.
@@ -57,14 +99,17 @@ export const PlivoNumberInput = () => {
             placeholder={t('plivo-number-to-dial')}
             inputMode="tel"
             autoComplete="tel"
-            value={formatPhoneNumber({
-              value: number,
-              defaultCountry: PLIVO_DEFAULT_COUNTRY,
-            })}
-            // The displayed value is grouped by `AsYouType`, so an edit hands back
-            // a string with EVERY grouping space in it. Stripping only the first
-            // (`replace`) left the rest embedded in the atom.
-            onChange={(e) => setNumber(e.target.value.replace(/\s/g, ''))}
+            // The atom is shown VERBATIM. It used to be displayed through
+            // `formatPhoneNumber`, which regroups it with `AsYouType` — so the
+            // field showed `98765 43210` while the atom held `9876543210`, and
+            // the two disagreed on every keystroke. That mismatch is what made
+            // the caret jump to the end mid-edit and made backspacing over a
+            // grouping space look like it did nothing: the space was deleted
+            // and immediately re-inserted by the next format pass. Display
+            // formatting is not worth reintroducing here at the price of
+            // fighting the field's own editing model on every character.
+            value={number}
+            onChange={handleChange}
           />
           <PlivoNumberInputButton
             className="size-11 flex-none [&>svg]:size-5"

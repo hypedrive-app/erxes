@@ -20,7 +20,6 @@ export const MSDynamicCheckProductsRecordTable = () => {
       data={filteredProducts}
       className="h-full w-full px-2 overflow-y-auto"
       stickyColumns={['checkbox']}
-      commandBar={<MSDynamicCheckProductsCommandBar />}
     >
       <RecordTable.CursorProvider
         hasPreviousPage={hasPreviousPage}
@@ -61,6 +60,7 @@ export const MSDynamicCheckProductsRecordTable = () => {
           </div>
         )}
       </RecordTable.CursorProvider>
+      <MSDynamicCheckProductsCommandBar />
     </RecordTable.Provider>
   );
 };

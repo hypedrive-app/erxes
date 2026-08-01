@@ -7,24 +7,30 @@ import { getNodeColor } from '@/automations/utils/automationBuilderUtils/getNode
 import { cn, Command, IconComponent } from 'erxes-ui';
 import React from 'react';
 
+// Every row renders an icon and a description. Workflow templates whose
+// description is optional upstream pass an empty string.
 export type TNodeLibraryRowItem = {
   type: string;
   label: string;
-  description?: string;
-  icon?: string;
+  description: string;
+  icon: string;
 } & Record<string, any>;
 
-interface NodeLibraryRowProps {
+// Generic over the row's node kind, so a caller that only handles a subset
+// (e.g. trigger/action) can type its handler for exactly that subset.
+interface NodeLibraryRowProps<
+  TNodeType extends AutomationNodeType = AutomationNodeType,
+> {
   item: TNodeLibraryRowItem;
-  nodeType: AutomationNodeType;
+  nodeType: TNodeType;
   draggable?: boolean;
   rightElement?: React.ReactNode;
   onDragStart?: (
     event: React.DragEvent<HTMLDivElement>,
-    { type, label, description, icon, isCustom }: any,
+    draggingNode: TNodeLibraryRowItem & { nodeType: TNodeType },
   ) => void;
   onSelectNode: (
-    node: TNodeLibraryRowItem & { nodeType: AutomationNodeType },
+    node: TNodeLibraryRowItem & { nodeType: TNodeType },
   ) => void;
 }
 
@@ -112,14 +118,16 @@ const createDragGhost = ({
   return ghost;
 };
 
-export const NodeLibraryRow = ({
+export const NodeLibraryRow = <
+  TNodeType extends AutomationNodeType = AutomationNodeType,
+>({
   item,
   onDragStart,
   onSelectNode,
   nodeType,
   draggable = true,
   rightElement,
-}: NodeLibraryRowProps) => {
+}: NodeLibraryRowProps<TNodeType>) => {
   const { icon: iconName, label, description } = item;
   const { hoveredRowId, draggingNode } = useDnDMetaState();
   const { setHoveredRowId, startDragging, reset } = useDnDActions();

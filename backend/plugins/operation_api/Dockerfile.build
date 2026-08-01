@@ -1,0 +1,179 @@
+# operation_api — self-contained build from a CLEAN GIT CHECKOUT.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHY THIS FILE EXISTS ALONGSIDE ./Dockerfile
+# ─────────────────────────────────────────────────────────────────────────────
+# The sibling `Dockerfile` is a PACKAGING-ONLY recipe: it COPYs
+#   backend/plugins/operation_api/dist
+#   backend/erxes-api-shared/{dist,utils,core-types,core-modules}
+# and never compiles anything. Every one of those paths is gitignored
+# (/.gitignore "dist" + backend/erxes-api-shared/.gitignore "dist"; the
+# utils/core-types/core-modules dirs track only a package.json stub), so
+# `docker build -f Dockerfile` against a fresh `git clone` fails at COPY.
+# It only works on a workstation that already ran `pnpm nx build operation_api`.
+#
+# Dokploy builds from a clean git checkout, so it needs a recipe that compiles.
+# This file is ADDITIVE rather than a rewrite of `Dockerfile` because that file
+# is what `project.json`'s `docker-build` target (dependsOn: ["build"]) invokes.
+# Two recipes, two audiences. Same split core-api, gateway and frontline_api
+# already use — see backend/plugins/frontline_api/Dockerfile.build, which this
+# file mirrors deliberately; keep the family in sync.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD CONTEXT IS THE REPO ROOT
+# ─────────────────────────────────────────────────────────────────────────────
+#   docker build -f backend/plugins/operation_api/Dockerfile.build .
+# Nx, the pnpm workspace, and tsconfig.base.json path aliases all resolve from
+# the root, so the whole monorepo has to be in context.
+#
+# The runtime stage below is deliberately byte-for-byte the same LAYOUT the
+# sibling Dockerfile produces (flattened node_modules + a hand-assembled
+# node_modules/erxes-api-shared + dist at /app/dist), so the two images are
+# drop-in interchangeable and `CMD node dist/src/main.js` is unchanged.
+
+# ── Stage 1: compile the workspace ───────────────────────────────────────────
+FROM node:22-alpine3.22 AS build
+WORKDIR /app
+
+# Nx's daemon adds no value in a single-shot container build and is a known
+# source of flaky "project graph" races; disable it outright.
+#
+# NX_SOCKET_DIR is NOT redundant with NX_DAEMON=false. Nx asserts every IPC
+# socket path is <= 95 chars (daemon/socket-utils.js assertValidSocketPath) and
+# derives the default from a hash under $TMPDIR. pnpm's virtual store produces
+# paths long enough to blow past it, and two of the three callers —
+# getForkedProcessOsSocketPath and, critically, getPluginOsSocketPath — are on
+# the PLUGIN-WORKER path, which nx.json's inference plugins exercise while
+# building the project graph EVEN WITH THE DAEMON OFF. The thrown error is then
+# reported as the generic, cause-free
+#   NX  Failed to process project graph. Run "nx reset" to fix this.
+# Pinning a short dir removes the whole failure class. Upstream: nrwl/nx#27725,
+# nrwl/nx#31280. Full write-up in frontline_api/Dockerfile.build.
+ENV NX_DAEMON=false \
+    NX_SOCKET_DIR=/tmp/nx-sock \
+    NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
+    CI=true
+
+RUN npm install -g pnpm@9
+
+# Full dev install: the build needs typescript, tsc-alias, preconstruct and the
+# Nx toolchain, none of which survive a --prod install. This whole stage is
+# discarded — only the compiled dist/ is carried forward.
+#
+# COPY THE WHOLE TREE, not a curated subset. nx.json registers the @nx/eslint
+# and @nx/jest inference plugins, which load eslint.config.js, jest.config.ts
+# and jest.preset.js FROM THE ROOT while crawling the graph; a curated COPY list
+# omits them and the build dies with a cause-free "Failed to process project
+# graph". .dockerignore already strips node_modules/dist/.git/.nx.
+COPY . .
+
+# --frozen-lockfile: a deploy must fail loudly on a stale pnpm-lock.yaml rather
+# than silently resolving different versions than were tested.
+RUN pnpm install --frozen-lockfile
+
+# erxes-api-shared FIRST and as its own layer. operation_api's build only
+# type-checks against it via tsconfig paths, so Nx's `dependsOn: ["^build"]`
+# has historically been able to interleave the two; forcing the order here
+# removes that race from the deploy path entirely.
+RUN pnpm nx build erxes-api-shared
+
+# tsc + tsc-alias -> backend/plugins/operation_api/dist/src/main.js
+RUN pnpm nx build operation_api
+
+# Fail loudly HERE rather than shipping an image whose CMD instantly exits.
+#
+# Only main.js is asserted. Do NOT add an assertion on a specific
+# erxes-api-shared/*/dist/*.cjs.js filename: `preconstruct dev` writes .d.ts
+# re-export stubs pointing back at ../src, while `preconstruct build` writes
+# real .cjs.js bundles. Both are valid states of that directory, so filename
+# assertions there produce false failures.
+RUN test -f backend/plugins/operation_api/dist/src/main.js \
+    && echo "operation_api build OK"
+
+# ── Stage 2: production dependency tree, flattened ───────────────────────────
+# Identical technique to the sibling Dockerfile: synthesise a single-package
+# manifest that unions the shared library's deps with the plugin's own, drop the
+# `workspace:^` self-reference, and --shamefully-hoist so node's plain CommonJS
+# resolver can walk a real flat node_modules with no pnpm symlink store in the
+# runtime image.
+FROM node:22-alpine3.22 AS installer
+WORKDIR /app
+RUN npm install -g pnpm@9
+
+COPY pnpm-lock.yaml ./
+COPY backend/plugins/operation_api/package.json backend/plugins/operation_api/
+COPY backend/erxes-api-shared/package.json backend/erxes-api-shared/
+RUN node -e "\
+const fs = require('fs'); \
+const shared = require('./backend/erxes-api-shared/package.json'); \
+const service = require('./backend/plugins/operation_api/package.json'); \
+const dependencies = { \
+  ...(shared.dependencies || {}), \
+  ...(service.dependencies || {}), \
+}; \
+delete dependencies['erxes-api-shared']; \
+fs.writeFileSync( \
+  'package.json', \
+  JSON.stringify( \
+    { name: 'runtime-deps', version: '1.0.0', private: true, dependencies }, \
+    null, \
+    2, \
+  ), \
+); \
+" \
+    && pnpm install --prod --shamefully-hoist --no-frozen-lockfile \
+    && find node_modules -type f \( \
+         -name "*.d.ts" -o -name "*.map" -o -name "*.md" \
+         -o -name "LICENSE*" -o -name "LICENCE*" \
+         -o -name "CHANGELOG*" -o -name "README*" \
+         -o -name "CONTRIBUTING*" -o -name "AUTHORS*" \
+         -o -name ".npmignore" -o -name ".eslintrc*" -o -name "Makefile" \
+       \) -delete \
+    && find node_modules -mindepth 2 -maxdepth 3 -type d \( \
+         -name "test" -o -name "tests" -o -name "__tests__" -o -name "spec" \
+         -o -name "docs" -o -name "doc" -o -name "examples" -o -name "example" \
+         -o -name ".github" -o -name "coverage" \
+       \) -prune -exec rm -rf {} \; 2>/dev/null || true
+
+# ── Stage 3: minimal runtime ─────────────────────────────────────────────────
+FROM node:22-alpine3.22
+WORKDIR /app
+
+COPY --from=installer /app/node_modules ./node_modules
+
+# The flat install above may have pulled a REGISTRY copy of erxes-api-shared
+# (the name is published). Replace it wholesale with the workspace build so the
+# plugin cannot silently link against a stale published version.
+RUN rm -rf ./node_modules/erxes-api-shared
+COPY --from=build /app/backend/erxes-api-shared/dist ./node_modules/erxes-api-shared/dist
+COPY --from=build /app/backend/erxes-api-shared/utils ./node_modules/erxes-api-shared/utils
+COPY --from=build /app/backend/erxes-api-shared/core-types ./node_modules/erxes-api-shared/core-types
+COPY --from=build /app/backend/erxes-api-shared/core-modules ./node_modules/erxes-api-shared/core-modules
+COPY --from=build /app/backend/erxes-api-shared/package.json ./node_modules/erxes-api-shared/
+
+COPY --from=build /app/backend/plugins/operation_api/dist ./dist
+
+ENV NODE_ENV=production
+USER 1000
+
+# ── HEALTHCHECK ──────────────────────────────────────────────────────────────
+# LOAD-BEARING, not cosmetic. The gateway's retryGetProxyTargets() blocks on
+# EVERY name in ENABLED_PLUGINS and calls process.exit(1) if any of them is
+# still missing after MAX_PLUGIN_RETRY tries, so an operation that never becomes
+# ready takes core GraphQL down with it. deploy/docker-compose.yml gates
+# `gateway` on `plugin-operation-api: {condition: service_healthy}` to keep the
+# gateway from burning its finite retry budget against a merely-slow plugin.
+#
+# /health is a MEANINGFUL readiness signal, not just a liveness ping:
+# erxes-api-shared/src/utils/start-plugin.ts mounts the Apollo subgraph on
+# /graphql and only THEN calls httpServer.listen(). A 200 from /health
+# therefore implies /graphql is mounted and introspectable.
+#
+# Port 3307 matches startPlugin({name:'operation', port:3307}) in src/main.ts.
+#
+# Uses `node` rather than curl/wget: this is a bare node:22-alpine runtime and
+# neither is guaranteed. A non-2xx status exits 1 so Docker sees "unhealthy".
+HEALTHCHECK --interval=10s --timeout=5s --start-period=180s --retries=12 \
+  CMD ["node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3307)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+
+CMD ["node", "dist/src/main.js"]

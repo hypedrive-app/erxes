@@ -41,6 +41,9 @@ const USER_SUBMIT_SCHEMA = z.object({
           message: 'Please fill a valid email address',
         })
         .default(''),
+      // Optional: when left blank the invitee sets their own password while
+      // confirming the invitation.
+      password: z.string().default(''),
       // groupId: z.string({ required_error: 'Required field' }),
       // channelIds: z.string().array().optional(),
       // unitId: z.string().optional(),

@@ -560,8 +560,8 @@ export const VendorDetailPage = () => {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {vendorDurationFields.map((field) => (
-                    <div key={field.key} className="flex gap-2 items-end">
+                  {vendorDurationFields.map((field, index) => (
+                    <div key={index} className="flex gap-2 items-end">
                       <div className="flex-1">
                         <Label className="text-xs">{t('duration')}</Label>
                         <Input
@@ -644,11 +644,8 @@ export const VendorDetailPage = () => {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {discountTiers.map((tier) => (
-                    <div
-                      key={tier.minTravelers}
-                      className="flex gap-2 items-end"
-                    >
+                  {discountTiers.map((tier, index) => (
+                    <div key={index} className="flex gap-2 items-end">
                       <div className="flex-1">
                         <Label className="text-xs">Хүний тоо (≥)</Label>
                         <Input

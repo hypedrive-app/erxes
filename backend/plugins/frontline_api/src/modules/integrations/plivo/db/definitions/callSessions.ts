@@ -45,6 +45,12 @@ export const callSessionSchema = new Schema({
       'no-answer',
       'busy',
       'failed',
+      // Terminal, and deliberately NOT one of the outcomes above: it means the
+      // hangup callback never arrived and we genuinely do not know how the call
+      // ended. Marking such a row `completed` would fabricate an outcome — and a
+      // fabricated `completed` with no duration is worse than an honest unknown.
+      // Written only by the reaper (see reapStaleCallSessions).
+      'unknown',
     ],
     index: true,
     label: 'Latest known call status',

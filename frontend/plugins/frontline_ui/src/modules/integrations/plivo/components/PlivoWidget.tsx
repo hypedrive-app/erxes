@@ -26,6 +26,7 @@ import { usePlivo } from '@/integrations/plivo/components/PlivoProvider';
 import { PlivoTabs } from '@/integrations/plivo/components/PlivoTabs';
 import { PlivoTriggerContent } from '@/integrations/plivo/components/PlivoTriggerContent';
 import { PlivoWidgetDraggableRoot } from '@/integrations/plivo/components/PlivoWidgetDraggable';
+import { usePlivoCountry } from '@/integrations/plivo/hooks/usePlivoCountry';
 import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
 import { usePlivoSoftphoneIntegrations } from '@/integrations/plivo/hooks/usePlivoSoftphoneIntegrations';
 import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
@@ -48,13 +49,14 @@ export const PlivoDialpad = () => {
   const { plivoStatus, plivoErrorMessage } = useAtomValue(plivoStateAtom);
   const canCall = useCanPlaceCall();
   const { dial, isReady } = usePlivoDialer();
+  const country = usePlivoCountry();
   const { integrations, integrationId, selectIntegration } =
     usePlivoSoftphoneIntegrations();
 
   // Typed digits are dialled through the same normaliser as every other call
   // surface, so a number entered without a country code still reaches E.164
   // instead of being handed to the SDK as typed.
-  const isDialable = !!toDialableNumber(number);
+  const isDialable = !!toDialableNumber(number, country);
   const isDisabled = !isDialable || !canCall;
 
   // A greyed-out Call button with no explanation is the worst version of this

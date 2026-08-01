@@ -48,7 +48,7 @@ export const WorkflowNodeLibraryContent = () => {
             item={{
               type: template._id,
               label: template.name,
-              description: template.description,
+              description: template.description ?? '',
               icon: 'IconArrowsSplit2',
             }}
             onSelectNode={() => insertTemplate(template)}

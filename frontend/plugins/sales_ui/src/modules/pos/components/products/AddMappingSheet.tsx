@@ -86,10 +86,10 @@ export const AddMappingSheet: React.FC<AddMappingSheetProps> = ({
 
   const isEditing = !!editingMapping;
 
-  const handleCategorySelect: React.ReactEventHandler<HTMLButtonElement> &
-    ((categoryId: string) => void) = (value) => {
-    const categoryId =
-      typeof value === 'string' ? value : value?.currentTarget?.value;
+  // SelectCategory is used in single mode here, but its shared prop type also
+  // allows an array, so take the first entry when one arrives.
+  const handleCategorySelect = (value: string[] | string) => {
+    const categoryId = Array.isArray(value) ? value[0] : value;
 
     if (categoryId) {
       form.setValue('categoryId', categoryId);
@@ -120,7 +120,7 @@ export const AddMappingSheet: React.FC<AddMappingSheetProps> = ({
               <Label htmlFor="categoryId">{t('PRODUCT-CATEGORY')}</Label>
               <SelectCategory
                 selected={form.watch('categoryId')}
-                onSelect={handleCategorySelect}
+                onValueChange={handleCategorySelect}
               />
             </div>
 

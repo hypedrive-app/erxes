@@ -18,7 +18,7 @@ import {
 } from 'erxes-ui';
 
 import {
-  SelectTriggerVariant,
+  SelectTriggerVariantType,
   SelectTrigger,
   SelectContent,
 } from './SelectShared';
@@ -304,7 +304,7 @@ const SelectSalesBoardRoot = ({
   disabled,
 }: {
   value: string;
-  variant?: `${SelectTriggerVariant}`;
+  variant?: SelectTriggerVariantType;
   scope?: string;
   onValueChange?: (value: string) => void;
   disabled?: boolean;

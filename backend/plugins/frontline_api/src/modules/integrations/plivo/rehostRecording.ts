@@ -3,7 +3,7 @@ import { promises as fsPromises } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { uploadFileToStorage } from 'erxes-api-shared/utils';
-import { debugError, debugPlivo } from '@/integrations/plivo/debuggers';
+import { debugPlivo } from '@/integrations/plivo/debuggers';
 
 /**
  * A recording Plivo hosts, copied into erxes storage so it outlives Plivo's
@@ -30,11 +30,46 @@ const MAX_RECORDING_BYTES = 100 * 1024 * 1024;
  */
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 
+/**
+ * Delays before each retry of the download, in milliseconds.
+ *
+ * Plivo posts the recording callback the moment `<Record>` ends, BEFORE the mp3
+ * is readable on its media host — the file is published asynchronously. Measured
+ * against production rows on 2026-07-31, our write landed 181-271ms after the
+ * `add_time` the Recording API reports, and in one case ~2s BEFORE it, and every
+ * one of those downloads came back 403. Plivo answers a not-yet-published
+ * recording with 403 (not 404), which is indistinguishable from a genuine auth
+ * failure by status alone, so the only safe reading is "not ready yet, come
+ * back".
+ *
+ * Without this wait every single recording fell back to the provider URL and
+ * nothing was ever copied into erxes storage. The schedule is deliberately
+ * back-loaded: the first attempt almost always fails because it races the
+ * publish, so the useful attempts are the later ones. Total added latency on a
+ * genuinely missing recording is ~31s, which is acceptable in a webhook that has
+ * already been acknowledged.
+ */
+const RETRY_DELAYS_MS = [1_000, 3_000, 7_000, 20_000] as const;
+
 /** Plivo writes WAV by default and MP3 when the application asks for it. */
 const MIME_BY_EXTENSION: Record<string, string> = {
   wav: 'audio/wav',
   mp3: 'audio/mpeg',
 };
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Statuses that mean "the recording is not on the media host yet".
+ *
+ * 403 is the one Plivo actually returns for an unpublished recording — verified
+ * against a recording id that does not exist, which also answers 403 rather than
+ * 404. 404 and 5xx are included because they are retryable for the same reason:
+ * the object is not servable yet and may be a moment later.
+ */
+const isRetryableStatus = (status: number): boolean =>
+  status === 403 || status === 404 || status === 429 || status >= 500;
 
 const getErrorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e);
@@ -133,19 +168,58 @@ export const rehostPlivoRecording = async (
       ).toString('base64')}`;
     }
 
-    const response = await fetchRecording(recordUrl, {
-      headers,
-      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    });
+    let buffer: Buffer | undefined;
+    let lastFailure = '';
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    // One attempt per delay, plus the immediate one: the recording is usually
+    // published within a few seconds of the callback, but never by the time it
+    // arrives.
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      if (attempt > 0) {
+        await delay(RETRY_DELAYS_MS[attempt - 1]);
+      }
+
+      try {
+        const response = await fetchRecording(recordUrl, {
+          headers,
+          signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+        });
+
+        if (!response.ok) {
+          lastFailure = `HTTP ${response.status}`;
+
+          if (isRetryableStatus(response.status)) {
+            continue;
+          }
+
+          throw new Error(lastFailure);
+        }
+
+        const body = Buffer.from(await response.arrayBuffer());
+
+        // A zero-length 200 is the same "published but not written yet" race in
+        // a different disguise, so it is worth another attempt rather than an
+        // immediate fallback.
+        if (!body.byteLength) {
+          lastFailure = 'Recording body was empty';
+          continue;
+        }
+
+        buffer = body;
+        break;
+      } catch (e) {
+        // A timeout or socket error is transient in exactly the same way; the
+        // loop is the retry for it too. The last one falls through below.
+        lastFailure = getErrorMessage(e);
+      }
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-
-    if (!buffer.byteLength) {
-      throw new Error('Recording body was empty');
+    if (!buffer) {
+      throw new Error(
+        `Recording was still unavailable after ${
+          RETRY_DELAYS_MS.length + 1
+        } attempts: ${lastFailure}`,
+      );
     }
 
     if (buffer.byteLength > MAX_RECORDING_BYTES) {
@@ -179,11 +253,17 @@ export const rehostPlivoRecording = async (
   } catch (e) {
     const failureReason = getErrorMessage(e);
 
+    // console.error, NOT the `debug` namespace this used to use: `debug` writes
+    // nothing unless DEBUG enables the namespace, and DEBUG is unset in the
+    // container — so every one of these failures was invisible in production
+    // while recordings silently kept only a provider URL that Plivo deletes
+    // after 90 days. A data-loss fallback has to be loud.
+    //
     // The URL is logged so an operator can retry by hand; it carries no
     // credentials, unlike the auth token which is never logged.
-    debugError(
-      `Failed to re-host Plivo recording ${recordUrl} for call ${callUuid}, ` +
-        `keeping the provider URL: ${failureReason}`,
+    console.error(
+      `[plivo] Failed to re-host recording ${recordUrl} for call ${callUuid}, ` +
+        `keeping the provider URL (expires ~90d): ${failureReason}`,
     );
 
     return { failureReason };

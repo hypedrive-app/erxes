@@ -7,8 +7,10 @@ export const BroadcastEditor = ({
   attribute = false,
   document = false,
 }: {
-  value: string;
-  onChange: (value: string) => void;
+  /** Present so the editor can be spread a react-hook-form field; the editor
+   * keeps its own document state and only reports changes back. */
+  value?: string;
+  onChange?: (value: string) => void;
   attribute?: boolean;
   document?: boolean;
 }) => {
@@ -16,7 +18,7 @@ export const BroadcastEditor = ({
 
   useEffect(() => {
     const unsubscribe = editor.onChange(async (editor: IBlockEditor) => {
-      onChange(JSON.stringify(editor.document));
+      onChange?.(JSON.stringify(editor.document));
     });
 
     return unsubscribe;

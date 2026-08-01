@@ -6,6 +6,7 @@ export const PLIVO_SOFTPHONE_INTEGRATIONS = gql`
       _id
       name
       phoneNumber
+      defaultCountryCode
     }
   }
 `;

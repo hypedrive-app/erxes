@@ -1,6 +1,12 @@
 import { useQuery, useMutation, MutationHookOptions } from '@apollo/client';
 import { queries, mutations } from '../graphql';
-import { InsuranceVendor } from '../types';
+import { DiscountTier, InsuranceVendor } from '../types';
+
+/** Per-vendor pricing override: a flat rate and/or rates keyed by duration. */
+export interface VendorPricingOverride {
+  percentage?: number;
+  percentageByDuration?: Record<string, number>;
+}
 
 export function useVendors() {
   const { data, loading, error, refetch } = useQuery(queries.VENDORS);
@@ -63,12 +69,22 @@ export function useUpdateVendor(
 export function useAddProductToVendor(
   options?: MutationHookOptions<
     { addProductToVendor: InsuranceVendor },
-    { vendorId: string; productId: string; pricingOverride?: any }
+    {
+      vendorId: string;
+      productId: string;
+      pricingOverride?: VendorPricingOverride | null;
+      discountTiers?: DiscountTier[];
+    }
   >,
 ) {
   const [addProductToVendor, { loading, error }] = useMutation<
     { addProductToVendor: InsuranceVendor },
-    { vendorId: string; productId: string; pricingOverride?: any }
+    {
+      vendorId: string;
+      productId: string;
+      pricingOverride?: VendorPricingOverride | null;
+      discountTiers?: DiscountTier[];
+    }
   >(mutations.ADD_PRODUCT_TO_VENDOR, {
     refetchQueries: ['Vendors', 'Vendor'],
     ...options,

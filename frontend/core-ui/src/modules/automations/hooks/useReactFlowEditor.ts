@@ -99,7 +99,15 @@ export const useReactFlowEditor = () => {
           x: entryNode.position.x - 260,
           y: entryNode.position.y,
         },
-        data: {},
+        // Presentational marker: WorkflowInputNode reads its inputs from the
+        // workflow edit scope, not from node data.
+        data: {
+          id: WORKFLOW_INPUT_NODE_ID,
+          nodeIndex: 0,
+          label: 'Input',
+          nodeType: AutomationNodeType.Workflow,
+          type: 'workflowInput',
+        },
       });
     }
 

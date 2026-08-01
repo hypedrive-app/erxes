@@ -21,7 +21,13 @@
     "src/**/*.spec.js",
     "src/**/*.test.js",
     "src/**/*.spec.jsx",
-    "src/**/*.test.jsx"
+    "src/**/*.test.jsx",
+    "../libs/erxes-ui/src/**/*.stories.ts",
+    "../libs/erxes-ui/src/**/*.stories.tsx",
+    "../libs/erxes-ui/src/**/__stories__/**",
+    "../libs/ui-modules/src/**/*.stories.ts",
+    "../libs/ui-modules/src/**/*.stories.tsx",
+    "../libs/ui-modules/src/**/__stories__/**"
   ],
   "include": [
     "src/**/*",

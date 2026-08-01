@@ -99,10 +99,7 @@ export const ClientPortalDetailTest = ({
                     <Input
                       value={
                         field.value
-                          ? formatPhoneNumber({
-                              value: field.value,
-                              defaultCountry: 'MN',
-                            })
+                          ? formatPhoneNumber({ value: field.value })
                           : ''
                       }
                       onChange={(e) => field.onChange(e.target.value)}

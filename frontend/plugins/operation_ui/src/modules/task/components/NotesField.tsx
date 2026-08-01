@@ -1,4 +1,4 @@
-import { NoteInputReadOnly } from '@/task/components/NoteInputReadOnly';
+import { NoteInputReadOnly } from '@/activity/components/NoteInputReadOnly';
 import { NoteInput } from '@/activity/components/NoteInput';
 import { useActivities } from '@/activity/hooks/useActivities';
 
@@ -12,8 +12,6 @@ export const NotesField = ({ contentId }: { contentId: string }) => {
           <NoteInputReadOnly
             key={activity._id}
             newValueId={activity.metadata?.newValue}
-            authorId={activity.createdBy}
-            createdAt={activity.createdAt?.toLocaleString()}
           />
         ))}
       <NoteInput contentId={contentId} />

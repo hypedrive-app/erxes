@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import List from '../components/List';
 import { queries } from '../graphql';
 import { StatementQueryResponse } from '../types';
-import { getRawAccountNumber } from '../../../../utils';
+import { getRawAccountNumber } from '../../../utils';
 
 type Props = {
   queryParams: any;

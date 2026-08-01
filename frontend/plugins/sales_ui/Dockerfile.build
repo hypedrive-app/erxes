@@ -1,0 +1,108 @@
+# sales_ui — Module Federation remote, built from a CLEAN GIT CHECKOUT and
+# served by nginx.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# WHY A CONTAINER AT ALL — UI PLUGINS ARE NORMALLY CDN ARTIFACTS
+# ─────────────────────────────────────────────────────────────────────────────
+# Upstream never containerises a UI plugin: its CI builds the remote on the
+# runner and `aws s3 sync`s dist/frontend/plugins/<plugin>_ui to erxes' R2
+# bucket behind plugins.erxes.io. We cannot use that CDN — `origin` here is
+# github.com/hypedrive-app/erxes, a FORK, and the build on plugins.erxes.io is
+# upstream's, whose GraphQL documents need not match our sales_api schema.
+# Publishing to our own R2 bucket would work but adds a second deploy channel
+# (CI creds, bucket, custom domain) for one artifact. Dokploy already clones
+# this repo and runs compose, so serving the same `dist/` from a container in
+# the same stack is strictly less moving parts.
+#
+# This mirrors frontend/plugins/frontline_ui/Dockerfile.build, which was the
+# first of these. Keep the family in sync.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THE URL LAYOUT IS LOAD-BEARING: /<version>/sales_ui/remoteEntry.js
+# ─────────────────────────────────────────────────────────────────────────────
+# core-api answers GET /get-frontend-plugins with
+#   `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
+# (backend/core-api/src/modules/organization/routes.ts). `version` comes from
+# getPluginVersion() = `pluginInfo?.config?.releaseVersion || 'latest'`, so with
+# no releaseVersion configured the browser requests
+#   ${PLUGIN_CDN_URL}/latest/sales_ui/remoteEntry.js
+# The COPY below therefore lands the build at
+#   /usr/share/nginx/html/latest/sales_ui/
+# which reproduces the exact `$FOLDER/sales_ui/` shape the CI s3 sync creates.
+# Keep the two in lockstep: this path IS the contract with routes.ts.
+#
+# `latest` is baked rather than parameterised on purpose. It is the value
+# getPluginVersion() falls back to, and the erxes admin UI can set a per-plugin
+# releaseVersion at runtime — but a container can only serve directories that
+# exist at build time, so honouring an arbitrary runtime version would require
+# fetching artifacts on boot. If you ever set a releaseVersion in the org
+# config, add a matching directory here; otherwise leave it alone.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD COST (measured, not estimated)
+# ─────────────────────────────────────────────────────────────────────────────
+# MEASURED via `/usr/bin/time -v pnpm nx build sales_ui --skip-nx-cache` on this
+# tree: peak RSS 1.69 GB, ~21 s wall, 7.5 MB of output. That is the same
+# order as frontline_ui (1.88 GB) and an order of magnitude below the backend
+# plugin builds, which are reported to peak near 13.9 GB. The gap is what
+# matters for deploy safety: an OOMed compose build wedges Dokploy's queue
+# (dokploy#4461) with no working Cancel, taking the whole stack down.
+# The `pnpm install` in stage 1 is the dominant cost, not the compile.
+#
+# NOTE ON TYPECHECK: `nx build sales_ui` is an @nx/rspack:rspack target and does
+# NOT gate on `tsc`. sales_ui currently has 4 known type errors confined to its
+# POS module (IPos lacks a `type` field; a stale SalesFilter call site). They do
+# not fail this build — verified, exit 0 — and POS is not deployed here. Do not
+# "fix" them from this file; if a typecheck target is ever added to the build
+# chain, this image will start failing and that is the correct signal.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD CONTEXT IS THE REPO ROOT
+# ─────────────────────────────────────────────────────────────────────────────
+#   docker build -f frontend/plugins/sales_ui/Dockerfile.build .
+# Nx, the pnpm workspace and tsconfig.base.json aliases only resolve from the
+# root. Named `.build` for symmetry with
+# backend/plugins/sales_api/Dockerfile.build.
+
+# ── Stage 1: compile the remote ──────────────────────────────────────────────
+FROM node:22-alpine3.22 AS build
+WORKDIR /app
+
+# Same Nx environment as backend/plugins/sales_api/Dockerfile.build — see that
+# file's header for why NX_SOCKET_DIR is NOT redundant with NX_DAEMON=false (nx
+# asserts socket paths <= 95 chars and pnpm's virtual store blows past it on the
+# plugin-worker path, surfacing as a cause-free "Failed to process project
+# graph").
+ENV NX_DAEMON=false \
+    NX_SOCKET_DIR=/tmp/nx-sock \
+    NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
+    CI=true
+
+RUN npm install -g pnpm@9
+
+# Whole tree, not a curated subset: nx.json's inference plugins load
+# eslint.config.js / jest.config.ts / jest.preset.js from the ROOT while
+# crawling the project graph. .dockerignore already strips node_modules, dist,
+# .git and .nx. Same trap documented at length in sales_api/Dockerfile.build.
+COPY . .
+
+RUN pnpm install --frozen-lockfile
+
+# rspack + Module Federation -> dist/frontend/plugins/sales_ui/
+RUN pnpm nx build sales_ui
+
+# Fail HERE rather than shipping an nginx that 404s the one file that matters.
+RUN test -f dist/frontend/plugins/sales_ui/remoteEntry.js \
+    && echo "sales_ui build OK"
+
+# ── Stage 2: static server ───────────────────────────────────────────────────
+FROM nginx:alpine
+
+# See the URL-layout note above: this directory shape is the contract with
+# core-api's remoteEntry() helper, not a stylistic choice.
+COPY --from=build /app/dist/frontend/plugins/sales_ui \
+                  /usr/share/nginx/html/latest/sales_ui
+
+COPY frontend/plugins/sales_ui/nginx/default.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

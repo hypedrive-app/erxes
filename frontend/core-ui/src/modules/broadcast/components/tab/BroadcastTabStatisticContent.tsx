@@ -8,6 +8,7 @@ import {
   IconMailOpened,
   IconMoodSad,
   IconXboxXFilled,
+  type Icon,
 } from '@tabler/icons-react';
 import { Badge } from 'erxes-ui';
 import { BROADCAST_NOTIFICATION_STATISTIC } from '../../constants';
@@ -124,12 +125,22 @@ export const BroadcastTabStatisticContent = ({ message }: { message: any }) => {
   );
 };
 
+/** Shape shared by the email and notification statistic catalogs. */
+type IBroadcastStatistic = Record<
+  string,
+  {
+    title: string;
+    description: string;
+    icon: Icon;
+  }
+>;
+
 export const BroadcastTabStatistics = ({
   stats,
   statisticConfig = EMAIL_DETAIL_STATISTIC,
 }: {
   stats: Record<string, number>;
-  statisticConfig?: typeof EMAIL_DETAIL_STATISTIC;
+  statisticConfig?: IBroadcastStatistic;
 }) => {
   return (
     <div className="grid grid-cols-3 gap-4">

@@ -29,12 +29,12 @@ export function useInsuranceType(id: string) {
 export function useCreateInsuranceType(
   options?: MutationHookOptions<
     { createInsuranceType: InsuranceType },
-    { name: string; attributes?: AttributeInput[] }
+    { name: string; isCitizen?: boolean; attributes?: AttributeInput[] }
   >,
 ) {
   const [createInsuranceType, { loading, error }] = useMutation<
     { createInsuranceType: InsuranceType },
-    { name: string; attributes?: AttributeInput[] }
+    { name: string; isCitizen?: boolean; attributes?: AttributeInput[] }
   >(mutations.CREATE_INSURANCE_TYPE, {
     refetchQueries: ['InsuranceTypes'],
     ...options,
@@ -46,12 +46,12 @@ export function useCreateInsuranceType(
 export function useUpdateInsuranceType(
   options?: MutationHookOptions<
     { updateInsuranceType: InsuranceType },
-    { id: string; name?: string; attributes?: AttributeInput[] }
+    { id: string; name?: string; isCitizen?: boolean; attributes?: AttributeInput[] }
   >,
 ) {
   const [updateInsuranceType, { loading, error }] = useMutation<
     { updateInsuranceType: InsuranceType },
-    { id: string; name?: string; attributes?: AttributeInput[] }
+    { id: string; name?: string; isCitizen?: boolean; attributes?: AttributeInput[] }
   >(mutations.UPDATE_INSURANCE_TYPE, {
     refetchQueries: ['InsuranceTypes', 'InsuranceType'],
     ...options,

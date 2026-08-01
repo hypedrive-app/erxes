@@ -2,6 +2,7 @@ import { useActivityListContext } from '@/activity/context/ActivityListContext';
 import { IActivity } from '@/activity/types';
 import { ITask } from '@/task/types';
 import { IProject } from '@/project/types';
+import { ITriage } from '@/triage/types/triage';
 import { useGetStatusByTeam } from '@/task/hooks/useGetStatusByTeam';
 import { Badge } from 'erxes-ui';
 import {
@@ -10,8 +11,13 @@ import {
 } from '@/operation/components/StatusInline';
 import { useTranslation } from 'react-i18next';
 
-const isTask = (content: ITask | IProject): content is ITask => {
-  return 'teamId' in content;
+// Tasks resolve their status against the team's configured statuses, so they
+// need a distinct branch. ITriage also carries `teamId` but, like IProject,
+// stores a numeric status, so `projectId` is what separates a task.
+const isTask = (
+  content: ITask | IProject | ITriage | null,
+): content is ITask => {
+  return !!content && 'teamId' in content && 'projectId' in content;
 };
 
 export const ActivityStatus = ({

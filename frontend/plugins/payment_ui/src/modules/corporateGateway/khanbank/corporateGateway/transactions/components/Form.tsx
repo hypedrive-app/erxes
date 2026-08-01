@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button, Input, Label, Select } from 'erxes-ui';
-import { BANK_CODES } from '../../../../constants';
+import { BANK_CODES } from '~/modules/payment/constants';
 import { IAccountHolder, IKhanbankAccount } from '../../accounts/types';
 import { IKhanbankTransactionInput } from '../types';
-import { getRawAccountNumber } from '../../../../utils';
+import { getRawAccountNumber } from '../../../utils';
 
 type Props = {
   configId: string;
@@ -77,8 +77,15 @@ const TransactionForm = ({
     }));
   };
 
-  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newType = Number(e.target.value);
+  const handleFieldChange = (name: string, value: string) => {
+    setTransaction((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleTypeChange = (value: string) => {
+    const newType = Number(value);
 
     setTransactionType(newType);
 
@@ -130,13 +137,17 @@ const TransactionForm = ({
       <div>
         <Label>Гүйлгээний төрөл</Label>
         <Select
-          name="transactionType"
-          value={transactionType}
-          onChange={handleTypeChange}
+          value={String(transactionType)}
+          onValueChange={handleTypeChange}
         >
-          <option value={1}>Банк доторхи</option>
-          <option value={2}>Өөрийн данс хооронд</option>
-          <option value={3}>Банк хооронд</option>
+          <Select.Trigger>
+            <Select.Value />
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="1">Банк доторхи</Select.Item>
+            <Select.Item value="2">Өөрийн данс хооронд</Select.Item>
+            <Select.Item value="3">Банк хооронд</Select.Item>
+          </Select.Content>
         </Select>
       </div>
 
@@ -151,17 +162,19 @@ const TransactionForm = ({
         <div>
           <Label>Банк</Label>
           <Select
-            name="toBank"
             value={transaction.toBank}
-            onChange={handleChange}
-            required
+            onValueChange={(value) => handleFieldChange('toBank', value)}
           >
-            <option value="">Банк сонгоно уу</option>
-            {BANK_CODES.map((bank) => (
-              <option key={bank.value} value={bank.value}>
-                {bank.label}
-              </option>
-            ))}
+            <Select.Trigger>
+              <Select.Value placeholder="Банк сонгоно уу" />
+            </Select.Trigger>
+            <Select.Content>
+              {BANK_CODES.map((bank) => (
+                <Select.Item key={bank.value} value={bank.value}>
+                  {bank.label}
+                </Select.Item>
+              ))}
+            </Select.Content>
           </Select>
         </div>
       )}
@@ -198,19 +211,21 @@ const TransactionForm = ({
         <div>
           <Label>Хүлээн авах данс</Label>
           <Select
-            name="toAccount"
             value={transaction.toAccount}
-            onChange={handleChange}
-            required
+            onValueChange={(value) => handleFieldChange('toAccount', value)}
           >
-            <option value="">Данс сонгох</option>
-            {accounts
-              .filter((a) => a.number !== transaction.fromAccount)
-              .map((a) => (
-                <option key={a.number} value={a.number}>
-                  {a.number} - {a.currency}
-                </option>
-              ))}
+            <Select.Trigger>
+              <Select.Value placeholder="Данс сонгох" />
+            </Select.Trigger>
+            <Select.Content>
+              {accounts
+                .filter((a) => a.number !== transaction.fromAccount)
+                .map((a) => (
+                  <Select.Item key={a.number} value={a.number}>
+                    {a.number} - {a.currency}
+                  </Select.Item>
+                ))}
+            </Select.Content>
           </Select>
         </div>
       )}

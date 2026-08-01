@@ -12,9 +12,12 @@ import {
   ADD_COUNTRY_TO_REGION,
   REMOVE_COUNTRY_FROM_REGION,
 } from '../graphql/mutations';
+import { InsuranceRegion } from '../types';
 
 export const useRegions = () => {
-  const { data, loading, error, refetch } = useQuery(INSURANCE_REGIONS);
+  const { data, loading, error, refetch } = useQuery<{
+    insuranceRegions: InsuranceRegion[];
+  }>(INSURANCE_REGIONS);
   return {
     regions: data?.insuranceRegions || [],
     loading,

@@ -10,7 +10,7 @@ export const CallNumber = () => {
   );
   return (
     <div className="text-lg font-semibold text-primary text-center">
-      {formatPhoneNumber({ value: phoneNumber, defaultCountry: 'MN' })}
+      {formatPhoneNumber({ value: phoneNumber })}
     </div>
   );
 };

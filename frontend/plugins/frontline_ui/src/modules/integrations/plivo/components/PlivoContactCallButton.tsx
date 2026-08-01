@@ -2,11 +2,9 @@ import { IconPhone } from '@tabler/icons-react';
 import { Button, Tooltip, formatPhoneNumber } from 'erxes-ui';
 import { useTranslation } from 'react-i18next';
 import { useCustomerDetail } from 'ui-modules';
+import { usePlivoCountry } from '@/integrations/plivo/hooks/usePlivoCountry';
 import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
-import {
-  PLIVO_DEFAULT_COUNTRY,
-  toDialableNumber,
-} from '@/integrations/plivo/utils/plivoPhone';
+import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
 
 /**
  * One-click call to the customer whose record is open.
@@ -29,6 +27,7 @@ export const PlivoContactCallButton = ({
 }) => {
   const { t } = useTranslation('frontline');
   const { dial, isReady } = usePlivoDialer();
+  const country = usePlivoCountry();
   const { customerDetail } = useCustomerDetail({
     variables: { _id: customerId },
     skip: !customerId,
@@ -36,14 +35,14 @@ export const PlivoContactCallButton = ({
 
   // Validated to E.164 during render so a contact stored with an unparseable
   // number simply has no button, rather than one that fails when pressed.
-  const destination = toDialableNumber(customerDetail?.primaryPhone);
+  const destination = toDialableNumber(customerDetail?.primaryPhone, country);
 
   if (!destination || !isReady) return null;
 
   const label = t('plivo-call-customer', {
     number: formatPhoneNumber({
       value: customerDetail?.primaryPhone ?? '',
-      defaultCountry: PLIVO_DEFAULT_COUNTRY,
+      defaultCountry: country,
     }),
   });
 

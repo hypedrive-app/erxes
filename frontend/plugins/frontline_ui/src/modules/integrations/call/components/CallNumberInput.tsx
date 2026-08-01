@@ -27,7 +27,7 @@ export const CallNumberInput = () => {
       <form onSubmit={handleSubmit} className="w-full">
         <Input
           className="text-center"
-          value={formatPhoneNumber({ value: number, defaultCountry: 'MN' })}
+          value={formatPhoneNumber({ value: number })}
           onChange={(e) => setNumber(e.target.value.replace(' ', ''))}
         />
         <button className="sr-only" type="submit" />

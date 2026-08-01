@@ -4,7 +4,7 @@ import { Button } from 'erxes-ui';
 import { Card } from 'erxes-ui/components/card';
 import { Dialog } from 'erxes-ui/components/dialog';
 
-import Form from '../../configs/components/Form';
+import Form from '../../configs/containers/Form';
 import { IKhanbankConfigsItem } from '../../configs/types';
 import AccountList from '../accounts/containers/List';
 

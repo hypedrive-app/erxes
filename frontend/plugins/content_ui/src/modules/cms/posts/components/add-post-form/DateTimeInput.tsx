@@ -1,4 +1,5 @@
 import { DatePicker } from 'erxes-ui';
+import { DateRange } from 'react-day-picker';
 
 interface DateTimeInputProps {
   value: Date | undefined;
@@ -11,8 +12,14 @@ export const DateTimeInput = ({
   onChange,
   placeholder,
 }: DateTimeInputProps) => {
-  const handleDateChange = (d: Date | Date[] | undefined) => {
-    const picked = Array.isArray(d) ? d[0] : d;
+  const handleDateChange = (d: Date | Date[] | DateRange | undefined) => {
+    // This input is single-date only; a range selection collapses to its start.
+    const picked =
+      d instanceof Date || d === undefined
+        ? d
+        : Array.isArray(d)
+          ? d[0]
+          : d.from;
     if (!picked) {
       onChange(undefined);
       return;

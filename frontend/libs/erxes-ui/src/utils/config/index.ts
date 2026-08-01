@@ -85,6 +85,29 @@ const oidcProviderIconUrl = () => {
   );
 };
 
+/**
+ * Dialing code this deployment dials from, as digits (`'91'` for India).
+ *
+ * Product-wide default for every phone input, so a number typed without an
+ * explicit `+<country>` is read as local rather than foreign. Deliberately a
+ * DIALING CODE and not an ISO country, so that it matches the shape already
+ * stored per-integration as `defaultCountryCode` and normalised by the
+ * backend's `normalizePhone` — one vocabulary for the value, converted to ISO
+ * only at the point `libphonenumber-js` needs it.
+ *
+ * Delivered through `window.env` like every other deployment-scoped setting:
+ * `erxes-ui` is a library shared by every plugin and cannot reach into any one
+ * plugin's integration config, and this must be readable before a user session
+ * or an Apollo client exists. A per-integration `defaultCountryCode` still wins
+ * where one is configured; this is only the floor beneath it.
+ */
+const defaultPhoneDialingCode = () => {
+  return (
+    window.env?.REACT_APP_DEFAULT_PHONE_DIALING_CODE ??
+    process.env.REACT_APP_DEFAULT_PHONE_DIALING_CODE
+  );
+};
+
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const REACT_APP_API_URL = getApi();
 const REACT_APP_IMAGE_CDN_URL = cdnUrl();
@@ -94,6 +117,7 @@ const REACT_APP_SENTRY_DSN = sentryDsn();
 const REACT_APP_SENTRY_ENVIRONMENT = sentryEnvironment();
 const REACT_APP_OIDC_PROVIDER_NAME = oidcProviderName();
 const REACT_APP_OIDC_PROVIDER_ICON_URL = oidcProviderIconUrl();
+const REACT_APP_DEFAULT_PHONE_DIALING_CODE = defaultPhoneDialingCode();
 
 export {
   NODE_ENV,
@@ -105,4 +129,5 @@ export {
   REACT_APP_SENTRY_ENVIRONMENT,
   REACT_APP_OIDC_PROVIDER_NAME,
   REACT_APP_OIDC_PROVIDER_ICON_URL,
+  REACT_APP_DEFAULT_PHONE_DIALING_CODE,
 };

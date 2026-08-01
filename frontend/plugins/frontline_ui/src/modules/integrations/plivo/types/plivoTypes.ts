@@ -97,6 +97,11 @@ export interface IPlivoSoftphoneIntegration {
   _id: string;
   name: string;
   phoneNumber?: string | null;
+  /**
+   * Dialing code the dialpad parses typed numbers against, as digits (`'91'`).
+   * Null when the admin has not set one — see `resolvePlivoCountry`.
+   */
+  defaultCountryCode?: string | null;
 }
 
 /**

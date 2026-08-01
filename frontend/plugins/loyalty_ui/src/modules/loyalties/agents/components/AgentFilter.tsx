@@ -84,7 +84,6 @@ export const AgentFilter = () => {
           </Filter.BarName>
           <SelectCustomer.FilterBar
             filterKey="agentCustomerId"
-            label={t('customers')}
             mode="single"
           />
         </Filter.BarItem>

@@ -170,16 +170,25 @@ services:
       # never serves /graphql. That is why this is `${ENABLED_PLUGINS:-frontline}`
       # with a non-empty default and NOT `${ENABLED_PLUGINS:-}`.
       #
-      # 'frontline' must match startPlugin({name:'frontline'}) in
-      # backend/plugins/frontline_api/src/main.ts, because the gateway derives
-      # the Redis discovery key `erxes-service-frontline` from this list.
+      # Each name must match the startPlugin({name:...}) literal in that
+      # plugin's src/main.ts, because the gateway derives the Redis discovery
+      # key `erxes-service-<name>` from this list. Verified against source:
+      #   frontline -> backend/plugins/frontline_api/src/main.ts (port 3304)
+      #   sales     -> backend/plugins/sales_api/src/main.ts     (port 3305)
+      #   operation -> backend/plugins/operation_api/src/main.ts (port 3307)
+      # The names are the BARE plugin names, NOT the `_api` directory names —
+      # `sales_api` here would make the gateway wait forever on a discovery key
+      # nothing ever publishes.
       #
       # core-api ALSO uses this list to answer GET /get-frontend-plugins, which
       # is what tells the browser which Module Federation remotes to load
       # (frontend/core-ui/src/bootstrap.tsx). Each name in this list yields one
       # remote entry URL built from PLUGIN_CDN_URL below, so a plugin listed
       # here MUST have its UI served from there or the browser 404s on it.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
+      # That is why adding sales/operation to this list REQUIRES the sales-ui
+      # and operation-ui services below, and why all three of the
+      # ENABLED_PLUGINS occurrences in this file must stay identical.
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
       # ENABLED_PLUGINS_ONLY_API stays ABSENT — same empty-string trap.
       # ── PLUGIN_CDN_URL: where the BROWSER fetches plugin remotes ─────────
       # routes.ts builds `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
@@ -264,7 +273,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. frontline itself
       # calls isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Frontline needs these in its own right, not just for parity: inbound
       # WhatsApp media and email (imap) attachments are streamed straight to
@@ -403,9 +412,11 @@ services:
       # name it blocks until `erxes-service-<name>` appears in Redis AND that
       # address answers a federation SubgraphIntrospectQuery on /graphql. If
       # frontline is listed here but plugin-frontline-api never starts, the
-      # gateway will not serve /graphql at all — core included.
+      # gateway will not serve /graphql at all — core included. The same is now
+      # true of sales and operation: each name added here is one more subgraph
+      # the gateway REQUIRES before it will serve anything.
       # Still never "" — see the long note on plugin-core-api.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
       # Bound the service-discovery retry loop. Unset => MAX_SAFE_INTEGER, i.e.
       # the gateway waits forever instead of failing visibly (targets.ts).
       #
@@ -502,6 +513,12 @@ services:
       # container start. This replaces the old bind-mounted index.html, which
       # could not survive building our own bundle.
       REACT_APP_APP_TITLE: ${APP_TITLE:-}
+      # Dialing code this deployment dials from, digits only and no `+` (`91` =
+      # India). Product-wide default for every phone input, so a number typed
+      # without an explicit `+<country>` is read as local. Upstream hardcoded
+      # Mongolia; leaving this unset does not restore that, it just means a
+      # national-format number stays unformatted until it is set.
+      REACT_APP_DEFAULT_PHONE_DIALING_CODE: ${DEFAULT_PHONE_DIALING_CODE:-91}
       # The baked nginx vhost is `server_name *.next.erxes.io` with literal
       # ${NGINX_HOST}/${NGINX_PORT} placeholders the entrypoint sed-replaces.
       NGINX_HOST: ${ERXES_UI_DOMAIN}

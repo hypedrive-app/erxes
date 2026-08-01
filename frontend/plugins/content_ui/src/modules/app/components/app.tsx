@@ -2,8 +2,8 @@ import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { Spinner } from 'erxes-ui';
 
-const KnowledgeBaseIndex = lazy(() =>
-  import('~/pages/knowledgebase/IndexPage').then((module) => ({
+const ContentIndex = lazy(() =>
+  import('~/pages/cms/IndexPage').then((module) => ({
     default: module.IndexPage,
   })),
 );
@@ -18,8 +18,8 @@ const PluginContent = () => {
       }
     >
       <Routes>
-        <Route path="/" element={<KnowledgeBaseIndex />} />
-        <Route path="/knowledgebase" element={<KnowledgeBaseIndex />} />
+        <Route path="/" element={<ContentIndex />} />
+        <Route path="/knowledgebase" element={<ContentIndex />} />
       </Routes>
     </Suspense>
   );

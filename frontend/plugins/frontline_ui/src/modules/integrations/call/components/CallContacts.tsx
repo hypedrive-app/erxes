@@ -74,10 +74,7 @@ export const CallContacts = () => {
                           }}
                           key={phone}
                         >
-                          {formatPhoneNumber({
-                            value: phone || '',
-                            defaultCountry: 'MN',
-                          })}
+                          {formatPhoneNumber({ value: phone || '' })}
                         </DropdownMenu.Item>
                       ),
                     )}

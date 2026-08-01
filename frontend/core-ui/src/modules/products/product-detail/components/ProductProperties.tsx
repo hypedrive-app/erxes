@@ -98,8 +98,8 @@ function TagsSection() {
             >
               <div className="p-4 border-b border-gray-200">
                 <TagsManager
-                  productId={productDetail?._id}
-                  initialTags={productDetail?.tagsId || []}
+                  productId={productId}
+                  initialTags={productDetail?.tagIds || []}
                   uom={productDetail?.uom || ''}
                   onTagsUpdated={() => refetch()}
                 />

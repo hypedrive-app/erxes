@@ -42,7 +42,9 @@ export interface IPageFormData {
   parentId?: string;
   status: string;
   clientPortalId: string;
-  thumbnail?: { url: string; name?: string; type?: string } | null;
+  // Edited through the shared MediaSection, which also reads/writes the legacy
+  // bare-URL form alongside the object form.
+  thumbnail?: string | { url: string; name?: string; type?: string } | null;
   gallery?: string[];
   videoUrl?: string;
   documents?: string[];

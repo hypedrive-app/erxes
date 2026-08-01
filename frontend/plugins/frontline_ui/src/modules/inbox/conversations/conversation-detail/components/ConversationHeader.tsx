@@ -300,6 +300,20 @@ const ConversationActionsDropdown = () => {
           <ConversationTags />
         </div>
         <DropdownMenu.Separator />
+        {/* The collapsed header drops the whole inline action row, which is
+            where the call button lives — so with the side widget open an agent
+            simply lost the ability to phone the customer from the conversation
+            they were reading. The same components are rendered here rather than
+            duplicated: each one already hides itself when it does not apply, so
+            this row is empty for a channel with nothing to offer. */}
+        <div
+          className="flex items-center gap-1 px-2 py-1.5"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <IntegrationActions />
+        </div>
+        <DropdownMenu.Separator />
         <DropdownMenu.Item onSelect={handleStatusChange} disabled={loading}>
           {status === ConversationStatus.CLOSED ? t('open-label') : t('resolve')}
         </DropdownMenu.Item>

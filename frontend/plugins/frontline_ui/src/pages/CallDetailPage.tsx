@@ -382,10 +382,7 @@ export const useWaitingColumns = (): ColumnDef<WaitingCall>[] => {
       header: () => <RecordTable.InlineHead label={t('caller-id')} />,
       cell: ({ cell }) => (
         <RecordTableInlineCell className="font-medium">
-          {formatPhoneNumber({
-            defaultCountry: 'MN',
-            value: cell.getValue() as string,
-          })}
+          {formatPhoneNumber({ value: cell.getValue() as string })}
         </RecordTableInlineCell>
       ),
     },
@@ -441,10 +438,7 @@ export const useTalkingColumns = (): ColumnDef<TalkingCall>[] => {
       header: () => <RecordTable.InlineHead label={t('caller-id')} />,
       cell: ({ cell }) => (
         <RecordTableInlineCell className="font-medium">
-          {formatPhoneNumber({
-            defaultCountry: 'MN',
-            value: cell.getValue() as string,
-          })}
+          {formatPhoneNumber({ value: cell.getValue() as string })}
         </RecordTableInlineCell>
       ),
     },

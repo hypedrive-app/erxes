@@ -5,7 +5,10 @@ import { cn } from 'erxes-ui/lib';
 import parsePhoneNumberFromString, { CountryCode } from 'libphonenumber-js';
 import { CountryPhoneCodes } from 'erxes-ui/constants/CountryPhoneCodes';
 import { TCountryCode } from 'erxes-ui/types';
-import { formatPhoneNumber } from 'erxes-ui/utils/format';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  formatPhoneNumber,
+} from 'erxes-ui/utils/format';
 import { phoneSchema } from 'erxes-ui/modules/inputs/validations/phoneValidation';
 
 interface PhoneInputProps
@@ -28,7 +31,7 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
       value,
       onChange,
       className,
-      defaultCountry,
+      defaultCountry = DEFAULT_PHONE_COUNTRY,
       placeholder,
       onEnter,
       onValidationChange,
@@ -44,7 +47,11 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
       parsedNumber = null;
     }
 
-    const initialCountry = parsedNumber?.country;
+    // A country carried by the number itself always wins: it is a fact about
+    // that number, whereas `defaultCountry` is only where this deployment dials
+    // from. The default merely preselects the flag (and its dial code) for a
+    // fresh input, so a local number can be typed without a `+<country>`.
+    const initialCountry = parsedNumber?.country ?? defaultCountry;
     const [selectedCountry, setSelectedCountry] = useState<TCountryCode | undefined>(
       CountryPhoneCodes.find((c) => c.code === initialCountry)
     );

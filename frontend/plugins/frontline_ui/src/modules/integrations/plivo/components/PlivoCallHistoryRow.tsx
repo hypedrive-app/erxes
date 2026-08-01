@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { PlivoRecordingPlayer } from '@/integrations/plivo/components/PlivoRecordingPlayer';
+import { usePlivoCountry } from '@/integrations/plivo/hooks/usePlivoCountry';
 import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
 import { IPlivoCallHistory } from '@/integrations/plivo/types/plivoTypes';
 import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
@@ -39,6 +40,7 @@ export const PlivoCallHistoryRow = ({
   const { t } = useTranslation('frontline');
   const navigate = useNavigate();
   const { dial, isReady } = usePlivoDialer();
+  const country = usePlivoCountry();
   const [isOpen, setIsOpen] = useState(false);
 
   const {
@@ -62,7 +64,7 @@ export const PlivoCallHistoryRow = ({
   // (or an anonymous/withheld caller) hides the button instead of failing on
   // press. A missed call from a blocked number is exactly where a dead
   // call-back button would otherwise sit.
-  const callBackNumber = toDialableNumber(counterpartNumber);
+  const callBackNumber = toDialableNumber(counterpartNumber, country);
 
   // The glyph alone already separates inbound from outbound from voicemail from
   // failed, so direction and outcome survive without their colour. The tinted

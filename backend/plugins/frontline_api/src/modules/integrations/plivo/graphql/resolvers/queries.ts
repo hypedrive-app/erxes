@@ -20,6 +20,8 @@ export interface IPlivoSoftphoneIntegration {
   _id: string;
   name: string;
   phoneNumber?: string;
+  /** Dialing code as digits (e.g. `'91'`); see the schema for why it is here. */
+  defaultCountryCode?: string;
 }
 
 /**
@@ -186,15 +188,16 @@ export const plivoQueries = {
       isActive: { $ne: false },
     }).lean();
 
-    const phoneNumberById = new Map(
+    const plivoIntegrationById = new Map(
       plivoIntegrations.map((integration) => [
         integration.erxesApiId,
-        integration.plivoPhoneNumber,
+        integration,
       ]),
     );
 
     return inboxIntegrations.map((integration) => {
-      const phoneNumber = phoneNumberById.get(integration._id);
+      const plivoIntegration = plivoIntegrationById.get(integration._id);
+      const phoneNumber = plivoIntegration?.plivoPhoneNumber;
 
       return {
         _id: integration._id,
@@ -203,6 +206,9 @@ export const plivoQueries = {
         // enough for the widget's list.
         name: integration.name || phoneNumber || integration._id,
         phoneNumber,
+        // The agent's dialpad parses typed numbers against this, so without it
+        // a number entered in national format cannot be resolved to E.164.
+        defaultCountryCode: plivoIntegration?.defaultCountryCode,
       };
     });
   },

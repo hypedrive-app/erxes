@@ -22,13 +22,16 @@ import { CSS } from '@dnd-kit/utilities';
 import { FieldDefinition } from '../../posts/CustomFieldInput';
 import { useCustomFieldOrdering } from '../hooks/useCustomFieldOrdering';
 import { useSyncedState } from '../hooks/useSyncedState';
+import { ICustomField } from '../types/customFieldTypes';
 
-const EMPTY_FIELDS: FieldDefinition[] = [];
+const EMPTY_FIELDS: ICustomField[] = [];
 
 export interface ReorderableFieldGroup {
   _id: string;
   label: string;
-  fields?: FieldDefinition[];
+  // Reordering persists the whole field array back to the group, so these must
+  // be complete field definitions (incl. `code`), not just the rendered subset.
+  fields?: ICustomField[];
 }
 
 interface ReorderableCustomFieldsProps {
@@ -76,7 +79,7 @@ function FieldList({
 }: Readonly<{
   group: ReorderableFieldGroup;
   renderField: ReorderableCustomFieldsProps['renderField'];
-  onReorderFields: (groupId: string, fields: FieldDefinition[]) => void;
+  onReorderFields: (groupId: string, fields: ICustomField[]) => void;
 }>) {
   const groupFields = group.fields || EMPTY_FIELDS;
 

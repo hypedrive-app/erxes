@@ -10,7 +10,7 @@ interface CmsTranslatableBadgeProps {
   // selected language and the default language are both empty.
   placeholder: string;
   prefix?: ReactNode;
-  missingVariant?: 'outline' | 'destructive';
+  missingVariant?: 'destructive' | 'secondary';
   missingClassName?: string;
 }
 
@@ -25,7 +25,7 @@ export const CmsTranslatableBadge = ({
   missing,
   placeholder,
   prefix,
-  missingVariant = 'outline',
+  missingVariant = 'destructive',
   missingClassName = 'text-red-500 border-red-300',
 }: CmsTranslatableBadgeProps) => {
   const hasValue = !!value?.trim();

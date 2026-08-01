@@ -2,11 +2,9 @@ import { IconPhone } from '@tabler/icons-react';
 import { Button, Tooltip, formatPhoneNumber } from 'erxes-ui';
 import { useTranslation } from 'react-i18next';
 import { useConversationContext } from '@/inbox/conversations/conversation-detail/hooks/useConversationContext';
+import { usePlivoCountry } from '@/integrations/plivo/hooks/usePlivoCountry';
 import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
-import {
-  PLIVO_DEFAULT_COUNTRY,
-  toDialableNumber,
-} from '@/integrations/plivo/utils/plivoPhone';
+import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
 
 /**
  * One-click call to the customer in the open conversation.
@@ -24,15 +22,16 @@ export const PlivoConversationCallButton = () => {
   const { t } = useTranslation('frontline');
   const { customer } = useConversationContext();
   const { dial, isReady } = usePlivoDialer();
+  const country = usePlivoCountry();
 
-  const destination = toDialableNumber(customer?.primaryPhone);
+  const destination = toDialableNumber(customer?.primaryPhone, country);
 
   if (!destination || !isReady) return null;
 
   const label = t('plivo-call-customer', {
     number: formatPhoneNumber({
       value: customer?.primaryPhone ?? '',
-      defaultCountry: PLIVO_DEFAULT_COUNTRY,
+      defaultCountry: country,
     }),
   });
 

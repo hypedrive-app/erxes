@@ -166,11 +166,11 @@ export const ProjectFields = ({ projectId }: { projectId: string }) => {
         <SelectTags.Detail
           value={tagIds || []}
           tagType="operation:project"
-          onValueChange={(newTagIds: string[]) => {
+          onValueChange={(tags: string | string[]) => {
             updateProject({
               variables: {
                 _id: projectId,
-                tagIds: newTagIds,
+                tagIds: Array.isArray(tags) ? tags : [tags],
               },
             });
           }}

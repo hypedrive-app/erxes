@@ -12,11 +12,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CustomersInline, useCustomers } from 'ui-modules';
 import { useDebounce } from 'use-debounce';
+import { usePlivoCountry } from '@/integrations/plivo/hooks/usePlivoCountry';
 import { usePlivoDialer } from '@/integrations/plivo/hooks/usePlivoDialer';
-import {
-  PLIVO_DEFAULT_COUNTRY,
-  toDialableNumber,
-} from '@/integrations/plivo/utils/plivoPhone';
+import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
 
 /**
  * Address book for the softphone, so an agent can call a known contact without
@@ -32,13 +30,14 @@ export const PlivoContacts = () => {
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 500);
   const { dial, isReady } = usePlivoDialer();
+  const country = usePlivoCountry();
 
   const { customers, loading, handleFetchMore, totalCount } = useCustomers({
     variables: { searchValue: debouncedSearch },
   });
 
   const callableCustomers = customers.filter((customer) =>
-    toDialableNumber(customer.primaryPhone),
+    toDialableNumber(customer.primaryPhone, country),
   );
 
   return (
@@ -74,7 +73,7 @@ export const PlivoContacts = () => {
         )}
         {!loading &&
           callableCustomers.map((customer) => {
-            const destination = toDialableNumber(customer.primaryPhone);
+            const destination = toDialableNumber(customer.primaryPhone, country);
 
             return (
               <Command.Item
@@ -99,7 +98,7 @@ export const PlivoContacts = () => {
                   <div className="text-xs text-accent-foreground">
                     {formatPhoneNumber({
                       value: customer.primaryPhone ?? '',
-                      defaultCountry: PLIVO_DEFAULT_COUNTRY,
+                      defaultCountry: country,
                     })}
                   </div>
                 </div>

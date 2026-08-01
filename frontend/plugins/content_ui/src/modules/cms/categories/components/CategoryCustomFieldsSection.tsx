@@ -2,15 +2,15 @@ import { Form } from 'erxes-ui';
 import {
   CustomFieldInput,
   CustomFieldValue,
-  FieldDefinition,
 } from '../../posts/CustomFieldInput';
 import { ReorderableCustomFields } from '../../custom-fields/components/ReorderableCustomFields';
+import { ICustomField } from '../../custom-fields/types/customFieldTypes';
 import { UseFormReturn, FieldValues } from 'react-hook-form';
 
 export interface FieldGroup {
   _id: string;
   label: string;
-  fields?: FieldDefinition[];
+  fields?: ICustomField[];
 }
 
 interface CategoryCustomFieldsSectionProps<

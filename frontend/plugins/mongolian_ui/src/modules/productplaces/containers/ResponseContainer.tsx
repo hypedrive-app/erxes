@@ -1,8 +1,8 @@
-import { gql, useSubscription } from '@apollo/client';
+import { useSubscription } from '@apollo/client';
 import { useEffect } from 'react';
 import { Response as ResponseComponent } from '../components/Response';
 import { PerResponse } from '../components/PerResponse';
-import { subscriptions } from '../graphql';
+import { PRODUCT_PLACES_RESPONDED } from '../graphql';
 import { useTranslation } from 'react-i18next';
 
 interface ContentData {
@@ -49,7 +49,7 @@ const withCurrentUser = (Component: React.ComponentType<Props>) => {
 const ReturnResponseBody = ({ currentUser }: Props) => {
   const { t } = useTranslation('mongolian');
   const { data: response, loading } = useSubscription<SubscriptionResponse>(
-    gql(subscriptions.productPlacesSubscription),
+    PRODUCT_PLACES_RESPONDED,
     {
       variables: {
         userId: currentUser._id,

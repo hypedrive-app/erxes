@@ -88,6 +88,11 @@ export type PlivoCallDirection = 'inbound' | 'outbound';
  * `completed` is set by the hangup callback, and `no-answer` / `failed` /
  * `busy` are derived from `HangupCause` because Plivo reports every ended call
  * as `completed` regardless of whether it was actually answered.
+ *
+ * `unknown` is terminal but asserts NO outcome: it marks a call whose hangup
+ * callback never arrived and which Plivo's CDR could not resolve either. It
+ * exists so such a row can stop claiming to be live without any of the real
+ * outcomes above being invented for it.
  */
 export type PlivoCallStatus =
   | 'ringing'
@@ -95,7 +100,8 @@ export type PlivoCallStatus =
   | 'completed'
   | 'no-answer'
   | 'busy'
-  | 'failed';
+  | 'failed'
+  | 'unknown';
 
 export interface IPlivoCallSession {
   callUuid: string;

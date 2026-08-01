@@ -13,10 +13,22 @@ import { IconChartPie } from '@tabler/icons-react';
 import { SegmentDetail } from '@/segments/components/SegmentDetail';
 import { useSegments } from '@/segments/hooks/useSegments';
 
+/** `segmentsGetTypes` resolves to raw JSON, so its shape is declared here. */
+type ISegmentType = {
+  contentType: string;
+  description: string;
+};
+
+type ISegmentsGetTypesResponse = {
+  segmentsGetTypes: ISegmentType[];
+};
+
 export default function SegmentsIndexPage() {
   const { handleRefresh } = useSegments();
   const [contentType, setType] = useQueryState<string>('contentType');
-  const { data, loading } = useQuery(SEGMENTS_GET_TYPES);
+  const { data, loading } = useQuery<ISegmentsGetTypesResponse>(
+    SEGMENTS_GET_TYPES,
+  );
 
   useEffect(() => {
     if (!loading && data?.segmentsGetTypes?.length) {

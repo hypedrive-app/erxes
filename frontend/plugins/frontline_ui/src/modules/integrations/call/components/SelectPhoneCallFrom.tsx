@@ -29,10 +29,7 @@ export const SelectPhoneCallFrom = () => {
         <Select.Content>
           {callUserIntegrations?.map((integration) => (
             <Select.Item key={integration._id} value={integration.phone}>
-              {formatPhoneNumber({
-                value: integration.phone,
-                defaultCountry: 'MN',
-              })}
+              {formatPhoneNumber({ value: integration.phone })}
             </Select.Item>
           ))}
         </Select.Content>

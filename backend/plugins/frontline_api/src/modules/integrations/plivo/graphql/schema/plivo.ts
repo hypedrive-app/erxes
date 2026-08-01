@@ -7,6 +7,13 @@ export const types = `
     name: String!
     """The rented number in E.164, shown as the caller id."""
     phoneNumber: String
+    """
+    Dialing code the dialpad assumes for numbers typed without one, as digits
+    (e.g. 91). Not a secret: it is a formatting hint the agent's own softphone
+    needs, which is why it is on this agent-scoped query rather than only on
+    the admin config query that also carries account credentials.
+    """
+    defaultCountryCode: String
   }
 
   """

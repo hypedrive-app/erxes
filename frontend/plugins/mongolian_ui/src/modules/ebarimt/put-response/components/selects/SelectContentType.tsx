@@ -22,7 +22,7 @@ import { CONTENT_TYPE_DATA } from '../../constants/contentTypeData';
 import {
   SelectContent,
   SelectTrigger,
-  SelectTriggerVariant,
+  SelectTriggerVariantType,
 } from './SelectShared';
 
 interface IContentType {
@@ -300,7 +300,7 @@ const SelectContentTypeRoot = ({
   disabled,
 }: {
   value: string;
-  variant?: `${SelectTriggerVariant}`;
+  variant?: SelectTriggerVariantType;
   scope?: string;
   onValueChange?: (value: string) => void;
   disabled?: boolean;

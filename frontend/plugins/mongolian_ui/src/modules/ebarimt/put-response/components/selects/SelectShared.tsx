@@ -16,6 +16,7 @@ export const SelectTriggerVariant = {
   FORM: 'form',
   FILTER: 'filter',
   ICON: 'icon',
+  DEFAULT: 'default',
 } as const;
 
 export type SelectTriggerVariantType =

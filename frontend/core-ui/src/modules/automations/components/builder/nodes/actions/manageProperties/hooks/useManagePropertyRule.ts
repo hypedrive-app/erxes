@@ -12,6 +12,7 @@ import {
 
 type TManagePropertyField = IField & {
   fieldId?: string;
+  label?: string;
   validations?: Record<string, unknown>;
 };
 
@@ -22,6 +23,12 @@ const ARRAY_FIELD_TYPES = new Set([
   'multiselect',
 ]);
 
+/** Reads a named flag off a field's `validation`, which is untyped upstream. */
+const hasValidationFlag = (validation: unknown, flag: string) =>
+  typeof validation === 'object' &&
+  validation !== null &&
+  Boolean((validation as Record<string, unknown>)[flag]);
+
 const getManagePropertyOperatorType = (field?: IField) => {
   if (!field) {
     return 'Default';
@@ -31,11 +38,9 @@ const getManagePropertyOperatorType = (field?: IField) => {
   const fieldType = field.type || 'Default';
   const validation = field.validation || propertyField.validations || {};
   const hasNumberValidation =
-    validation === 'number' ||
-    (typeof validation === 'object' && Boolean(validation.number));
+    validation === 'number' || hasValidationFlag(validation, 'number');
   const hasDateValidation =
-    validation === 'date' ||
-    (typeof validation === 'object' && Boolean(validation.date));
+    validation === 'date' || hasValidationFlag(validation, 'date');
 
   if (
     field.multiple ||
@@ -71,10 +76,12 @@ export const useManagePropertyRule = ({
 }) => {
   const { control, setValue } = useFormContext<TManagePropertiesForm>();
   const rule = useWatch({ control, name: `rules.${index}` });
-  const { fields = [] } = useGetFieldsProperties(propertyType, {
-    source: 'automations',
-    sourceType,
-  });
+  // `fieldsProperties` selects `label`, but the shared IField type omits it.
+  const { fields = [] }: { fields?: TManagePropertyField[] } =
+    useGetFieldsProperties(propertyType, {
+      source: 'automations',
+      sourceType,
+    });
 
   const selectedField = fields.find((f) => f.name === rule?.field);
   const operatorType = getManagePropertyOperatorType(selectedField);

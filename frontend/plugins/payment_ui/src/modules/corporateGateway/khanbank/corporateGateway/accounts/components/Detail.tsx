@@ -92,7 +92,7 @@ const Detail = ({ account, queryParams }: Props) => {
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Latest Transactions</h3>
 
-        <Transactions queryParams={queryParams} account={account} showLatest />
+        <Transactions queryParams={queryParams} showLatest />
       </Card>
 
       {/* Transfer Modal */}

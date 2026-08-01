@@ -207,8 +207,8 @@ export function useTags({
           if (!fetchMoreResult?.cmsTags) return prev;
 
           const isForward = direction === EnumCursorDirection.FORWARD;
-          const fetchPageInfo = fetchMoreResult.cmsTags?.pageInfo || {};
-          const prevPageInfo = prev.cmsTags?.pageInfo || {};
+          const fetchPageInfo = fetchMoreResult.cmsTags?.pageInfo;
+          const prevPageInfo = prev.cmsTags?.pageInfo;
           const fetchTags = fetchMoreResult.cmsTags?.tags || [];
           const prevTags = prev.cmsTags?.tags || [];
 
@@ -221,17 +221,19 @@ export function useTags({
                 : [...fetchTags, ...prevTags],
               pageInfo: {
                 endCursor: isForward
-                  ? fetchPageInfo.endCursor
-                  : prevPageInfo.endCursor,
-                hasNextPage: isForward
-                  ? fetchPageInfo.hasNextPage
-                  : prevPageInfo.hasNextPage,
-                hasPreviousPage: isForward
-                  ? prevPageInfo.hasPreviousPage
-                  : fetchPageInfo.hasPreviousPage,
+                  ? fetchPageInfo?.endCursor
+                  : prevPageInfo?.endCursor,
+                hasNextPage:
+                  (isForward
+                    ? fetchPageInfo?.hasNextPage
+                    : prevPageInfo?.hasNextPage) ?? false,
+                hasPreviousPage:
+                  (isForward
+                    ? prevPageInfo?.hasPreviousPage
+                    : fetchPageInfo?.hasPreviousPage) ?? false,
                 startCursor: isForward
-                  ? prevPageInfo.startCursor
-                  : fetchPageInfo.startCursor,
+                  ? prevPageInfo?.startCursor
+                  : fetchPageInfo?.startCursor,
               },
             },
           };

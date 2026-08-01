@@ -4,3 +4,12 @@
 ## plivo-diagnosis-credentials/ (2026-07-31)
 Live Plivo authId/authToken, endpoint password and test JWTs, captured while
 diagnosing the softphone registration failure. Secrets — delete after reading.
+
+## frontend/core-ui — dead-on-arrival files (2026-07-31)
+Both added in `badf583` ("add cpCompanies query"), unreachable since, and the only
+remaining core-ui typecheck errors. Verified zero importers before moving.
+
+| Path | Why |
+|---|---|
+| `src/modules/products/utils/tableUtils.tsx` | imports `./makeData`, which has never existed in git history |
+| `src/pages/settings/workspace/PermissionPage.tsx` | imports `Permission` + `UsersGroupSidebar`, which exist nowhere; orphan duplicate of the routed `workspace/team-member/PermissionPage.tsx` |

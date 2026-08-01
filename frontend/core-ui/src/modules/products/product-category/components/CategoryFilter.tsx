@@ -16,7 +16,7 @@ import {
   useQueryState,
 } from 'erxes-ui';
 import { useEffect, useState } from 'react';
-import { IProductCategory } from 'ui-modules';
+import { IProductCategory } from 'ui-modules/modules/products/categories/types/category';
 import { CategoryHotKeyScope } from '../types/CategoryHotKeyScope';
 import { CategoryTotalCount } from './CategoryTotalCount';
 

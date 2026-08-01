@@ -16,6 +16,7 @@ export enum SelectTriggerVariant {
   FORM = 'form',
   FILTER = 'filter',
   ICON = 'icon',
+  DEFAULT = 'default',
 }
 
 export const SelectTrigger = ({

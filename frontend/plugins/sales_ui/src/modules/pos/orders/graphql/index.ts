@@ -1,3 +1,1 @@
-import queries from './queries/queries';
-
-export { queries };
+export { POS_ORDERS_QUERY } from './queries/queries';

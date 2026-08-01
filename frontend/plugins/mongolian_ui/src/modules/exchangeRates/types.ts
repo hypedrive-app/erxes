@@ -1,3 +1,5 @@
+import { IRecordTableCursorPageInfo } from 'erxes-ui';
+
 export interface IExchangeRate {
   _id?: string;
   date: Date;
@@ -12,12 +14,7 @@ export type MainQueryResponse = {
   exchangeRatesMain: {
     list: IExchangeRate[];
     totalCount: number;
-    pageInfo: {
-      hasNextPage: boolean;
-      hasPreviousPage: boolean;
-      startCursor: string | null;
-      endCursor: string | null;
-    };
+    pageInfo: IRecordTableCursorPageInfo;
   };
 };
 

@@ -46,7 +46,7 @@ export const LogRevertPanel = ({ detail }: { detail: ILogDoc }) => {
   // and the undo itself (undoing an undo would be a confusing redo).
   const isRevertMutation = detail.payload?.mutationName === 'logsRevertProcess';
   const revertable =
-    Boolean(processId) &&
+    !!processId &&
     !isRevertMutation &&
     (source === 'mongo' || (source === 'graphql' && action === 'mutation'));
 

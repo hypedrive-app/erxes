@@ -48,14 +48,13 @@ export const useGetTriages = (
         updateQuery: (prev, { fetchMoreResult }) => {
           if (!fetchMoreResult) return prev;
 
-          return {
-            ...prev,
+          return Object.assign({}, prev, {
             operationGetTriageList: mergeCursorData({
               direction: EnumCursorDirection.FORWARD,
               fetchMoreResult: fetchMoreResult.operationGetTriageList,
               prevResult: prev.operationGetTriageList,
             }),
-          };
+          });
         },
       });
     }

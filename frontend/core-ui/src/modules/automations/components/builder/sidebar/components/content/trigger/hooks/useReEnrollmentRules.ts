@@ -6,8 +6,12 @@ import {
 } from 'ui-modules';
 import { useQuery } from '@apollo/client';
 import { useMemo } from 'react';
+// `fieldsCombinedByContentType` resolves to raw JSON that carries a `label`
+// per field, which the shared IField type omits.
+type ICombinedField = IField & { label?: string };
+
 type QueryResponse = {
-  fieldsCombinedByContentType: IField[];
+  fieldsCombinedByContentType: ICombinedField[];
 };
 
 type ReEnrollmentOption = {
@@ -34,7 +38,7 @@ export const useReEnrollmentRules = ({ contentId }: { contentId: string }) => {
     },
   );
 
-  const fields: IField[] = data?.fieldsCombinedByContentType || [];
+  const fields: ICombinedField[] = data?.fieldsCombinedByContentType || [];
 
   const reEnrollmentOptions = useMemo<ReEnrollmentOption[]>(() => {
     if (

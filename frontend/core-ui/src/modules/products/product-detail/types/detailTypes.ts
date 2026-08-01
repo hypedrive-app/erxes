@@ -55,6 +55,7 @@ export interface ProductDetail {
   unitPrice?: number;
   uom?: string;
   subUoms?: SubUomItem[];
+  tagIds?: string[];
   vendorId?: string;
   scopeBrandIds?: string[];
   currency?: string;

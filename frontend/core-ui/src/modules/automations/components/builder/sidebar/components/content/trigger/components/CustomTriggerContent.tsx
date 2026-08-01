@@ -18,7 +18,7 @@ export const CustomTriggerContent = React.memo<AutomationTriggerContentProps>(
     const isCoreTrigger = useMemo(
       () =>
         isCoreAutomationTriggerType(
-          moduleName as any,
+          moduleName,
           TAutomationTriggerComponent.Sidebar,
         ),
       [moduleName],

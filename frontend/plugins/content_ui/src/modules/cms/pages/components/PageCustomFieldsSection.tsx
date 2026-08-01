@@ -6,6 +6,7 @@ import {
   FieldDefinition,
 } from '../../posts/CustomFieldInput';
 import { ReorderableCustomFields } from '../../custom-fields/components/ReorderableCustomFields';
+import { ICustomField } from '../../custom-fields/types/customFieldTypes';
 import { IPageFormData } from '../types/pageTypes';
 
 interface CustomFieldDataItem {
@@ -27,7 +28,7 @@ export interface FieldGroup {
     label: string;
     pluralLabel: string;
   }>;
-  fields?: FieldDefinition[];
+  fields?: ICustomField[];
 }
 
 interface PageCustomFieldsSectionProps {

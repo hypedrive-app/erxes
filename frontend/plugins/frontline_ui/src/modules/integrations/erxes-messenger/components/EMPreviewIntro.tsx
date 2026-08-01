@@ -606,7 +606,7 @@ export const EMPreviewAuthForm = () => {
             {value === 'phone' && (
               <>
                 <Label htmlFor="phone">{t('phone')}</Label>
-                <PhoneInput defaultCountry="MN" className="bg-background" />
+                <PhoneInput className="bg-background" />
               </>
             )}
           </AnimatePresence>

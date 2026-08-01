@@ -9,9 +9,15 @@ type Props = {
   condition: any;
   onChange: (id: string, condition: any) => void;
   onRemove: (id: string) => void;
+  onAddCondition?: () => void;
 };
 
-const PerPrintConditions = ({ condition, onChange, onRemove }: Props) => {
+const PerPrintConditions = ({
+  condition,
+  onChange,
+  onRemove,
+  onAddCondition,
+}: Props) => {
   const { t } = useTranslation('mongolian');
   const onChangeConfig = (key: string, value: any) => {
     onChange(condition.id, { ...condition, [key]: value });
@@ -36,6 +42,17 @@ const PerPrintConditions = ({ condition, onChange, onRemove }: Props) => {
         </div>
       </div>
       <div className="flex gap-2 h-8">
+        {onAddCondition && (
+          <Button
+            type="button"
+            className="h-8"
+            variant="outline"
+            size="sm"
+            onClick={onAddCondition}
+          >
+            + {t('add-condition')}
+          </Button>
+        )}
         <Button
           type="button"
           className="h-8"
