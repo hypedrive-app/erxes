@@ -55,7 +55,7 @@ export const segmentMutations = {
       throw new Error('You should provide segment');
     }
 
-    if (ids.length) {
+    if (ids?.length) {
       return await models.Segments.removeSegments(ids);
     }
     return await models.Segments.removeSegment(_id);
