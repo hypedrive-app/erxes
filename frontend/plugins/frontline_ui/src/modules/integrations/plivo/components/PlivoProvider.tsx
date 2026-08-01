@@ -573,6 +573,22 @@ export const PlivoProvider = ({
       }));
     });
 
+    /**
+     * Connection faults must be cleared by recovery, not only set by failure.
+     *
+     * This handler used to raise the error and nothing ever lowered it again.
+     * The SDK reconnects on its own — a laptop resuming from sleep or a brief
+     * wifi drop emits `disconnected` and then `connected` moments later — but
+     * only `onLogin` cleared the banner, and a reconnect that does not re-login
+     * never fires it. The result was a permanent "Connection to Plivo lost" on
+     * a softphone that was in fact registered and able to take calls, which is
+     * worse than no badge at all: it tells an agent to stop trusting a working
+     * phone.
+     *
+     * Recovery is confirmed against the SDK rather than assumed from the event,
+     * because `connected` is a transport-level signal and it is registration
+     * that decides whether a call can actually arrive.
+     */
     client.on('onConnectionChange', (info: { state?: string }) => {
       if (info?.state === 'disconnected') {
         setPlivoState((prev) => ({
@@ -581,7 +597,27 @@ export const PlivoProvider = ({
           plivoErrorType: PlivoErrorTypeEnum.CONNECTION,
           plivoErrorMessage: tRef.current('plivo-connection-lost'),
         }));
+        return;
       }
+
+      const isRegistered = client.isRegistered?.() ?? false;
+
+      setPlivoState((prev) => {
+        // Only a CONNECTION fault is ours to clear here. A registration
+        // rejection or a denied microphone is unrelated to transport and
+        // survives a reconnect, so clearing those would hide a fault the agent
+        // still has to act on.
+        if (prev.plivoErrorType !== PlivoErrorTypeEnum.CONNECTION) return prev;
+
+        return {
+          ...prev,
+          plivoStatus: isRegistered
+            ? PlivoStatusEnum.REGISTERED
+            : PlivoStatusEnum.CONNECTED,
+          plivoErrorType: null,
+          plivoErrorMessage: null,
+        };
+      });
     });
 
     // `login` reports a refusal it will not raise an event for by returning
@@ -608,8 +644,43 @@ export const PlivoProvider = ({
     // length compare, and only rewrites when it is actually over.
     const trimInterval = setInterval(trimPlivoLogStorage, 5 * 60 * 1000);
 
+    /**
+     * Backstop for a connection banner that outlived the fault it described.
+     *
+     * `onConnectionChange` now clears a CONNECTION error when the transport
+     * comes back, but that only helps if the event is delivered to a listener
+     * that is still attached. A drop and recovery that happen while the tab is
+     * backgrounded, or either event being missed for any other reason, would
+     * leave the badge stuck on a phone that is demonstrably registered — the
+     * exact state this instance was found in, with `isRegistered()` and
+     * `isConnected()` both true behind a "Connection to Plivo lost" banner.
+     *
+     * So the SDK is asked directly rather than trusted to have told us. Only a
+     * CONNECTION fault is reconciled, and only towards recovery: this never
+     * raises an error, so a missed event can strand the UI in a good state at
+     * worst, never a false bad one.
+     */
+    const reconcileInterval = setInterval(() => {
+      if (plivoStateRef.current.plivoErrorType !== PlivoErrorTypeEnum.CONNECTION)
+        return;
+
+      if (!(client.isRegistered?.() ?? false)) return;
+
+      setPlivoState((prev) =>
+        prev.plivoErrorType === PlivoErrorTypeEnum.CONNECTION
+          ? {
+              ...prev,
+              plivoStatus: PlivoStatusEnum.REGISTERED,
+              plivoErrorType: null,
+              plivoErrorMessage: null,
+            }
+          : prev,
+      );
+    }, 15 * 1000);
+
     return () => {
       clearInterval(trimInterval);
+      clearInterval(reconcileInterval);
 
       if (audioRetryRef.current) {
         clearTimeout(audioRetryRef.current);
