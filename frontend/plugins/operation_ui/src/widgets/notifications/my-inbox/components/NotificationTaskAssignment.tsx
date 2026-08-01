@@ -32,8 +32,17 @@ export const NotificationTaskAssignment = ({
   const isAssigned = notificationAction === 'assignee';
   const description = isAssigned ? 'assigned you to' : 'changed status on';
 
+  // `min-h-[inherit]` accompanies `h-full` below, it does not replace it. The
+  // scroll-area viewport sizes this element's parent with min-height only
+  // (erxes-ui's ScrollArea applies `[&>div]:lg:min-h-dvh`), and a percentage
+  // height cannot resolve against a parent that has no definite height — so
+  // `h-full` silently collapsed to the content height and `justify-center`
+  // centred the card inside that short box, leaving it stuck at the top of a
+  // tall empty pane. Measured live: the card was 320px inside a 1172px parent;
+  // giving the parent a definite height, or inheriting its min-height, both
+  // took it to 1172px.
   return (
-    <div className="flex flex-col gap-4 w-full max-w-md mx-auto justify-center items-center h-full text-muted-foreground">
+    <div className="flex flex-col gap-4 w-full max-w-md mx-auto justify-center items-center h-full min-h-[inherit] text-muted-foreground">
       <div className="size-36 bg-sidebar rounded-2xl border-2 border-dashed flex flex-col items-center justify-center">
         <IconChecklist size={64} className="text-accent-foreground" stroke={1} />
       </div>

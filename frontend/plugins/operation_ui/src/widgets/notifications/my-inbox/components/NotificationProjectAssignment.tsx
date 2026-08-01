@@ -34,8 +34,11 @@ export const NotificationProjectAssignment = ({
     ? t('assigned-you-to')
     : t('changed-status-on');
 
+  // min-h-[inherit] accompanies h-full below — see NotificationTaskAssignment
+  // for why a percentage height cannot resolve against this scroll-area
+  // parent, which is sized by min-height alone.
   return (
-    <div className="flex flex-col gap-4 w-full max-w-md mx-auto justify-center items-center h-full text-muted-foreground">
+    <div className="flex flex-col gap-4 w-full max-w-md mx-auto justify-center items-center h-full min-h-[inherit] text-muted-foreground">
       <div className="size-36 bg-sidebar rounded-2xl border-2 border-dashed flex flex-col items-center justify-center">
         <IconClipboard size={64} className="text-accent-foreground" stroke={1} />
       </div>
