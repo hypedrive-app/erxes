@@ -13,11 +13,15 @@ import {
 } from 'erxes-ui';
 import { useSafeRemainderItemEdit } from '../hooks/useSafeRemainderItemEdit';
 import { ISafeRemainderItem } from '../types/SafeRemainder';
+import { formatCodeLabel } from '~/utils/formatCodeLabel';
 
 const ProductCell = ({ row }: any) => {
   return (
     <RecordTableInlineCell>
-      {`${row.original.product?.code} - ${row.original.product?.name}`}
+      {formatCodeLabel(
+        row.original.product?.code,
+        row.original.product?.name,
+      )}
     </RecordTableInlineCell>
   );
 };

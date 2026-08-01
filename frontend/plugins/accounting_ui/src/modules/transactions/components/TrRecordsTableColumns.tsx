@@ -21,6 +21,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { ProductsInline } from 'ui-modules';
+import { formatCodeLabel } from '~/utils/formatCodeLabel';
 import { useTrRecordsRemove } from '../hooks/useTrRecordsRemove';
 import { TR_JOURNAL_LABELS, TR_SIDES, TR_STATUS_LABELS, TrJournalEnum } from '../types/constants';
 import { ITrRecord } from '../types/Transaction';
@@ -136,7 +137,7 @@ const AccountCell = ({ row }: any) => {
 
   return (
     <RecordTableInlineCell>
-      {`${details?.account?.code} - ${details?.account?.name}`}
+      {formatCodeLabel(details?.account?.code, details?.account?.name)}
     </RecordTableInlineCell>
   );
 };

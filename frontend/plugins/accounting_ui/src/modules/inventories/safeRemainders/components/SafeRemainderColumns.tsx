@@ -4,6 +4,7 @@ import { ISafeRemainder } from '../types/SafeRemainder';
 import { Link } from 'react-router-dom';
 import { RecordTable, RecordTableInlineCell } from 'erxes-ui';
 import { IconFile, IconCalendar } from '@tabler/icons-react';
+import { formatCodeLabel } from '~/utils/formatCodeLabel';
 
 const DateCell = ({ getValue }: any) => {
   return (
@@ -47,7 +48,7 @@ export const safeRemainderColumns: ColumnDef<ISafeRemainder>[] = [
     accessorKey: 'branch',
     cell: ({ row }) => (
       <RecordTableInlineCell>
-        {`${row.original.branch?.code} - ${row.original.branch?.title}`}
+        {formatCodeLabel(row.original.branch?.code, row.original.branch?.title)}
       </RecordTableInlineCell>
     ),
   },
@@ -57,7 +58,10 @@ export const safeRemainderColumns: ColumnDef<ISafeRemainder>[] = [
     accessorKey: 'department',
     cell: ({ row }) => (
       <RecordTableInlineCell>
-        {`${row.original.department?.code} - ${row.original.department?.title}`}
+        {formatCodeLabel(
+          row.original.department?.code,
+          row.original.department?.title,
+        )}
       </RecordTableInlineCell>
     ),
   },

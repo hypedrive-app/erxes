@@ -11,6 +11,7 @@ import {
 } from 'erxes-ui';
 import { IconFile, IconMoneybag } from '@tabler/icons-react';
 import { useState } from 'react';
+import { formatCodeLabel } from '~/utils/formatCodeLabel';
 
 const DescriptionCell = ({ getValue, row }: any) => {
   const [description, setDescription] = useState(getValue() as string);
@@ -42,7 +43,10 @@ const DescriptionCell = ({ getValue, row }: any) => {
 const ProductCell = ({ row }: any) => {
   return (
     <RecordTableInlineCell>
-      {`${row.original.product?.code} - ${row.original.product?.name}`}
+      {formatCodeLabel(
+        row.original.product?.code,
+        row.original.product?.name,
+      )}
     </RecordTableInlineCell>
   );
 };
@@ -50,7 +54,10 @@ const ProductCell = ({ row }: any) => {
 const AccountCell = ({ row }: any) => {
   return (
     <RecordTableInlineCell>
-      {`${row.original.account?.code} - ${row.original.account?.name}`}
+      {formatCodeLabel(
+        row.original.account?.code,
+        row.original.account?.name,
+      )}
     </RecordTableInlineCell>
   );
 };
@@ -58,7 +65,7 @@ const AccountCell = ({ row }: any) => {
 const BranchCell = ({ row }: any) => {
   return (
     <RecordTableInlineCell>
-      {`${row.original.branch?.code} - ${row.original.branch?.title}`}
+      {formatCodeLabel(row.original.branch?.code, row.original.branch?.title)}
     </RecordTableInlineCell>
   );
 };
@@ -66,7 +73,10 @@ const BranchCell = ({ row }: any) => {
 const DepartmentCell = ({ row }: any) => {
   return (
     <RecordTableInlineCell>
-      {`${row.original.department?.code} - ${row.original.department?.title}`}
+      {formatCodeLabel(
+        row.original.department?.code,
+        row.original.department?.title,
+      )}
     </RecordTableInlineCell>
   );
 };
