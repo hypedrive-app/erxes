@@ -64,11 +64,19 @@ const COUNTRY_BY_DIALING_CODE: ReadonlyMap<string, CountryCode> =
  * Anything that is not a dialing code the metadata knows resolves to the
  * fallback rather than throwing — a mistyped setting must degrade to "country
  * unknown", not break every phone input in the product.
+ *
+ * The parameter is typed `unknown` because the runtime value is not typed at
+ * all: the container entrypoint serialises `window.env` as JSON, so an
+ * all-digit setting like `91` arrives as a NUMBER. Calling `.replace` on it
+ * threw at module-eval time, and because this module is imported during the
+ * app's first render that took down the whole SPA with a blank page rather
+ * than degrading one phone field. Coercing here keeps the failure impossible
+ * regardless of what shape the deployment writes.
  */
 export const resolvePhoneCountry = (
-  dialingCode?: string | null,
+  dialingCode?: unknown,
 ): CountryCode | undefined => {
-  const digits = (dialingCode ?? '').replace(/\D/g, '');
+  const digits = String(dialingCode ?? '').replace(/\D/g, '');
 
   if (!digits) return FALLBACK_PHONE_COUNTRY;
 
