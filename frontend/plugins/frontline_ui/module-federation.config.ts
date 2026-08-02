@@ -31,7 +31,11 @@ const config: ModuleFederationConfig = {
 
   shared: (libraryName, defaultConfig) => {
     if (coreLibraries.has(libraryName)) {
-      return defaultConfig;
+      return {
+        ...defaultConfig,
+        singleton: true,
+        strictVersion: true,
+      };
     }
 
     // Returning false means the library is not shared.

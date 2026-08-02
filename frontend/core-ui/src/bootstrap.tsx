@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import * as ReactDOM from 'react-dom/client';
 
-import { init } from '@module-federation/enhanced/runtime';
+import { registerRemotes } from '@module-federation/enhanced/runtime';
 
 import { NODE_ENV, REACT_APP_API_URL } from 'erxes-ui';
 
@@ -30,10 +30,7 @@ async function initFederation() {
     fetch(`${REACT_APP_API_URL}/get-frontend-plugins`)
       .then((res) => res.json())
       .then((data) => {
-        init({
-          name: 'core',
-          remotes: data,
-        });
+        registerRemotes(data);
 
         root.render(<App />);
       })
