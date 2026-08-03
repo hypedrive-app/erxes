@@ -1,3 +1,17 @@
 packages:
   - 'backend/**'
   - 'frontend/**'
+  # Build outputs are NOT workspace packages.
+  #
+  # `backend/**` matches any directory, and every compiled dist/ carries a
+  # generated package.json, so pnpm treated them as real packages and wrote
+  # phantom importers ("backend/core-api/dist:", "backend/plugins/*/dist:")
+  # into pnpm-lock.yaml on every regeneration — after any local `nx build`.
+  #
+  # That lockfile is what Docker installs from with --frozen-lockfile, so the
+  # noise is not cosmetic: it makes the lockfile depend on whether someone had
+  # built locally, and produces large spurious diffs that hide real dependency
+  # changes. Excluded here rather than by deleting dist/ before each
+  # regeneration, which would have to be remembered every time.
+  - '!**/dist/**'
+  - '!**/dist'
