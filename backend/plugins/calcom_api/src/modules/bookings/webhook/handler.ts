@@ -25,6 +25,11 @@ export const handleCalcomWebhook = async (
   models: IModels,
   subdomain: string,
   body: CalcomWebhookBody,
+  // Set by the reconciler. A backfill is reading existing state, not observing
+  // something happen, so it must not start workflows — replaying six months of
+  // history would otherwise fire "booking created" for every one of them and
+  // send a real email per row.
+  { emitAutomations = true }: { emitAutomations?: boolean } = {},
 ): Promise<HandleResult> => {
   const trigger = body.triggerEvent;
 
@@ -91,7 +96,12 @@ export const handleCalcomWebhook = async (
   // Emitted last, and only from a delivery that was actually applied — a stale
   // or duplicate webhook returns above, so a rule never fires twice for the
   // same event.
-  emitBookingAutomation(subdomain, trigger, { ...existing?.toObject?.(), ...mapped });
+  if (emitAutomations) {
+    emitBookingAutomation(subdomain, trigger, {
+      ...existing?.toObject?.(),
+      ...mapped,
+    });
+  }
 
   return { status: 'stored', uid, created: !existing };
 };

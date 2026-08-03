@@ -1,6 +1,7 @@
 import { Router, type Router as ExpressRouter } from 'express';
 
 import { generateModels } from '~/connectionResolvers';
+import { reconcileBookings } from '@/bookings/reconcile';
 import { handleCalcomWebhook } from '@/bookings/webhook/handler';
 import {
   CALCOM_SIGNATURE_HEADER,
@@ -53,6 +54,44 @@ router.post('/calcom/webhook', async (req, res) => {
     // 500 on purpose: this is our failure, not a malformed delivery, so Cal.com
     // retrying it is the behaviour we want.
     console.error('calcom webhook failed', e);
+    return res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+/**
+ * Backfills bookings that never arrived by webhook.
+ *
+ * Guarded by CALCOM_ADMIN_TOKEN rather than left open: it drives a loop of
+ * outbound Cal.com calls and writes to the CRM, so an unauthenticated caller
+ * could use it to hammer both. Absent token means the route is unavailable, not
+ * that the check is skipped — a deployment that forgot to set it should get 503
+ * rather than a public endpoint.
+ */
+router.post('/calcom/reconcile', async (req, res) => {
+  const adminToken = process.env.CALCOM_ADMIN_TOKEN;
+
+  if (!adminToken) {
+    return res
+      .status(503)
+      .json({ error: 'CALCOM_ADMIN_TOKEN is not configured' });
+  }
+
+  if (req.headers.authorization !== `Bearer ${adminToken}`) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  try {
+    const subdomain = req.subdomain || 'os';
+    const models = await generateModels(subdomain);
+
+    const summary = await reconcileBookings(models, subdomain, {
+      afterStart: req.body?.afterStart,
+      beforeEnd: req.body?.beforeEnd,
+    });
+
+    return res.status(200).json(summary);
+  } catch (e) {
+    console.error('calcom reconcile failed', e);
     return res.status(500).json({ error: (e as Error).message });
   }
 });
