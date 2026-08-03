@@ -42,7 +42,7 @@ router.post('/calcom/webhook', async (req, res) => {
     const subdomain = req.subdomain || 'os';
     const models = await generateModels(subdomain);
 
-    const result = await handleCalcomWebhook(models, req.body);
+    const result = await handleCalcomWebhook(models, subdomain, req.body);
 
     if (result.status === 'ignored') {
       console.log(`calcom webhook ignored: ${result.reason}`);

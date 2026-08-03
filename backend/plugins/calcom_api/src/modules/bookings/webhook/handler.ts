@@ -1,5 +1,6 @@
 import { IModels } from '~/connectionResolvers';
 
+import { linkAttendeesToCustomers } from './linkCustomers';
 import {
   CalcomWebhookBody,
   isHandledTrigger,
@@ -20,6 +21,7 @@ export type HandleResult =
  */
 export const handleCalcomWebhook = async (
   models: IModels,
+  subdomain: string,
   body: CalcomWebhookBody,
 ): Promise<HandleResult> => {
   const trigger = body.triggerEvent;
@@ -52,6 +54,26 @@ export const handleCalcomWebhook = async (
   }
 
   const { uid, ...rest } = mapped;
+
+  if (rest.attendees?.length) {
+    // Carry forward any link already resolved for this attendee. Cal.com
+    // re-sends the full attendee list on every event, so without this a
+    // reschedule would overwrite erxesCustomerId with undefined and quietly
+    // unlink a booking that was correctly linked when it was created.
+    const previous = new Map(
+      (existing?.attendees || [])
+        .filter((a) => a.email && a.erxesCustomerId)
+        .map((a) => [a.email as string, a.erxesCustomerId as string]),
+    );
+
+    const resolved = await linkAttendeesToCustomers(subdomain, rest.attendees);
+
+    rest.attendees = resolved.map((a) =>
+      a.erxesCustomerId || !a.email || !previous.has(a.email)
+        ? a
+        : { ...a, erxesCustomerId: previous.get(a.email) },
+    );
+  }
 
   await models.Bookings.updateOne(
     { uid },
