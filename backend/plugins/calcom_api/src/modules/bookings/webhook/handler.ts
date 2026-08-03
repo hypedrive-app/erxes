@@ -1,5 +1,7 @@
 import { IModels } from '~/connectionResolvers';
 
+import { linkBookingConformities } from './conformity';
+import { emitBookingAutomation } from './emitAutomation';
 import { linkAttendeesToCustomers } from './linkCustomers';
 import {
   CalcomWebhookBody,
@@ -80,6 +82,16 @@ export const handleCalcomWebhook = async (
     { $set: rest, $setOnInsert: { uid } },
     { upsert: true },
   );
+
+  // After the write, deliberately: the booking is the record, the conformity
+  // edge is an enrichment, and a failure in core's graph must not cost us a
+  // delivery we have already verified and mapped.
+  await linkBookingConformities(subdomain, uid, rest.attendees);
+
+  // Emitted last, and only from a delivery that was actually applied — a stale
+  // or duplicate webhook returns above, so a rule never fires twice for the
+  // same event.
+  emitBookingAutomation(subdomain, trigger, { ...existing?.toObject?.(), ...mapped });
 
   return { status: 'stored', uid, created: !existing };
 };
