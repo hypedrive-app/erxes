@@ -11,9 +11,15 @@ import './styles.css';
 import { App } from '@/app/components/App';
 import { ClientConfigError } from '@/error-handler/components/ClientConfigError';
 import { initSentry } from './sentry';
+import { applyRuntimeTheme } from './theme/applyRuntimeTheme';
 
 // Install browser error handlers as early as possible, before any rendering.
 initSentry();
+
+// Before the first paint, so the app never flashes the default accent and then
+// snaps to the deployment's. styles.css is already imported above, so the
+// custom properties it defines exist to be overridden by this point.
+applyRuntimeTheme();
 
 async function initFederation() {
   const root = ReactDOM.createRoot(
