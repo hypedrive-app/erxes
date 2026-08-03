@@ -3,6 +3,7 @@ import { typeDefs } from '~/apollo/typeDefs';
 import { appRouter } from '~/trpc/init-trpc';
 import { resolvers } from '~/apollo/resolvers';
 import { generateModels } from './connectionResolvers';
+import { router } from '~/routes';
 
 startPlugin({
   // Must match the name in the gateway's ENABLED_PLUGINS exactly: the gateway
@@ -17,6 +18,10 @@ startPlugin({
     typeDefs: await typeDefs(),
     resolvers,
   }),
+  // Carries the Cal.com webhook receiver. It cannot be a GraphQL mutation:
+  // Cal.com POSTs a fixed JSON envelope and signs the raw bytes, so the
+  // endpoint has to be a plain HTTP route that can read req.rawBody.
+  expressRouter: router,
   apolloServerContext: async (subdomain, context) => {
     const models = await generateModels(subdomain);
 
