@@ -25,9 +25,27 @@ export class CalcomApiError extends Error {
   }
 }
 
+/**
+ * Cal.com versions each endpoint independently by date, and `cal-api-version`
+ * is a REQUIRED parameter — not a nicety. Sending one blanket version for
+ * everything is wrong: verified against docs/api-reference/v2/openapi.json in
+ * the cal.com fork, /slots expects 2024-09-04 and /event-types expects
+ * 2024-06-14, while the booking endpoints expect 2024-08-13. The wrong version
+ * does not error, it returns a DIFFERENT response shape, which is the kind of
+ * failure that looks like a parsing bug.
+ */
+const API_VERSION_BOOKINGS = '2024-08-13';
+const API_VERSION_SLOTS = '2024-09-04';
+const API_VERSION_EVENT_TYPES = '2024-06-14';
+
 const request = async (
   path: string,
-  init: { method: string; body?: unknown; query?: Record<string, unknown> },
+  init: {
+    method: string;
+    body?: unknown;
+    query?: Record<string, unknown>;
+    apiVersion?: string;
+  },
 ): Promise<any> => {
   const key = process.env.CALCOM_API_KEY;
 
@@ -53,10 +71,9 @@ const request = async (
     headers: {
       Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
-      // Cal.com v2 endpoints are versioned by date; without this header the
-      // API answers with whatever it considers current, which can change
-      // underneath a working integration.
-      'cal-api-version': '2024-08-13',
+      // Defaults to the bookings version, since most calls here are bookings.
+      // Endpoints on a different track pass their own.
+      'cal-api-version': init.apiVersion || API_VERSION_BOOKINGS,
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
@@ -117,14 +134,34 @@ export const rescheduleCalcomBooking = async (
     },
   });
 
-/** Marks a host or attendee as absent, which drives the no-show trigger. */
+/**
+ * Marks a host or attendee as absent, which drives the no-show trigger.
+ *
+ * The wire field is `host`, NOT `noShowHost` — verified against
+ * MarkAbsentBookingInput_2024_08_13 in packages/platform/types and the
+ * generated openapi.json. This is worth stating because getting it wrong fails
+ * silently: the DTO strips unknown properties, so sending `noShowHost` returns
+ * 200 having changed nothing. The webhook payload uses `noShowHost` for the
+ * same concept, which is exactly how the confusion arises.
+ */
 export const markCalcomNoShow = async (
   uid: string,
-  input: { noShowHost?: boolean; attendees?: { email: string; absent: boolean }[] },
+  input: {
+    noShowHost?: boolean;
+    attendees?: { email: string; absent: boolean }[];
+  },
 ): Promise<any> =>
   request(`/bookings/${encodeURIComponent(uid)}/mark-absent`, {
     method: 'POST',
-    body: input,
+    body: {
+      // Renamed at the boundary rather than through the codebase: callers and
+      // the mirror both speak the webhook's `noShowHost`, and only this one
+      // request needs the API's spelling.
+      ...(typeof input.noShowHost === 'boolean'
+        ? { host: input.noShowHost }
+        : {}),
+      ...(input.attendees?.length ? { attendees: input.attendees } : {}),
+    },
   });
 
 /**
@@ -133,7 +170,11 @@ export const markCalcomNoShow = async (
  * book from inside erxes.
  */
 export const listCalcomEventTypes = async (username?: string): Promise<any> =>
-  request('/event-types', { method: 'GET', query: { username } });
+  request('/event-types', {
+    method: 'GET',
+    query: { username },
+    apiVersion: API_VERSION_EVENT_TYPES,
+  });
 
 /**
  * Free slots for an event type in a date range. Availability is computed by
@@ -145,6 +186,10 @@ export const getCalcomSlots = async (params: {
   start: string;
   end: string;
   timeZone?: string;
+  // `format: 'range'` makes each slot carry an `end` as well as a `start`.
+  // Without it Cal.com returns start times only, so the GraphQL `end` field is
+  // legitimately null — the duration is the event type's, not the slot's.
+  format?: 'time' | 'range';
 }): Promise<any> =>
   request('/slots', {
     method: 'GET',
@@ -153,7 +198,11 @@ export const getCalcomSlots = async (params: {
       start: params.start,
       end: params.end,
       timeZone: params.timeZone,
+      // Asked for explicitly so slots carry both ends, which is what the UI
+      // needs to show a time range rather than just a start.
+      format: params.format || 'range',
     },
+    apiVersion: API_VERSION_SLOTS,
   });
 
 /**
