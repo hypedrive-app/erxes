@@ -11,6 +11,7 @@ import {
   rescheduleCalcomBooking,
   updateCalcomBookingLocation,
 } from '@/bookings/calcomApi';
+import { provisionWebhook } from '@/bookings/webhookProvisioning';
 import {
   CALCOM_CONFIG_CODES,
   CalcomConfigCode,
@@ -222,4 +223,10 @@ export const bookingsMutations = {
 
     return { ok: true, uid };
   },
+
+  calcomProvisionWebhook: async (
+    _parent: undefined,
+    _args: undefined,
+    { models }: IContext,
+  ) => provisionWebhook(models, process.env.DOMAIN || ''),
 };

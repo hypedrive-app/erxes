@@ -142,6 +142,20 @@ export const types = `
     externalCalendarId: String
   }
 
+  """
+  Whether Cal.com is actually configured to deliver webhooks here.
+
+  status is one of: ok, missing (no subscription for our URL),
+  misconfigured (present but inactive or subscribed to the wrong events),
+  unconfigured (no API key, so we cannot even look).
+  """
+  type CalcomWebhookHealth {
+    status: String
+    webhookId: String
+    subscriberUrl: String
+    problems: [String]
+  }
+
   input CalcomAttendeeAbsenceInput {
     email: String!
     absent: Boolean!
@@ -170,6 +184,12 @@ export const queries = `
   CalcomConfigStatus.
   """
   calcomConfigStatus: [CalcomConfigStatus]
+
+  """
+  Checks the Cal.com webhook subscription. Reads Cal.com live, so it reports
+  what is actually configured there rather than what erxes believes.
+  """
+  calcomWebhookHealth: CalcomWebhookHealth
 
   """
   Cal Video recordings and transcripts. Empty for bookings held on any other
@@ -244,6 +264,17 @@ export const mutations = `
   storing a blank.
   """
   calcomSetConfig(code: String!, value: String): CalcomConfigStatus
+
+  """
+  Creates or repairs the Cal.com webhook subscription and stores its signing
+  secret, replacing the manual create-in-Cal.com-and-paste-the-secret setup.
+
+  Always rotates the secret: this runs when someone has asked for the
+  integration to be fixed, and the usual cause is the two sides disagreeing
+  about it. Setting both ends from one generated value is what guarantees they
+  agree.
+  """
+  calcomProvisionWebhook: CalcomWebhookHealth
 
   """
   Moves the meeting to a different location WITHOUT moving it in time.

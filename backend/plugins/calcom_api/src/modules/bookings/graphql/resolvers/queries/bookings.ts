@@ -11,6 +11,7 @@ import {
   listCalcomEventTypes,
 } from '@/bookings/calcomApi';
 import { getCalcomConfigStatus } from '@/bookings/config';
+import { checkWebhookHealth } from '@/bookings/webhookProvisioning';
 
 type ListArgs = {
   customerId?: string;
@@ -244,5 +245,24 @@ export const bookingsQueries = {
     if (!uid) return null;
 
     return models.Bookings.findOne({ uid });
+  },
+
+  calcomWebhookHealth: async (
+    _parent: undefined,
+    _args: undefined,
+    { models }: IContext,
+  ) => {
+    try {
+      return await checkWebhookHealth(
+        models,
+        process.env.DOMAIN || '',
+      );
+    } catch (e) {
+      // A failed lookup is itself diagnostic — almost always a bad API key —
+      // so it answers with a status rather than erroring the whole settings
+      // page, which also renders unrelated config.
+      console.error('calcom: webhook health check failed', e);
+      return { status: 'unconfigured', problems: [(e as Error).message] };
+    }
   },
 };

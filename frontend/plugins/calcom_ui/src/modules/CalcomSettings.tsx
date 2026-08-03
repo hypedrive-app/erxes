@@ -1,5 +1,6 @@
 import { CalcomConfigForm } from '~/modules/bookings/components/CalcomConfigForm';
 import { CalcomIntegrationStatus } from '~/modules/bookings/components/IntegrationStatus';
+import { WebhookHealthCard } from '~/modules/bookings/components/WebhookHealthCard';
 
 /**
  * Cal.com integration settings.
@@ -26,6 +27,15 @@ export const CalcomSettings = () => {
           not.
         </p>
         <CalcomIntegrationStatus />
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold">Connection</h2>
+        <p className="mt-1 mb-2 text-sm text-muted-foreground">
+          Cal.com pushes booking events here. This sets that up for you — no
+          need to create a webhook in Cal.com by hand.
+        </p>
+        <WebhookHealthCard />
       </section>
 
       <section>

@@ -27,3 +27,28 @@ export const CALCOM_SET_CONFIG = gql`
     }
   }
 `;
+
+/**
+ * Reads Cal.com live to report whether it is actually configured to deliver
+ * here — as opposed to what erxes believes about its own config.
+ */
+export const CALCOM_WEBHOOK_HEALTH_QUERY = gql`
+  query CalcomWebhookHealth {
+    calcomWebhookHealth {
+      status
+      webhookId
+      subscriberUrl
+      problems
+    }
+  }
+`;
+
+export const CALCOM_PROVISION_WEBHOOK = gql`
+  mutation CalcomProvisionWebhook {
+    calcomProvisionWebhook {
+      status
+      webhookId
+      subscriberUrl
+    }
+  }
+`;

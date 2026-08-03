@@ -363,6 +363,73 @@ export const reassignCalcomBookingToUser = async (
   );
 
 /**
+ * Webhook subscriptions owned by the API key's user.
+ *
+ * These exist so the plugin can provision and repair its own subscription
+ * instead of asking an operator to create one in Cal.com's UI and paste a
+ * matching secret into erxes — which was the integration's single largest
+ * setup-friction point, and the one step most likely to be done wrong.
+ */
+export const listCalcomWebhooks = async (
+  models: IModels | undefined,
+  params: { take?: number; skip?: number } = {},
+): Promise<any> =>
+  request('/webhooks', { method: 'GET', query: params, models });
+
+/**
+ * Creates a subscription.
+ *
+ * `active`, `subscriberUrl` and `triggers` are the required fields per
+ * CreateWebhookInputDto; `secret` is optional to Cal.com but never omitted
+ * here, because an unsigned webhook is one this plugin will reject.
+ */
+export const createCalcomWebhook = async (
+  models: IModels | undefined,
+  input: {
+    subscriberUrl: string;
+    triggers: string[];
+    secret: string;
+    active?: boolean;
+  },
+): Promise<any> =>
+  request('/webhooks', {
+    method: 'POST',
+    body: {
+      active: input.active ?? true,
+      subscriberUrl: input.subscriberUrl,
+      triggers: input.triggers,
+      secret: input.secret,
+    },
+    models,
+  });
+
+/** Repairs an existing subscription in place — URL, triggers or active flag. */
+export const updateCalcomWebhook = async (
+  models: IModels | undefined,
+  webhookId: string,
+  input: {
+    subscriberUrl?: string;
+    triggers?: string[];
+    secret?: string;
+    active?: boolean;
+  },
+): Promise<any> =>
+  request(`/webhooks/${encodeURIComponent(webhookId)}`, {
+    method: 'PATCH',
+    body: input,
+    models,
+  });
+
+export const deleteCalcomWebhook = async (
+  models: IModels | undefined,
+  webhookId: string,
+): Promise<any> =>
+  request(`/webhooks/${encodeURIComponent(webhookId)}`, {
+    method: 'DELETE',
+    models,
+  });
+
+/**
  * The bookable event types. Webhooks only ever name the event type of a booking
  * that already happened, so this is the only way to offer a choice of what to
  * book from inside erxes.
