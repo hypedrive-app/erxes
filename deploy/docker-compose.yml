@@ -736,6 +736,17 @@ services:
       # container start. This replaces the old bind-mounted index.html, which
       # could not survive building our own bundle.
       REACT_APP_APP_TITLE: ${APP_TITLE:-}
+      # ── Accent colour ────────────────────────────────────────────────────
+      # A hex brand colour. applyRuntimeTheme converts it to oklch and sets
+      # --accent-hue/--accent-chroma on <html> before the first paint, which
+      # retints all 18 accent tokens (primary, ring, secondary, the chart ramp).
+      # Runtime, not build-time: these are plain CSS custom properties resolved
+      # by the browser, so one image serves several tenants — same reason
+      # APP_TITLE and PLUGIN_CDN_URL are read from window.env rather than baked
+      # in. Unset leaves the stylesheet default, which is already the Sharks
+      # Marketing blue (#3B90FA). An unparseable value warns in the console and
+      # keeps the default rather than producing an unreadable UI.
+      REACT_APP_ACCENT_COLOR: ${ACCENT_COLOR:-}
       # Dialing code this deployment dials from, digits only and no `+` (`91` =
       # India). Product-wide default for every phone input, so a number typed
       # without an explicit `+<country>` is read as local. Upstream hardcoded
