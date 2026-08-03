@@ -95,3 +95,29 @@ export const CALCOM_DECLINE_BOOKING = gql`
     }
   }
 `;
+
+/**
+ * Moves the meeting without moving it in time — distinct from a reschedule,
+ * which cancels the booking and issues a new uid.
+ */
+export const CALCOM_UPDATE_BOOKING_LOCATION = gql`
+  mutation CalcomUpdateBookingLocation($uid: String!, $location: JSON!) {
+    calcomUpdateBookingLocation(uid: $uid, location: $location) {
+      ok
+      uid
+    }
+  }
+`;
+
+/**
+ * Reassigns a round-robin booking. Without userId Cal.com picks the next host;
+ * with one it reassigns to that person.
+ */
+export const CALCOM_REASSIGN_BOOKING = gql`
+  mutation CalcomReassignBooking($uid: String!, $userId: Int, $reason: String) {
+    calcomReassignBooking(uid: $uid, userId: $userId, reason: $reason) {
+      ok
+      uid
+    }
+  }
+`;

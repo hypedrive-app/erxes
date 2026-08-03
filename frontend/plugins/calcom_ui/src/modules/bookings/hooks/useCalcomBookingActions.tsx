@@ -8,7 +8,9 @@ import {
   CALCOM_CREATE_BOOKING,
   CALCOM_DECLINE_BOOKING,
   CALCOM_MARK_NO_SHOW,
+  CALCOM_REASSIGN_BOOKING,
   CALCOM_RESCHEDULE_BOOKING,
+  CALCOM_UPDATE_BOOKING_LOCATION,
 } from '~/modules/bookings/graphql/mutations/bookings';
 import {
   CALCOM_BOOKINGS_QUERY,
@@ -53,6 +55,8 @@ export const useCalcomBookingActions = () => {
   const [createBookingMutation] = useMutation(CALCOM_CREATE_BOOKING);
   const [confirmBookingMutation] = useMutation(CALCOM_CONFIRM_BOOKING);
   const [declineBookingMutation] = useMutation(CALCOM_DECLINE_BOOKING);
+  const [updateLocationMutation] = useMutation(CALCOM_UPDATE_BOOKING_LOCATION);
+  const [reassignBookingMutation] = useMutation(CALCOM_REASSIGN_BOOKING);
 
   // Scheduled rather than awaited: the caller should not be blocked for seconds
   // on a delay whose only purpose is to outlast the webhook round trip.
@@ -170,6 +174,36 @@ export const useCalcomBookingActions = () => {
     [run, declineBookingMutation],
   );
 
+  /**
+   * Changes WHERE the meeting happens without moving it in time.
+   *
+   * Not a reschedule: a reschedule cancels the booking and issues a new uid,
+   * which is the wrong outcome for "we'll do this by phone instead".
+   */
+  const updateBookingLocation = useCallback(
+    (uid: string, location: Record<string, unknown>) =>
+      run(
+        () => updateLocationMutation({ variables: { uid, location } }),
+        'Meeting location updated',
+      ),
+    [run, updateLocationMutation],
+  );
+
+  /**
+   * Reassigns a round-robin booking. Deliberately has no UI surface — it only
+   * applies to team round-robin event types and is an ops/dispatcher action
+   * rather than a rep-facing one, so it is exposed for automations and admin
+   * tooling instead of adding a button most users could never use.
+   */
+  const reassignBooking = useCallback(
+    (uid: string, userId?: number, reason?: string) =>
+      run(
+        () => reassignBookingMutation({ variables: { uid, userId, reason } }),
+        'Booking reassigned',
+      ),
+    [run, reassignBookingMutation],
+  );
+
   return {
     pending,
     cancelBooking,
@@ -178,5 +212,7 @@ export const useCalcomBookingActions = () => {
     createBooking,
     confirmBooking,
     declineBooking,
+    updateBookingLocation,
+    reassignBooking,
   };
 };

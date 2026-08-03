@@ -2,15 +2,18 @@ import {
   IconCalendarX,
   IconCheck,
   IconExternalLink,
+  IconMapPin,
   IconUserX,
   IconX,
 } from '@tabler/icons-react';
-import { Badge, Button, Sheet, Skeleton } from 'erxes-ui';
+import { Badge, Button, Sheet, Skeleton, Tabs } from 'erxes-ui';
 import { format } from 'date-fns';
 import { useState } from 'react';
 
+import { BookingExtras } from '~/modules/bookings/components/BookingExtras';
 import { CancelBookingDialog } from '~/modules/bookings/components/CancelBookingDialog';
 import { RescheduleBookingDialog } from '~/modules/bookings/components/RescheduleBookingDialog';
+import { UpdateLocationDialog } from '~/modules/bookings/components/UpdateLocationDialog';
 import { getStatusVariant } from '~/modules/bookings/constants/bookingStatus';
 import { useCalcomBooking } from '~/modules/bookings/hooks/useCalcomBooking';
 import { useCalcomBookingActions } from '~/modules/bookings/hooks/useCalcomBookingActions';
@@ -46,6 +49,7 @@ export const BookingDetailSheet = ({
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
 
   // Cal.com rejects changes to a booking that is already cancelled or rejected,
   // so the actions are hidden rather than offered and then failed. An action
@@ -72,7 +76,20 @@ export const BookingDetailSheet = ({
           <Sheet.Close />
         </Sheet.Header>
 
-        <Sheet.Content className="p-5 flex flex-col gap-5 overflow-y-auto">
+        <Sheet.Content className="p-0 flex flex-col overflow-hidden">
+          {/* Tabbed so the Cal.com round trips in "Details" are paid only when
+              someone asks for them — the overview renders entirely from the
+              mirror and stays instant. */}
+          <Tabs defaultValue="overview" className="flex flex-col h-full">
+            <Tabs.List className="px-5 pt-3">
+              <Tabs.Trigger value="overview">Overview</Tabs.Trigger>
+              <Tabs.Trigger value="details">Details</Tabs.Trigger>
+            </Tabs.List>
+
+            <Tabs.Content
+              value="overview"
+              className="p-5 flex flex-col gap-5 overflow-y-auto"
+            >
           {loading && !booking && (
             <div className="flex flex-col gap-5">
               {Array.from({ length: 6 }).map((_, index) => (
@@ -201,6 +218,12 @@ export const BookingDetailSheet = ({
               </Field>
             </>
           )}
+            </Tabs.Content>
+
+            <Tabs.Content value="details" className="p-5 overflow-y-auto">
+              {booking?.uid && <BookingExtras uid={booking.uid} />}
+            </Tabs.Content>
+          </Tabs>
         </Sheet.Content>
 
         {/* Actions live in a footer rather than beside each field: they act on
@@ -241,6 +264,14 @@ export const BookingDetailSheet = ({
               </Button>
             )}
             <Button
+              variant="ghost"
+              disabled={pending}
+              onClick={() => setLocationOpen(true)}
+            >
+              <IconMapPin className="w-4 h-4" />
+              Location
+            </Button>
+            <Button
               variant="secondary"
               disabled={pending}
               onClick={() => setRescheduleOpen(true)}
@@ -272,6 +303,13 @@ export const BookingDetailSheet = ({
         title={booking?.title}
         open={rescheduleOpen}
         onOpenChange={setRescheduleOpen}
+      />
+
+      <UpdateLocationDialog
+        uid={booking?.uid}
+        currentLocation={booking?.meetingUrl || booking?.location}
+        open={locationOpen}
+        onOpenChange={setLocationOpen}
       />
     </Sheet>
   );

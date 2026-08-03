@@ -87,3 +87,38 @@ export const CALCOM_BOOKING_QUERY = gql`
   }
   ${CALCOM_BOOKING_FIELDS}
 `;
+
+/**
+ * Everything the mirror cannot answer, read live from Cal.com.
+ *
+ * Kept out of CALCOM_BOOKING_QUERY on purpose: each of these is a separate
+ * outbound API call, and loading them for every booking anyone glances at would
+ * make opening the detail panel several round trips slower for information most
+ * people never look at. The panel requests them only when its Details tab is
+ * opened.
+ *
+ * Transcripts are intentionally absent. The backend exposes them, but they are
+ * not surfaced (see BookingExtras), and querying a field nothing renders would
+ * spend an outbound Cal.com call per booking opened for nothing.
+ */
+export const CALCOM_BOOKING_EXTRAS_QUERY = gql`
+  query CalcomBookingExtras($uid: String!) {
+    calcomBookingCalendarLinks(uid: $uid) {
+      label
+      link
+    }
+    calcomBookingRecordings(uid: $uid) {
+      id
+      status
+      duration
+      downloadLink
+    }
+    calcomBookingReferences(uid: $uid) {
+      id
+      type
+      uid
+      meetingUrl
+      externalCalendarId
+    }
+  }
+`;
