@@ -6,12 +6,24 @@ import { HandledTrigger } from './mapPayload';
 
 /**
  * Maps a Cal.com webhook event onto the automation trigger type an erxes rule
- * subscribes to. Only the events worth starting a workflow from are mapped;
- * BOOKING_REQUESTED and BOOKING_REJECTED are intentionally absent, since an
- * approval that has not been decided yet is not an outcome to act on.
+ * subscribes to.
+ *
+ * BOOKING_REQUESTED was originally left out on the grounds that "an approval
+ * that has not been decided yet is not an outcome to act on". That was
+ * backwards: a booking waiting on approval is exactly the thing that needs to
+ * reach a human, and it is the only event here with a deadline attached — the
+ * requester is waiting. Now that confirm/decline exist as actions, a rule can
+ * both notify and resolve it.
+ *
+ * BOOKING_REJECTED stays mapped to the cancelled trigger rather than getting
+ * its own: from the CRM's point of view the meeting is not happening, which is
+ * the same fact a rule acts on, and the payload carries the distinction for
+ * anything that needs it.
  */
 const TRIGGER_TYPE_BY_EVENT: Partial<Record<HandledTrigger, string>> = {
   BOOKING_CREATED: 'calcom:bookings.created',
+  BOOKING_REQUESTED: 'calcom:bookings.requested',
+  BOOKING_REJECTED: 'calcom:bookings.cancelled',
   BOOKING_RESCHEDULED: 'calcom:bookings.rescheduled',
   BOOKING_CANCELLED: 'calcom:bookings.cancelled',
   BOOKING_NO_SHOW_UPDATED: 'calcom:bookings.noShow',

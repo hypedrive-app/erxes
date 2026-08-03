@@ -54,6 +54,17 @@ export const calcomAutomationConstants: AutomationConstants = {
       moduleName: 'bookings',
       collectionName: 'bookings',
       relationType: 'event',
+      icon: 'IconClockQuestion',
+      label: 'Cal.com booking requested',
+      description:
+        'Start this workflow when a booking needs approval. Pair it with the cancel action, or notify whoever decides.',
+      type: 'calcom:bookings.requested',
+      output: BOOKING_OUTPUT,
+    },
+    {
+      moduleName: 'bookings',
+      collectionName: 'bookings',
+      relationType: 'event',
       icon: 'IconCalendarEvent',
       label: 'Cal.com booking rescheduled',
       description: 'Start this workflow when a Cal.com booking is rescheduled.',
