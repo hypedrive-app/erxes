@@ -1,5 +1,5 @@
 
-import { IconSandbox } from '@tabler/icons-react';
+import { IconCalendarEvent } from '@tabler/icons-react';
 import { lazy, Suspense } from 'react';
 import { IUIConfig } from 'erxes-ui';
 
@@ -26,7 +26,7 @@ export const CONFIG: IUIConfig = {
   ),
   navigationGroup: {
     name: 'calcom',
-    icon: IconSandbox,
+    icon: IconCalendarEvent,
     content: () => (
       <Suspense fallback={<div />}>
         <CalcomNavigation />
@@ -37,8 +37,26 @@ export const CONFIG: IUIConfig = {
   modules: [
     {
       name: 'bookings',
-      icon: IconSandbox,
+      icon: IconCalendarEvent,
       path: 'bookings',
+      // The backend registers booking triggers and a cancel action via
+      // startPlugin's meta.automations; without this flag the automation
+      // builder never offers them.
+      hasAutomation: true,
+      hasRelationWidget: true,
     },
   ],
+
+  // Declares the contact-panel tab. useRelationWidgetsModules builds the tab
+  // list from exactly this array — the module federation expose alone is not
+  // enough, nothing would ever request it.
+  widgets: {
+    relationWidgets: [
+      {
+        name: 'bookings',
+        icon: IconCalendarEvent,
+        label: 'Cal.com bookings',
+      },
+    ],
+  },
 };

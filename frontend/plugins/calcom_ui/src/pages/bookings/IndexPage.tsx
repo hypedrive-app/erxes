@@ -7,6 +7,8 @@ import { Breadcrumb, Button, Separator } from 'erxes-ui';
 import { PageHeader, createFavoriteBreadcrumb } from 'ui-modules';
 import { Link } from 'react-router-dom';
 
+import { BookingsRecordTable } from '~/modules/bookings/components/BookingsRecordTable';
+
 export const IndexPage = () => {
   // FavoriteToggleButton requires a breadcrumb; create-plugin renders it with
   // no props, which does not compile. Built the way sales_ui/PosIndexPage does.
@@ -47,13 +49,8 @@ export const IndexPage = () => {
         </PageHeader.End>
       </PageHeader>
       <div className="flex h-full overflow-hidden">
-        <div className="flex flex-col h-full overflow-hidden flex-auto p-6">
-          <div className="rounded-lg border bg-card p-8 text-card-foreground">
-            <h2 className="text-xl font-semibold mb-2">bookings</h2>
-            <p className="text-muted-foreground">
-              This is the bookings module. Add your content here using RecordTable, Form, and other erxes-ui components.
-            </p>
-          </div>
+        <div className="flex flex-col h-full overflow-hidden flex-auto">
+          <BookingsRecordTable />
         </div>
       </div>
     </div>

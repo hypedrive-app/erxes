@@ -18,7 +18,11 @@ export const config: ModuleFederationConfig = {
     './config': './src/config.tsx',
     './calcom': './src/modules/CalcomMain.tsx',
     './calcomSettings': './src/modules/CalcomSettings.tsx',
-    './widgets': './src/widgets/Widgets.tsx',
+    // 'relationWidget', not the generator's './widgets': core-ui loads contact
+    // widgets via RenderPluginsComponent with remoteModuleName="relationWidget"
+    // (WidgetsComponent.tsx), so an expose named anything else is never
+    // requested and the widget silently never renders.
+    './relationWidget': './src/widgets/Widgets.tsx',
   },
 
   shared: (libraryName, defaultConfig) => {
