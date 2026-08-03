@@ -41,3 +41,18 @@ Compose services `frontline-ui`, `sales-ui`, `operation-ui` collapse into
 | `operation_ui/Dockerfile.build` | Same. |
 | `sales_ui/nginx/default.conf` | Byte-identical to `frontline_ui/nginx/default.conf` apart from comments — its rules (no-cache on stable-named `remoteEntry.js`, immutable on hashed chunks, CORS on fonts) are per-URL and name no plugin. The frontline copy is retained in-tree as the shared config. |
 | `operation_ui/nginx/default.conf` | Same. |
+
+## dist-build-outputs/ (2026-08-03)
+
+Local `nx build` outputs for gateway, core-api, automations and the
+frontline/sales/operation/calcom plugin APIs.
+
+Moved here rather than left in place because `pnpm-workspace.yaml` globs
+`backend/**`, and each of these `dist/` directories contains a generated
+`package.json`. pnpm therefore treated them as workspace packages and wrote
+seven phantom importers (`backend/gateway/dist:` etc.) into `pnpm-lock.yaml`
+during a lockfile regeneration. They are gitignored build artifacts, they never
+exist in the clean checkout Docker builds from, and they can be regenerated at
+any time with `pnpm nx build <project>`.
+
+Safe to delete.
