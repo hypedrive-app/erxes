@@ -4,7 +4,9 @@ import { useCallback, useState } from 'react';
 
 import {
   CALCOM_CANCEL_BOOKING,
+  CALCOM_CONFIRM_BOOKING,
   CALCOM_CREATE_BOOKING,
+  CALCOM_DECLINE_BOOKING,
   CALCOM_MARK_NO_SHOW,
   CALCOM_RESCHEDULE_BOOKING,
 } from '~/modules/bookings/graphql/mutations/bookings';
@@ -49,6 +51,8 @@ export const useCalcomBookingActions = () => {
   const [rescheduleBookingMutation] = useMutation(CALCOM_RESCHEDULE_BOOKING);
   const [markNoShowMutation] = useMutation(CALCOM_MARK_NO_SHOW);
   const [createBookingMutation] = useMutation(CALCOM_CREATE_BOOKING);
+  const [confirmBookingMutation] = useMutation(CALCOM_CONFIRM_BOOKING);
+  const [declineBookingMutation] = useMutation(CALCOM_DECLINE_BOOKING);
 
   // Scheduled rather than awaited: the caller should not be blocked for seconds
   // on a delay whose only purpose is to outlast the webhook round trip.
@@ -148,11 +152,31 @@ export const useCalcomBookingActions = () => {
     [run, createBookingMutation],
   );
 
+  const confirmBooking = useCallback(
+    (uid: string) =>
+      run(
+        () => confirmBookingMutation({ variables: { uid } }),
+        'Booking confirmed',
+      ),
+    [run, confirmBookingMutation],
+  );
+
+  const declineBooking = useCallback(
+    (uid: string, reason?: string) =>
+      run(
+        () => declineBookingMutation({ variables: { uid, reason } }),
+        'Booking declined',
+      ),
+    [run, declineBookingMutation],
+  );
+
   return {
     pending,
     cancelBooking,
     rescheduleBooking,
     markNoShow,
     createBooking,
+    confirmBooking,
+    declineBooking,
   };
 };

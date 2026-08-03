@@ -70,3 +70,28 @@ export const CALCOM_CREATE_BOOKING = gql`
     }
   }
 `;
+
+/**
+ * Approve or refuse a booking awaiting confirmation.
+ *
+ * Event types with requiresConfirmation create bookings in PENDING and Cal.com
+ * notifies the requester of the outcome, so these are decisions with an
+ * external consequence rather than local state changes.
+ */
+export const CALCOM_CONFIRM_BOOKING = gql`
+  mutation CalcomConfirmBooking($uid: String!) {
+    calcomConfirmBooking(uid: $uid) {
+      ok
+      uid
+    }
+  }
+`;
+
+export const CALCOM_DECLINE_BOOKING = gql`
+  mutation CalcomDeclineBooking($uid: String!, $reason: String) {
+    calcomDeclineBooking(uid: $uid, reason: $reason) {
+      ok
+      uid
+    }
+  }
+`;

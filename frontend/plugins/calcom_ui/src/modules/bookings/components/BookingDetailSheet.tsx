@@ -1,7 +1,9 @@
 import {
   IconCalendarX,
+  IconCheck,
   IconExternalLink,
   IconUserX,
+  IconX,
 } from '@tabler/icons-react';
 import { Badge, Button, Sheet, Skeleton } from 'erxes-ui';
 import { format } from 'date-fns';
@@ -39,7 +41,8 @@ export const BookingDetailSheet = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { booking, loading } = useCalcomBooking({ _id: bookingId });
-  const { markNoShow, pending } = useCalcomBookingActions();
+  const { markNoShow, confirmBooking, declineBooking, pending } =
+    useCalcomBookingActions();
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -49,6 +52,11 @@ export const BookingDetailSheet = ({
   // the user cannot take should not be a button they can press.
   const isTerminal =
     booking?.status === 'CANCELLED' || booking?.status === 'REJECTED';
+
+  // A pending booking is a REQUEST awaiting a decision, not a scheduled
+  // meeting. Confirm/decline replace the normal actions for it: rescheduling
+  // something nobody has agreed to yet is not a meaningful operation.
+  const isPending = booking?.status === 'PENDING';
 
   // No-show only makes sense once the meeting was supposed to have happened;
   // before that there is nothing to report.
@@ -198,7 +206,27 @@ export const BookingDetailSheet = ({
         {/* Actions live in a footer rather than beside each field: they act on
             the booking as a whole, and keeping them in one place means the
             destructive one is never adjacent to something harmless. */}
-        {booking && !isTerminal && (
+        {booking && !isTerminal && isPending && (
+          <Sheet.Footer className="border-t shrink-0">
+            <Button
+              variant="ghost"
+              disabled={pending}
+              onClick={() => booking.uid && declineBooking(booking.uid)}
+            >
+              <IconX className="w-4 h-4" />
+              Decline
+            </Button>
+            <Button
+              disabled={pending}
+              onClick={() => booking.uid && confirmBooking(booking.uid)}
+            >
+              <IconCheck className="w-4 h-4" />
+              Confirm
+            </Button>
+          </Sheet.Footer>
+        )}
+
+        {booking && !isTerminal && !isPending && (
           <Sheet.Footer className="border-t shrink-0">
             {hasStarted && (
               <Button
