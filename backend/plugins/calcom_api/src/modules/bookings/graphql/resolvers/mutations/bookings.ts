@@ -6,7 +6,10 @@ import {
   createCalcomBooking,
   declineCalcomBooking,
   markCalcomNoShow,
+  reassignCalcomBooking,
+  reassignCalcomBookingToUser,
   rescheduleCalcomBooking,
+  updateCalcomBookingLocation,
 } from '@/bookings/calcomApi';
 import {
   CALCOM_CONFIG_CODES,
@@ -182,5 +185,41 @@ export const bookingsMutations = {
     const status = await getCalcomConfigStatus(models);
 
     return status.find((entry) => entry.code === code);
+  },
+
+  calcomUpdateBookingLocation: async (
+    _parent: undefined,
+    { uid, location }: { uid: string; location: Record<string, unknown> },
+    { models }: IContext,
+  ) => {
+    await updateCalcomBookingLocation(models, requireUid(uid), location);
+
+    return { ok: true, uid };
+  },
+
+  /**
+   * One mutation for both reassign endpoints.
+   *
+   * Cal.com splits them by URL — /reassign picks the next round-robin host,
+   * /reassign/{userId} names one — but from the caller's side that is a single
+   * operation with an optional target, and exposing two mutations would push
+   * that routing detail into every UI.
+   */
+  calcomReassignBooking: async (
+    _parent: undefined,
+    {
+      uid,
+      userId,
+      reason,
+    }: { uid: string; userId?: number; reason?: string },
+    { models }: IContext,
+  ) => {
+    if (userId) {
+      await reassignCalcomBookingToUser(models, requireUid(uid), userId, reason);
+    } else {
+      await reassignCalcomBooking(models, requireUid(uid));
+    }
+
+    return { ok: true, uid };
   },
 };

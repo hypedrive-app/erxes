@@ -48,14 +48,33 @@ const check = (name, ok, detail) => {
 const ENDPOINTS = [
   ['/v2/bookings', 'post'],
   ['/v2/bookings', 'get'],
+  ['/v2/bookings/{bookingUid}', 'get'],
   ['/v2/bookings/{bookingUid}/cancel', 'post'],
   ['/v2/bookings/{bookingUid}/reschedule', 'post'],
   ['/v2/bookings/{bookingUid}/mark-absent', 'post'],
   ['/v2/bookings/{bookingUid}/confirm', 'post'],
   ['/v2/bookings/{bookingUid}/decline', 'post'],
+  ['/v2/bookings/{bookingUid}/recordings', 'get'],
+  ['/v2/bookings/{bookingUid}/transcripts', 'get'],
+  ['/v2/bookings/{bookingUid}/calendar-links', 'get'],
+  ['/v2/bookings/{bookingUid}/references', 'get'],
+  ['/v2/bookings/{bookingUid}/conferencing-sessions', 'get'],
+  ['/v2/bookings/by-seat/{seatUid}', 'get'],
+  ['/v2/bookings/{bookingUid}/location', 'patch'],
+  ['/v2/bookings/{bookingUid}/reassign', 'post'],
+  ['/v2/bookings/{bookingUid}/reassign/{userId}', 'post'],
   ['/v2/event-types', 'get'],
   ['/v2/slots', 'get'],
 ];
+
+/**
+ * The client is expected to cover the ENTIRE Bookings surface.
+ *
+ * Asserted rather than assumed so that a Cal.com upgrade adding a booking
+ * endpoint shows up here as a failure instead of being silently missing —
+ * which is how the first nine ended up unimplemented.
+ */
+const EXPECTED_BOOKING_ENDPOINTS = 17;
 
 for (const [route, method] of ENDPOINTS) {
   check(
@@ -102,6 +121,31 @@ if (markAbsent) {
     'spec field is `host`; sending `noShowHost` is accepted and ignored',
   );
 }
+
+// Coverage: every endpoint Cal.com tags as Bookings should be implemented.
+const bookingEndpoints = Object.entries(spec.paths || {}).flatMap(
+  ([route, ops]) =>
+    Object.entries(ops)
+      .filter(([, op]) => (op.tags || []).includes('Bookings'))
+      .map(([method]) => `${method.toUpperCase()} ${route}`),
+);
+
+const covered = new Set(
+  ENDPOINTS.map(([route, method]) => `${method.toUpperCase()} ${route}`),
+);
+const uncovered = bookingEndpoints.filter((e) => !covered.has(e));
+
+check(
+  `Bookings coverage (${bookingEndpoints.length} endpoints)`,
+  uncovered.length === 0,
+  `not implemented: ${uncovered.join(', ')}`,
+);
+
+check(
+  'Bookings surface size unchanged',
+  bookingEndpoints.length === EXPECTED_BOOKING_ENDPOINTS,
+  `spec now has ${bookingEndpoints.length}, expected ${EXPECTED_BOOKING_ENDPOINTS} — Cal.com added or removed a booking endpoint`,
+);
 
 console.log(`checked ${checks.length} contract points against ${specPath}`);
 

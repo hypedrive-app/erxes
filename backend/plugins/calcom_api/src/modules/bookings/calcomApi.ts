@@ -223,6 +223,146 @@ export const markCalcomNoShow = async (
   });
 
 /**
+ * Cal Video recordings for a finished meeting.
+ *
+ * Only Cal Video produces these — a Google Meet or Zoom booking answers with an
+ * empty list rather than an error, which is why callers get [] instead of a
+ * thrown "not supported".
+ */
+export const getCalcomRecordings = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/recordings`, {
+    method: 'GET',
+    models,
+  });
+
+/** Cal Video transcripts. Same Cal-Video-only caveat as recordings. */
+export const getCalcomTranscripts = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/transcripts`, {
+    method: 'GET',
+    models,
+  });
+
+/**
+ * "Add to calendar" links (Google, Outlook, Office365, ICS).
+ *
+ * Cal.com already emails these to the attendee; they exist here for the CRM
+ * user, who is usually looking at someone else's booking and has no email to
+ * dig through.
+ */
+export const getCalcomCalendarLinks = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/calendar-links`, {
+    method: 'GET',
+    models,
+  });
+
+/**
+ * The booking's calendar/conferencing references — which external calendar
+ * event and meeting this booking actually created.
+ *
+ * Diagnostic rather than routine: when a booking exists in Cal.com but nobody
+ * sees it in their calendar, this is what says whether the calendar write
+ * succeeded.
+ */
+export const getCalcomReferences = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/references`, {
+    method: 'GET',
+    models,
+  });
+
+/** Conferencing session metadata for a Cal Video booking. */
+export const getCalcomConferencingSessions = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/conferencing-sessions`, {
+    method: 'GET',
+    models,
+  });
+
+/**
+ * Reads one seat of a seated booking.
+ *
+ * Seated event types give each attendee their own seat uid, and that is the
+ * only identifier the attendee ever sees — a support conversation quoting a
+ * seat reference cannot be resolved through the booking uid.
+ */
+export const getCalcomBookingBySeat = async (
+  models: IModels | undefined,
+  seatUid: string,
+): Promise<any> =>
+  request(`/bookings/by-seat/${encodeURIComponent(seatUid)}`, {
+    method: 'GET',
+    models,
+  });
+
+/**
+ * Changes where the meeting happens without moving it in time.
+ *
+ * Distinct from a reschedule, which cancels the booking and issues a new uid.
+ * Changing "Google Meet" to "phone call" should not do that.
+ *
+ * `location` is passed through as an object because the API accepts a union of
+ * location shapes (address, attendee-defined, phone, link) and validates it
+ * against the event type's configured locations. Narrowing it here to one
+ * shape would reject valid inputs the event type allows.
+ */
+export const updateCalcomBookingLocation = async (
+  models: IModels | undefined,
+  uid: string,
+  location: Record<string, unknown>,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/location`, {
+    method: 'PATCH',
+    body: { location },
+    models,
+  });
+
+/**
+ * Reassigns a round-robin booking to whoever Cal.com picks next.
+ *
+ * Only meaningful for team round-robin event types; a fixed-host booking has
+ * nobody to reassign to and Cal.com refuses it.
+ */
+export const reassignCalcomBooking = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/reassign`, {
+    method: 'POST',
+    models,
+  });
+
+/** Reassigns a booking to a specific team member. */
+export const reassignCalcomBookingToUser = async (
+  models: IModels | undefined,
+  uid: string,
+  userId: number,
+  reason?: string,
+): Promise<any> =>
+  request(
+    `/bookings/${encodeURIComponent(uid)}/reassign/${encodeURIComponent(
+      String(userId),
+    )}`,
+    {
+      method: 'POST',
+      body: reason ? { reason } : {},
+      models,
+    },
+  );
+
+/**
  * The bookable event types. Webhooks only ever name the event type of a booking
  * that already happened, so this is the only way to offer a choice of what to
  * book from inside erxes.

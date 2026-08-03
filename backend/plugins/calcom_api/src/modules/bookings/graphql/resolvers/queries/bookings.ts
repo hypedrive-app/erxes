@@ -1,6 +1,15 @@
 import { IContext } from '~/connectionResolvers';
 
-import { getCalcomSlots, listCalcomEventTypes } from '@/bookings/calcomApi';
+import {
+  getCalcomBookingBySeat,
+  getCalcomCalendarLinks,
+  getCalcomConferencingSessions,
+  getCalcomRecordings,
+  getCalcomReferences,
+  getCalcomSlots,
+  getCalcomTranscripts,
+  listCalcomEventTypes,
+} from '@/bookings/calcomApi';
 import { getCalcomConfigStatus } from '@/bookings/config';
 
 type ListArgs = {
@@ -138,4 +147,102 @@ export const bookingsQueries = {
     _args: undefined,
     { models }: IContext,
   ) => getCalcomConfigStatus(models),
+
+  /**
+   * Cal Video recordings.
+   *
+   * Answers [] rather than throwing when the booking was not held on Cal Video:
+   * "this provider has no recordings" is a normal state, not a failure, and a
+   * thrown error would make the detail panel look broken for every Google Meet
+   * booking.
+   */
+  calcomBookingRecordings: async (
+    _parent: undefined,
+    { uid }: { uid: string },
+    { models }: IContext,
+  ) => {
+    try {
+      const result = await getCalcomRecordings(models, uid);
+      const raw: any[] = Array.isArray(result) ? result : result?.data || [];
+
+      return raw.map((rec) => ({
+        id: rec?.id,
+        status: rec?.status,
+        duration: rec?.duration,
+        downloadLink: rec?.downloadLink,
+        shareToken: rec?.shareToken,
+      }));
+    } catch (e) {
+      console.error(`calcom: could not read recordings for ${uid}`, e);
+      return [];
+    }
+  },
+
+  calcomBookingTranscripts: async (
+    _parent: undefined,
+    { uid }: { uid: string },
+    { models }: IContext,
+  ) => {
+    try {
+      const result = await getCalcomTranscripts(models, uid);
+      const raw: any[] = Array.isArray(result) ? result : result?.data || [];
+
+      // The endpoint returns download URLs; anything object-shaped is unwrapped
+      // so the field stays a plain list of links either way.
+      return raw
+        .map((item) => (typeof item === 'string' ? item : item?.url ?? item?.link))
+        .filter(Boolean);
+    } catch (e) {
+      console.error(`calcom: could not read transcripts for ${uid}`, e);
+      return [];
+    }
+  },
+
+  calcomBookingCalendarLinks: async (
+    _parent: undefined,
+    { uid }: { uid: string },
+    { models }: IContext,
+  ) => {
+    const result = await getCalcomCalendarLinks(models, uid);
+    const raw: any[] = Array.isArray(result) ? result : result?.data || [];
+
+    return raw.map((link) => ({ label: link?.label, link: link?.link }));
+  },
+
+  calcomBookingReferences: async (
+    _parent: undefined,
+    { uid }: { uid: string },
+    { models }: IContext,
+  ) => {
+    const result = await getCalcomReferences(models, uid);
+    const raw: any[] = Array.isArray(result) ? result : result?.data || [];
+
+    return raw.map((ref) => ({
+      id: ref?.id,
+      type: ref?.type,
+      uid: ref?.uid,
+      meetingUrl: ref?.meetingUrl,
+      externalCalendarId: ref?.externalCalendarId,
+    }));
+  },
+
+  /**
+   * Resolves a seat reference to the booking it belongs to.
+   *
+   * Reads the MIRROR once Cal.com has told us which booking the seat is on, so
+   * the caller gets the same enriched row (customer links included) as every
+   * other query rather than a bare Cal.com payload.
+   */
+  calcomBookingBySeat: async (
+    _parent: undefined,
+    { seatUid }: { seatUid: string },
+    { models }: IContext,
+  ) => {
+    const result = await getCalcomBookingBySeat(models, seatUid);
+    const uid = result?.data?.uid || result?.uid;
+
+    if (!uid) return null;
+
+    return models.Bookings.findOne({ uid });
+  },
 };

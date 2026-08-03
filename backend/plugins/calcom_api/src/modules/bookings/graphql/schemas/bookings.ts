@@ -111,6 +111,37 @@ export const types = `
     source: String
   }
 
+  """
+  A Cal Video recording. Only Cal Video produces these — a Google Meet or Zoom
+  booking simply has none, which is an empty list rather than an error.
+  """
+  type CalcomRecording {
+    id: String
+    status: String
+    duration: Float
+    downloadLink: String
+    shareToken: String
+  }
+
+  """An "add to calendar" link for one calendar provider."""
+  type CalcomCalendarLink {
+    label: String
+    link: String
+  }
+
+  """
+  What this booking actually created in an external calendar or conferencing
+  tool. Diagnostic: when a booking exists in Cal.com but nobody sees it in
+  their calendar, this says whether the write succeeded.
+  """
+  type CalcomBookingReference {
+    id: Int
+    type: String
+    uid: String
+    meetingUrl: String
+    externalCalendarId: String
+  }
+
   input CalcomAttendeeAbsenceInput {
     email: String!
     absent: Boolean!
@@ -139,6 +170,25 @@ export const queries = `
   CalcomConfigStatus.
   """
   calcomConfigStatus: [CalcomConfigStatus]
+
+  """
+  Cal Video recordings and transcripts. Empty for bookings held on any other
+  conferencing provider.
+  """
+  calcomBookingRecordings(uid: String!): [CalcomRecording]
+  calcomBookingTranscripts(uid: String!): [String]
+
+  """Add-to-calendar links for a booking."""
+  calcomBookingCalendarLinks(uid: String!): [CalcomCalendarLink]
+
+  """External calendar/conferencing records this booking created."""
+  calcomBookingReferences(uid: String!): [CalcomBookingReference]
+
+  """
+  Resolves a seated booking by SEAT uid. Seated event types give each attendee
+  their own seat reference, and that is the only identifier the attendee sees.
+  """
+  calcomBookingBySeat(seatUid: String!): Bookings
 
   calcomEventTypes(username: String): [CalcomEventType]
   calcomSlots(
@@ -194,4 +244,24 @@ export const mutations = `
   storing a blank.
   """
   calcomSetConfig(code: String!, value: String): CalcomConfigStatus
+
+  """
+  Moves the meeting to a different location WITHOUT moving it in time.
+
+  Distinct from a reschedule, which cancels the booking and issues a new uid —
+  changing "Google Meet" to "phone call" should not do that. The location is a
+  JSON object because Cal.com accepts a union of location shapes and validates
+  it against the event type's own configured locations.
+  """
+  calcomUpdateBookingLocation(uid: String!, location: JSON!): CalcomWriteResult
+
+  """
+  Reassigns a round-robin booking. Omit userId to let Cal.com pick the next
+  host; pass one to choose. Only meaningful for team round-robin event types.
+  """
+  calcomReassignBooking(
+    uid: String!
+    userId: Int
+    reason: String
+  ): CalcomWriteResult
 `;
