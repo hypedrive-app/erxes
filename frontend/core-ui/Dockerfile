@@ -11,7 +11,19 @@ RUN apk add --no-cache alpine-sdk && \
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install
+# pnpm@9, PINNED. Unpinned `npm install -g pnpm` resolves to whatever is
+# current — pnpm 11 at the time of writing — which fails against this repo:
+#
+#   [ERROR] Cannot verify the identity of the @pnpm/exe.linux-x64 native
+#           binary: it is missing from pnpm-lock.yaml
+#
+# pnpm 10+ ships its own native binary as an optional dependency and verifies
+# it against the lockfile. Ours is lockfileVersion 9.0, written by the
+# pnpm@9.12.3 this repo pins in packageManager, so that entry does not exist
+# and never did. Nothing in the repo changed to cause this — the upstream
+# default moved. Every other Dockerfile here already pins pnpm@9; this line was
+# the only one that did not.
+RUN npm install -g pnpm@9 && pnpm install
 COPY . .
 RUN pnpm nx build core-ui --configuration=production --verbose
 
