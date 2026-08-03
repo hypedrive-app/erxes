@@ -1,3 +1,7 @@
+import { IModels } from '~/connectionResolvers';
+
+import { getCalcomConfig } from '@/bookings/config';
+
 /**
  * Cal.com API v2 client.
  *
@@ -11,9 +15,17 @@
  * <webapp>/api/v2), CALCOM_API_KEY is an API key from Cal.com's settings.
  */
 
-const apiUrl = () =>
-  process.env.CALCOM_API_URL?.replace(/\/+$/, '') ||
-  'https://cal.sharksmarketing.com/api/v2';
+/**
+ * Credentials resolve DB-first with an env fallback (see modules/bookings/
+ * config.ts), so every call takes the models it should read them from. Passing
+ * `undefined` degrades to environment-only, which is the correct behaviour on
+ * paths that run before a subdomain — and therefore a connection — is known.
+ */
+const apiUrl = async (models?: IModels) =>
+  (
+    (await getCalcomConfig(models, 'CALCOM_API_URL')) ||
+    'https://cal.sharksmarketing.com/api/v2'
+  ).replace(/\/+$/, '');
 
 export class CalcomApiError extends Error {
   constructor(
@@ -45,14 +57,17 @@ const request = async (
     body?: unknown;
     query?: Record<string, unknown>;
     apiVersion?: string;
+    models?: IModels;
   },
 ): Promise<any> => {
-  const key = process.env.CALCOM_API_KEY;
+  const key = await getCalcomConfig(init.models, 'CALCOM_API_KEY');
 
   if (!key) {
     // Explicit rather than letting Cal.com answer 401: an unset key is a
-    // deployment mistake, and saying so is more useful than an auth error.
-    throw new CalcomApiError('CALCOM_API_KEY is not configured');
+    // configuration mistake, and saying so is more useful than an auth error.
+    throw new CalcomApiError(
+      'CALCOM_API_KEY is not configured — set it in Cal.com settings or the deployment environment',
+    );
   }
 
   // Undefined query values are dropped rather than serialised as the string
@@ -66,17 +81,20 @@ const request = async (
         .join('&')
     : '';
 
-  const res = await fetch(`${apiUrl()}${path}${qs ? `?${qs}` : ''}`, {
-    method: init.method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      // Defaults to the bookings version, since most calls here are bookings.
-      // Endpoints on a different track pass their own.
-      'cal-api-version': init.apiVersion || API_VERSION_BOOKINGS,
+  const res = await fetch(
+    `${await apiUrl(init.models)}${path}${qs ? `?${qs}` : ''}`,
+    {
+      method: init.method,
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        // Defaults to the bookings version, since most calls here are
+        // bookings. Endpoints on a different track pass their own.
+        'cal-api-version': init.apiVersion || API_VERSION_BOOKINGS,
+      },
+      body: init.body ? JSON.stringify(init.body) : undefined,
     },
-    body: init.body ? JSON.stringify(init.body) : undefined,
-  });
+  );
 
   const text = await res.text();
   let parsed: any;
@@ -108,12 +126,14 @@ const request = async (
  * triggered by without a second lookup.
  */
 export const cancelCalcomBooking = async (
+  models: IModels | undefined,
   uid: string,
   cancellationReason?: string,
 ): Promise<any> =>
   request(`/bookings/${encodeURIComponent(uid)}/cancel`, {
     method: 'POST',
     body: { cancellationReason: cancellationReason || 'Cancelled by erxes' },
+    models,
   });
 
 /**
@@ -122,6 +142,7 @@ export const cancelCalcomBooking = async (
  * by the webhook, not by this response.
  */
 export const rescheduleCalcomBooking = async (
+  models: IModels | undefined,
   uid: string,
   start: string,
   reschedulingReason?: string,
@@ -132,6 +153,41 @@ export const rescheduleCalcomBooking = async (
       start,
       reschedulingReason: reschedulingReason || 'Rescheduled from erxes',
     },
+    models,
+  });
+
+/**
+ * Confirms a booking that is awaiting approval.
+ *
+ * Event types with requiresConfirmation create bookings in PENDING and emit
+ * BOOKING_REQUESTED. Without this the plugin could mirror those requests but
+ * offer no way to act on them, which is the least useful place to stop — a
+ * pending booking is precisely the one that needs a decision.
+ */
+export const confirmCalcomBooking = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/confirm`, {
+    method: 'POST',
+    models,
+  });
+
+/**
+ * Declines a booking that is awaiting approval.
+ *
+ * The reason is optional per DeclineBookingInput_2024_08_13, but Cal.com puts
+ * it in the message to the person who asked, so it is worth passing through.
+ */
+export const declineCalcomBooking = async (
+  models: IModels | undefined,
+  uid: string,
+  reason?: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}/decline`, {
+    method: 'POST',
+    body: reason ? { reason } : {},
+    models,
   });
 
 /**
@@ -145,6 +201,7 @@ export const rescheduleCalcomBooking = async (
  * same concept, which is exactly how the confusion arises.
  */
 export const markCalcomNoShow = async (
+  models: IModels | undefined,
   uid: string,
   input: {
     noShowHost?: boolean;
@@ -162,6 +219,7 @@ export const markCalcomNoShow = async (
         : {}),
       ...(input.attendees?.length ? { attendees: input.attendees } : {}),
     },
+    models,
   });
 
 /**
@@ -169,11 +227,15 @@ export const markCalcomNoShow = async (
  * that already happened, so this is the only way to offer a choice of what to
  * book from inside erxes.
  */
-export const listCalcomEventTypes = async (username?: string): Promise<any> =>
+export const listCalcomEventTypes = async (
+  models: IModels | undefined,
+  username?: string,
+): Promise<any> =>
   request('/event-types', {
     method: 'GET',
     query: { username },
     apiVersion: API_VERSION_EVENT_TYPES,
+    models,
   });
 
 /**
@@ -181,16 +243,19 @@ export const listCalcomEventTypes = async (username?: string): Promise<any> =>
  * Cal.com against calendars erxes cannot see, so it must be asked rather than
  * derived from the mirror.
  */
-export const getCalcomSlots = async (params: {
-  eventTypeId: number;
-  start: string;
-  end: string;
-  timeZone?: string;
-  // `format: 'range'` makes each slot carry an `end` as well as a `start`.
-  // Without it Cal.com returns start times only, so the GraphQL `end` field is
-  // legitimately null — the duration is the event type's, not the slot's.
-  format?: 'time' | 'range';
-}): Promise<any> =>
+export const getCalcomSlots = async (
+  models: IModels | undefined,
+  params: {
+    eventTypeId: number;
+    start: string;
+    end: string;
+    timeZone?: string;
+    // `format: 'range'` makes each slot carry an `end` as well as a `start`.
+    // Without it Cal.com returns start times only, so the GraphQL `end` field
+    // is legitimately null — the duration is the event type's, not the slot's.
+    format?: 'time' | 'range';
+  },
+): Promise<any> =>
   request('/slots', {
     method: 'GET',
     query: {
@@ -203,6 +268,7 @@ export const getCalcomSlots = async (params: {
       format: params.format || 'range',
     },
     apiVersion: API_VERSION_SLOTS,
+    models,
   });
 
 /**
@@ -210,26 +276,37 @@ export const getCalcomSlots = async (params: {
  * resulting BOOKING_CREATED webhook is what writes it into the mirror, so this
  * deliberately does not insert a row itself — one write path, not two.
  */
-export const createCalcomBooking = async (input: {
-  eventTypeId: number;
-  start: string;
-  attendee: { name: string; email: string; timeZone: string };
-  metadata?: Record<string, string>;
-}): Promise<any> => request('/bookings', { method: 'POST', body: input });
+export const createCalcomBooking = async (
+  models: IModels | undefined,
+  input: {
+    eventTypeId: number;
+    start: string;
+    attendee: { name: string; email: string; timeZone: string };
+    metadata?: Record<string, string>;
+  },
+): Promise<any> =>
+  request('/bookings', { method: 'POST', body: input, models });
 
 /** Reads a single booking, for reconciling a uid the mirror may have missed. */
-export const getCalcomBooking = async (uid: string): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}`, { method: 'GET' });
+export const getCalcomBooking = async (
+  models: IModels | undefined,
+  uid: string,
+): Promise<any> =>
+  request(`/bookings/${encodeURIComponent(uid)}`, { method: 'GET', models });
 
 /**
  * Lists bookings, used by the backfill/reconciliation path: webhooks can be
  * missed (endpoint down, delivery disabled), and without a way to re-read them
  * the mirror would stay permanently short with no way to notice.
  */
-export const listCalcomBookings = async (params: {
-  afterStart?: string;
-  beforeEnd?: string;
-  status?: string;
-  take?: number;
-  skip?: number;
-}): Promise<any> => request('/bookings', { method: 'GET', query: params });
+export const listCalcomBookings = async (
+  models: IModels | undefined,
+  params: {
+    afterStart?: string;
+    beforeEnd?: string;
+    status?: string;
+    take?: number;
+    skip?: number;
+  },
+): Promise<any> =>
+  request('/bookings', { method: 'GET', query: params, models });

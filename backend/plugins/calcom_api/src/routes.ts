@@ -1,6 +1,7 @@
 import { Router, type Router as ExpressRouter } from 'express';
 
 import { generateModels } from '~/connectionResolvers';
+import { getCalcomConfig } from '@/bookings/config';
 import { reconcileBookings } from '@/bookings/reconcile';
 import { handleCalcomWebhook } from '@/bookings/webhook/handler';
 import {
@@ -28,20 +29,23 @@ export const router: ExpressRouter = Router();
  * success.
  */
 router.post('/calcom/webhook', async (req, res) => {
-  const verification = verifyCalcomSignature({
-    rawBody: req.rawBody,
-    signature: req.headers[CALCOM_SIGNATURE_HEADER] as string | undefined,
-    secret: process.env.CALCOM_WEBHOOK_SECRET,
-  });
-
-  if (!verification.ok) {
-    console.error(`calcom webhook rejected: ${verification.reason}`);
-    return res.status(401).json({ error: verification.reason });
-  }
-
   try {
     const subdomain = req.subdomain || 'os';
+    // Resolved before verification because the signing secret itself is a
+    // stored config with an env fallback — the DB is consulted first, so the
+    // connection has to exist before the signature can be checked.
     const models = await generateModels(subdomain);
+
+    const verification = verifyCalcomSignature({
+      rawBody: req.rawBody,
+      signature: req.headers[CALCOM_SIGNATURE_HEADER] as string | undefined,
+      secret: await getCalcomConfig(models, 'CALCOM_WEBHOOK_SECRET'),
+    });
+
+    if (!verification.ok) {
+      console.error(`calcom webhook rejected: ${verification.reason}`);
+      return res.status(401).json({ error: verification.reason });
+    }
 
     const result = await handleCalcomWebhook(models, subdomain, req.body);
 
@@ -68,21 +72,21 @@ router.post('/calcom/webhook', async (req, res) => {
  * rather than a public endpoint.
  */
 router.post('/calcom/reconcile', async (req, res) => {
-  const adminToken = process.env.CALCOM_ADMIN_TOKEN;
-
-  if (!adminToken) {
-    return res
-      .status(503)
-      .json({ error: 'CALCOM_ADMIN_TOKEN is not configured' });
-  }
-
-  if (req.headers.authorization !== `Bearer ${adminToken}`) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-
   try {
     const subdomain = req.subdomain || 'os';
     const models = await generateModels(subdomain);
+
+    const adminToken = await getCalcomConfig(models, 'CALCOM_ADMIN_TOKEN');
+
+    if (!adminToken) {
+      return res
+        .status(503)
+        .json({ error: 'CALCOM_ADMIN_TOKEN is not configured' });
+    }
+
+    if (req.headers.authorization !== `Bearer ${adminToken}`) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
 
     const summary = await reconcileBookings(models, subdomain, {
       afterStart: req.body?.afterStart,

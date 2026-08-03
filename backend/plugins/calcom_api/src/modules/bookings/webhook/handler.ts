@@ -73,7 +73,7 @@ export const handleCalcomWebhook = async (
         .map((a) => [a.email as string, a.erxesCustomerId as string]),
     );
 
-    const resolved = await linkAttendeesToCustomers(subdomain, rest.attendees);
+    const resolved = await linkAttendeesToCustomers(models, subdomain, rest.attendees);
 
     rest.attendees = resolved.map((a) =>
       a.erxesCustomerId || !a.email || !previous.has(a.email)

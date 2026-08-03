@@ -1,6 +1,7 @@
 import { IContext } from '~/connectionResolvers';
 
 import { getCalcomSlots, listCalcomEventTypes } from '@/bookings/calcomApi';
+import { getCalcomConfigStatus } from '@/bookings/config';
 
 type ListArgs = {
   customerId?: string;
@@ -69,9 +70,9 @@ export const bookingsQueries = {
   calcomEventTypes: async (
     _parent: undefined,
     { username }: { username?: string },
-    _context: IContext,
+    { models }: IContext,
   ) => {
-    const result = await listCalcomEventTypes(username);
+    const result = await listCalcomEventTypes(models, username);
 
     // v2 wraps list results in { data: [...] }; some deployments answer with a
     // bare array. Both are accepted rather than assuming one shape.
@@ -99,9 +100,14 @@ export const bookingsQueries = {
       end,
       timeZone,
     }: { eventTypeId: number; start: string; end: string; timeZone?: string },
-    _context: IContext,
+    { models }: IContext,
   ) => {
-    const result = await getCalcomSlots({ eventTypeId, start, end, timeZone });
+    const result = await getCalcomSlots(models, {
+      eventTypeId,
+      start,
+      end,
+      timeZone,
+    });
 
     const payload = result?.data ?? result;
 
@@ -121,4 +127,15 @@ export const bookingsQueries = {
       }))
       .filter((slot) => !!slot.start);
   },
+
+  /**
+   * Which integration settings are configured, and from where.
+   *
+   * Values are never returned — see the CalcomConfigStatus doc in the schema.
+   */
+  calcomConfigStatus: async (
+    _parent: undefined,
+    _args: undefined,
+    { models }: IContext,
+  ) => getCalcomConfigStatus(models),
 };

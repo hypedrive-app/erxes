@@ -25,7 +25,7 @@ export const calcomAutomationHandlers = {
       execution,
       collectionType,
     }: TAutomationProducersInput[TAutomationProducers.RECEIVE_ACTIONS],
-    _ctx: TCoreModuleProducerContext<IModels>,
+    { models }: TCoreModuleProducerContext<IModels>,
   ) => {
     if (collectionType !== 'bookings') {
       throw new Error(`Unsupported Cal.com automation action: ${collectionType}`);
@@ -40,7 +40,7 @@ export const calcomAutomationHandlers = {
       throw new Error('Cal.com action has no booking uid to act on');
     }
 
-    const result = await cancelCalcomBooking(uid, action?.config?.reason);
+    const result = await cancelCalcomBooking(models, uid, action?.config?.reason);
 
     // Deliberately does not write to the mirror. Cal.com answers this call and
     // then sends BOOKING_CANCELLED, and letting the webhook be the only writer

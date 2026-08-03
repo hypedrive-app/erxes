@@ -32,7 +32,12 @@ export const reconcileBookings = async (
   // Paged rather than fetched whole: an instance with a long history would
   // otherwise pull every booking into memory at once.
   for (;;) {
-    const page = await listCalcomBookings({ afterStart, beforeEnd, take, skip });
+    const page = await listCalcomBookings(models, {
+      afterStart,
+      beforeEnd,
+      take,
+      skip,
+    });
 
     // Cal.com v2 wraps list results in { data: [...] }; older shapes return the
     // array directly, so both are accepted rather than assuming one.

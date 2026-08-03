@@ -51,6 +51,8 @@ const ENDPOINTS = [
   ['/v2/bookings/{bookingUid}/cancel', 'post'],
   ['/v2/bookings/{bookingUid}/reschedule', 'post'],
   ['/v2/bookings/{bookingUid}/mark-absent', 'post'],
+  ['/v2/bookings/{bookingUid}/confirm', 'post'],
+  ['/v2/bookings/{bookingUid}/decline', 'post'],
   ['/v2/event-types', 'get'],
   ['/v2/slots', 'get'],
 ];

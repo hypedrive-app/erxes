@@ -94,6 +94,23 @@ export const types = `
     uid: String
   }
 
+  """
+  Whether an integration setting is configured, and where it came from.
+
+  Deliberately carries no value. A live API key and a webhook signing secret
+  would otherwise sit in a GraphQL response that anyone with settings access
+  could read out of the network tab; knowing a key is present is enough to
+  diagnose the integration.
+
+  The source field distinguishes a value set in the UI from one baked into the
+  deployment — the difference between "changeable here" and "needs a deploy".
+  """
+  type CalcomConfigStatus {
+    code: String
+    isSet: Boolean
+    source: String
+  }
+
   input CalcomAttendeeAbsenceInput {
     email: String!
     absent: Boolean!
@@ -116,6 +133,12 @@ export const queries = `
     page: Int
     perPage: Int
   ): BookingsListResponse
+
+  """
+  Which integration settings are configured. Values are never returned — see
+  CalcomConfigStatus.
+  """
+  calcomConfigStatus: [CalcomConfigStatus]
 
   calcomEventTypes(username: String): [CalcomEventType]
   calcomSlots(
@@ -154,4 +177,21 @@ export const mutations = `
     attendee: CalcomBookingAttendeeInput!
     customerId: String
   ): CalcomWriteResult
+
+  """
+  Approve or refuse a booking that is awaiting confirmation. Event types with
+  requiresConfirmation create bookings in PENDING; these are how that decision
+  is made from inside erxes.
+  """
+  calcomConfirmBooking(uid: String!): CalcomWriteResult
+  calcomDeclineBooking(uid: String!, reason: String): CalcomWriteResult
+
+  """
+  Stores one integration setting, or clears it when value is omitted.
+
+  Cleared settings fall back to the deployment environment rather than
+  disabling the integration, which is why this deletes the row instead of
+  storing a blank.
+  """
+  calcomSetConfig(code: String!, value: String): CalcomConfigStatus
 `;

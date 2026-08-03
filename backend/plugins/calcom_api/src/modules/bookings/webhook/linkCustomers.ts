@@ -1,5 +1,8 @@
 import { sendTRPCMessage } from 'erxes-api-shared/utils';
 
+import { getCalcomFlag } from '@/bookings/config';
+import { IModels } from '~/connectionResolvers';
+
 import { IBookingAttendee } from '@/bookings/@types/bookings';
 
 /**
@@ -16,8 +19,8 @@ import { IBookingAttendee } from '@/bookings/@types/bookings';
  * to opt in — appropriate when the booking pages are internal or invite-only.
  */
 
-const shouldCreateMissing = () =>
-  process.env.CALCOM_CREATE_MISSING_CONTACTS === 'true';
+const shouldCreateMissing = (models: IModels) =>
+  getCalcomFlag(models, 'CALCOM_CREATE_MISSING_CONTACTS');
 
 const findCustomerByEmail = async (subdomain: string, email: string) => {
   // findOne understands customerPrimaryEmail specially: it matches BOTH the
@@ -70,9 +73,14 @@ const createCustomerFromAttendee = async (
  * than dropped — the booking is still worth mirroring without a linked contact.
  */
 export const linkAttendeesToCustomers = async (
+  models: IModels,
   subdomain: string,
   attendees: IBookingAttendee[] = [],
 ): Promise<IBookingAttendee[]> => {
+  // Read once rather than per attendee: it is the same answer for every one of
+  // them, and a booking can carry a long list.
+  const createMissing = await shouldCreateMissing(models);
+
   const linked: IBookingAttendee[] = [];
 
   for (const attendee of attendees) {
@@ -94,7 +102,7 @@ export const linkAttendeesToCustomers = async (
     try {
       let customer = await findCustomerByEmail(subdomain, attendee.email);
 
-      if (!customer && shouldCreateMissing()) {
+      if (!customer && createMissing) {
         customer = await createCustomerFromAttendee(subdomain, attendee);
       }
 

@@ -2,10 +2,17 @@ import { IContext } from '~/connectionResolvers';
 
 import {
   cancelCalcomBooking,
+  confirmCalcomBooking,
   createCalcomBooking,
+  declineCalcomBooking,
   markCalcomNoShow,
   rescheduleCalcomBooking,
 } from '@/bookings/calcomApi';
+import {
+  CALCOM_CONFIG_CODES,
+  CalcomConfigCode,
+  getCalcomConfigStatus,
+} from '@/bookings/config';
 
 /**
  * Write-through mutations.
@@ -39,9 +46,9 @@ export const bookingsMutations = {
   calcomCancelBooking: async (
     _parent: undefined,
     { uid, cancellationReason }: { uid: string; cancellationReason?: string },
-    _context: IContext,
+    { models }: IContext,
   ) => {
-    await cancelCalcomBooking(requireUid(uid), cancellationReason);
+    await cancelCalcomBooking(models, requireUid(uid), cancellationReason);
 
     return { ok: true, uid };
   },
@@ -53,9 +60,10 @@ export const bookingsMutations = {
       start,
       reschedulingReason,
     }: { uid: string; start: string; reschedulingReason?: string },
-    _context: IContext,
+    { models }: IContext,
   ) => {
     const result = await rescheduleCalcomBooking(
+      models,
       requireUid(uid),
       start,
       reschedulingReason,
@@ -74,12 +82,12 @@ export const bookingsMutations = {
       noShowHost,
       attendees,
     }: { uid: string; noShowHost?: boolean; attendees?: AttendeeAbsence[] },
-    _context: IContext,
+    { models }: IContext,
   ) => {
     // Only the parts the caller actually supplied are forwarded. Sending
     // `noShowHost: undefined` as an explicit key would ask Cal.com to clear a
     // flag the caller never mentioned.
-    await markCalcomNoShow(requireUid(uid), {
+    await markCalcomNoShow(models, requireUid(uid), {
       ...(typeof noShowHost === 'boolean' ? { noShowHost } : {}),
       ...(attendees?.length ? { attendees } : {}),
     });
@@ -100,9 +108,9 @@ export const bookingsMutations = {
       attendee: { name: string; email: string; timeZone?: string };
       customerId?: string;
     },
-    _context: IContext,
+    { models }: IContext,
   ) => {
-    const result = await createCalcomBooking({
+    const result = await createCalcomBooking(models, {
       eventTypeId,
       start,
       attendee: {
@@ -121,5 +129,58 @@ export const bookingsMutations = {
     });
 
     return { ok: true, uid: result?.data?.uid || result?.uid };
+  },
+
+  calcomConfirmBooking: async (
+    _parent: undefined,
+    { uid }: { uid: string },
+    { models }: IContext,
+  ) => {
+    await confirmCalcomBooking(models, requireUid(uid));
+
+    return { ok: true, uid };
+  },
+
+  calcomDeclineBooking: async (
+    _parent: undefined,
+    { uid, reason }: { uid: string; reason?: string },
+    { models }: IContext,
+  ) => {
+    await declineCalcomBooking(models, requireUid(uid), reason);
+
+    return { ok: true, uid };
+  },
+
+  /**
+   * Stores one integration setting.
+   *
+   * The code is checked against the known list rather than written straight
+   * through: this collection is read by the webhook verifier and the API
+   * client, and an arbitrary key/value pair from a caller has no business
+   * landing in it.
+   */
+  calcomSetConfig: async (
+    _parent: undefined,
+    { code, value }: { code: string; value?: string },
+    { models }: IContext,
+  ) => {
+    if (!(CALCOM_CONFIG_CODES as readonly string[]).includes(code)) {
+      throw new Error(`Unknown Cal.com setting: ${code}`);
+    }
+
+    // Trimmed because these are pasted credentials, and a trailing newline
+    // from a copy-paste would silently break every signature check.
+    await models.CalcomConfigs.setConfig(
+      code as CalcomConfigCode,
+      value?.trim() || undefined,
+    );
+
+    // Reported through the shared status helper rather than inferred here.
+    // Clearing a stored value falls back to env, which may itself be unset —
+    // answering 'environment' unconditionally would claim a setting exists
+    // when nothing is configured at all.
+    const status = await getCalcomConfigStatus(models);
+
+    return status.find((entry) => entry.code === code);
   },
 };
