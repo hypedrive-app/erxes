@@ -35,8 +35,8 @@ import { useCallUserIntegration } from '@/integrations/call/hooks/useCallUserInt
  * sit to the corner, while dragging away from it stays free down to the
  * opposite edge.
  */
-const LAUNCHER_INSET = 40;
-const LAUNCHER_SIZE = 48;
+const LAUNCHER_INSET = 32;
+const LAUNCHER_SIZE = 56;
 
 const clampToViewport = (x: number, y: number) => ({
   x: Math.min(
@@ -69,6 +69,7 @@ const PlivoWidgetDraggable = memo(
       useAtomValue(plivoStateAtom);
 
     const isOnline = plivoStatus === PlivoStatusEnum.REGISTERED;
+    const isActive = callStatus === PlivoCallStatusEnum.ACTIVE;
     const isRinging =
       callDirection === PlivoCallDirectionEnum.INCOMING &&
       callStatus === PlivoCallStatusEnum.STARTING;
@@ -100,17 +101,19 @@ const PlivoWidgetDraggable = memo(
               // nothing without a call integration, and offsetting past an
               // empty slot leaves this button stranded in open space, which
               // reads as a misplaced control rather than a deliberate pair.
-              'fixed bottom-10 size-12 [&>svg]:size-6 rounded-full shadow-lg',
-              hasSipWidget ? 'right-28' : 'right-10',
+              'fixed bottom-8 size-14 rounded-full border border-background/80 shadow-xl ring-1 ring-black/5 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+              hasSipWidget ? 'right-28' : 'right-8',
               // A ringing call gets a ring rather than a different fill: the
               // launcher may be anywhere on screen after a drag, and a halo
               // reads as "this is happening now" from the corner of the eye in
               // a way a hue swap on a 48px circle does not.
               isRinging &&
-                'ring-4 ring-success/40 motion-safe:animate-pulse',
-              isOnline
-                ? 'bg-success hover:bg-success/90'
-                : 'bg-destructive hover:bg-destructive/90',
+                'ring-4 ring-success/30 motion-safe:animate-pulse',
+              isActive
+                ? 'bg-primary hover:bg-primary/90'
+                : isOnline
+                  ? 'bg-success hover:bg-success/90'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
             )}
             onClick={() => setOpen(!open)}
             {...listeners}

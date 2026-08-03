@@ -64,6 +64,7 @@ const PLIVO_OPTIONS = {
   },
   codecs: ['OPUS', 'PCMU', 'PCMA'],
   dscp: true,
+  useDefaultAudioDevice: true,
 };
 
 /**

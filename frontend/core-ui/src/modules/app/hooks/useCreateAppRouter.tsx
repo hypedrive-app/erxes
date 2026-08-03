@@ -60,7 +60,6 @@ export const useCreateAppRouter = () => {
     createRoutesFromElements(
       <Route
         element={<Providers />}
-        loader={async () => null}
         errorElement={<RouteErrorBoundary />}
       >
         <Route path={AppPath.MainOnboarding} element={<MainOnboardingPage />} />

@@ -1,8 +1,8 @@
 import {
-  IconPhoneFilled,
+  IconHeadset,
+  IconPhoneCall,
   IconPhoneIncoming,
   IconPhoneOff,
-  IconPlayerStopFilled,
   IconX,
 } from '@tabler/icons-react';
 import { cn } from 'erxes-ui';
@@ -41,15 +41,15 @@ export const PlivoTriggerContent = ({ duration }: { duration: string }) => {
   // `--success` green, against which white measures 2.30:1 — under WCAG 1.4.11's
   // 3:1 floor for a non-text control. Black on the same green measures 9.14:1.
   // The offline fill is a dark red, so that state keeps its white glyph.
-  const glyphClass = isRegistered ? 'text-black/85' : 'text-white';
+  const glyphClass = isRegistered ? 'text-black/85' : 'text-current';
 
   // A call in progress outranks everything: the timer is the only thing an
   // agent looks at mid-call, and the stop glyph says what pressing it does.
   if (callStatus === PlivoCallStatusEnum.ACTIVE) {
     return (
-      <div className="flex flex-col items-center justify-center">
-        <IconPlayerStopFilled className="text-destructive size-4" />
-        <div className="flex gap-1 font-medium leading-none text-xs">
+      <div className="flex flex-col items-center justify-center gap-0.5 text-primary-foreground">
+        <IconPhoneCall className="size-5 stroke-[2.5]" />
+        <div className="font-semibold leading-none text-[10px] tabular-nums">
           {duration}
         </div>
       </div>
@@ -79,8 +79,8 @@ export const PlivoTriggerContent = ({ duration }: { duration: string }) => {
   // The resting pair. A struck-through handset for "cannot take calls" reads as
   // unavailable on its own; the filled handset reads as ready on its own.
   return isRegistered ? (
-    <IconPhoneFilled className={glyphClass} />
+    <IconHeadset className={cn(glyphClass, 'size-6 stroke-[2.25]')} />
   ) : (
-    <IconPhoneOff className={glyphClass} />
+    <IconPhoneOff className={cn(glyphClass, 'size-6 stroke-[2.25]')} />
   );
 };

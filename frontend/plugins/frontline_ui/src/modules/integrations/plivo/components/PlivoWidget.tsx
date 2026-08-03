@@ -209,7 +209,7 @@ export const PlivoWidget = () => {
               // A fixed w-96 is wider than a 375px phone, so the panel hung off
               // the screen and the dialpad's right column was unreachable. It
               // keeps its 24rem on anything roomier than that.
-              className="z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 rounded-lg bg-background text-foreground shadow-lg w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto"
+              className="z-50 w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border bg-background/95 text-foreground shadow-2xl backdrop-blur data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2"
             >
               <PlivoWidgetContent />
             </PopoverPrimitive.Content>

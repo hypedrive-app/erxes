@@ -12,6 +12,7 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 
 import { REACT_APP_API_URL } from 'erxes-ui';
+import { apolloTypePolicies } from './cachePolicies';
 
 const SESSION_CODE_STORAGE_KEY = 'sessioncode';
 
@@ -111,16 +112,10 @@ const link = split(
   wsLink,
   httpLinkWithMiddleware,
 );
-const typePolicies = {
-  customers: {
-    keyFields: ['_id'],
-  },
-};
-
 // Creating Apollo-client
 const client = new ApolloClient({
   cache: new InMemoryCache({
-    typePolicies,
+    typePolicies: apolloTypePolicies,
     addTypename: true,
   }),
   queryDeduplication: true,
