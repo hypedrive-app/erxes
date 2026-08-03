@@ -41,6 +41,14 @@ export const types = `
 
     createdAt: Date
     updatedAt: Date
+
+    """
+    Computed per request, never stored: these are relative to "now" and a
+    stored copy would be wrong the moment it was written.
+    """
+    isUpcoming: Boolean
+    isPast: Boolean
+    durationMinutes: Int
   }
 
   type BookingsListResponse {
