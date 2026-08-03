@@ -26,6 +26,12 @@ export enum SettingsWorkspacePath {
   Products = 'products',
   ProductsCatchAll = 'products/*',
   Brands = 'brands',
+  /**
+   * Instance identity — logo, name, accent colour. Distinct from Brands, which
+   * is a collection of per-brand records used for routing email and inboxes;
+   * this is what the product itself looks like.
+   */
+  WhiteLabel = 'white-label',
   PropertiesCatchAll = 'properties/*',
   Automations = 'automations',
   AutomationsCatchAll = `${Automations}/*`,

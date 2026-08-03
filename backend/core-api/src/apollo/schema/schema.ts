@@ -23,6 +23,12 @@ import {
 } from '@/organization/brand/graphql/schema';
 
 import {
+  mutations as OrgWhiteLabelMutations,
+  queries as OrgWhiteLabelQueries,
+  types as OrgWhiteLabelTypes,
+} from '@/organization/whitelabel/graphql/schema';
+
+import {
   mutations as branchsMutations,
   queries as branchsQueries,
   BranchTypes,
@@ -240,6 +246,7 @@ export const types = `
     ${StructureTypes}
     ${UnitTypes}
     ${BrandTypes}
+    ${OrgWhiteLabelTypes}
     ${AppTypes}
     ${SegmentTypes}
     ${ConformityTypes}
@@ -281,6 +288,7 @@ export const queries = `
     ${structuresQueries}
     ${unitsQueries}
     ${BrandQueries}
+    ${OrgWhiteLabelQueries}
     ${AppQueries}
     ${FormQueries}
     ${SegmentQueries}
@@ -321,6 +329,7 @@ export const mutations = `
     ${structuresMutations}
     ${unitsMutations}
     ${BrandMutations}
+    ${OrgWhiteLabelMutations}
     ${AppMutations}
     ${SegmentMutations}
     ${ConformityMutations}

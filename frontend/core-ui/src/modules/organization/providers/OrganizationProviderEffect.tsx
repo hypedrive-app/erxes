@@ -10,6 +10,8 @@ import {
 import { REACT_APP_API_URL } from 'erxes-ui';
 import { useAtom, useSetAtom } from 'jotai';
 
+import { applyOrgAccent } from '~/theme/applyRuntimeTheme';
+
 export const OrganizationProviderEffect = () => {
   const [isCurrentOrganizationLoaded, setIsCurrentOrganizationLoaded] = useAtom(
     isCurrentOrganizationLoadedState,
@@ -31,6 +33,12 @@ export const OrganizationProviderEffect = () => {
           setCurrentOrganization(data);
           return;
         }
+
+        // Applied here rather than in a component: the accent must land as
+        // soon as the config arrives, and every consumer of this state renders
+        // below it. bootstrap.tsx has already applied the deployment default,
+        // so this only repaints when the two actually differ.
+        applyOrgAccent(data.orgAccentColor);
 
         setCurrentOrganization(data);
         setIsCurrentOrganizationLoaded(true);

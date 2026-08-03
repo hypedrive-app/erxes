@@ -19,6 +19,11 @@ export type CurrentOrganization = {
   orgFavicon?: string;
   orgShortDescription?: string;
   orgShortName?: string;
+  /**
+   * Accent colour as hex, from white-label settings. Applied by core-ui when
+   * /initial-setup resolves; overrides the deployment's REACT_APP_ACCENT_COLOR.
+   */
+  orgAccentColor?: string;
   orgCustomOnboarding?: boolean;
   bundle?: {
     type?: string;

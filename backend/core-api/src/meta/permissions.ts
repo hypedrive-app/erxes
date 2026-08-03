@@ -359,6 +359,12 @@ export const permissions: IPermissionConfig = {
           description: 'Create, edit, delete positions',
           oauthScope: 'organization:manage',
         },
+        {
+          title: 'Manage white-labelling',
+          name: 'whiteLabelManage',
+          description: 'Change the logo, name and accent colour of this instance',
+          oauthScope: 'organization:manage',
+        },
       ],
     },
     {

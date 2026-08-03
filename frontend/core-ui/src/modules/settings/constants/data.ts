@@ -8,6 +8,7 @@ import {
   IconBolt,
   IconBuilding,
   IconChessKnight,
+  IconPalette,
   IconFile,
   IconFileImport,
   IconHierarchy,
@@ -156,6 +157,11 @@ export const SETTINGS_PATH_DATA = (
       name: t('brands'),
       icon: IconChessKnight,
       path: SettingsWorkspacePath.Brands,
+    },
+    {
+      name: t('white-label', 'White-labelling'),
+      icon: IconPalette,
+      path: SettingsWorkspacePath.WhiteLabel,
     },
     {
       name: t('properties', 'Properties'),

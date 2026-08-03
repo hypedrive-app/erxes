@@ -7,6 +7,8 @@ export interface IOrgWhiteLabel {
   orgFavicon?: string;
   orgShortDescription?: string;
   orgShortName?: string;
+  /** Hex, e.g. "#3B90FA". Converted to oklch in the browser when applied. */
+  orgAccentColor?: string;
   enabled?: boolean;
 }
 

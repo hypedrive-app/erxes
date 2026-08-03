@@ -15,6 +15,7 @@ import { internalNoteQueries } from '@/internalNote/graphql/queries';
 import { logQueries } from '@/logs/graphql/resolvers/queries';
 import { notificationQueries } from '@/notifications/graphql/resolver/queries';
 import { brandQueries } from '@/organization/brand/graphql/queries';
+import { orgWhiteLabelQueries } from '@/organization/whitelabel/graphql/queries';
 import { organizationConfigQueries } from '@/organization/settings/graphql/configs/queries';
 import { favoriteQueries } from '@/organization/settings/graphql/favorites/queries';
 import { structureQueries } from '@/organization/structure/graphql/resolvers/queries';
@@ -65,6 +66,7 @@ export const queries = {
   ...favoriteQueries,
   ...structureQueries,
   ...brandQueries,
+  ...orgWhiteLabelQueries,
   ...organizationConfigQueries,
   ...permissionQueries,
   ...approvalQueries,

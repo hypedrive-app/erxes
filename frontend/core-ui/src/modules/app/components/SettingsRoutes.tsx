@@ -81,6 +81,12 @@ const BrandsSettingsRoutes = lazy(() =>
   })),
 );
 
+const WhiteLabelSettings = lazy(() =>
+  import('~/pages/settings/workspace/WhiteLabelPage').then((module) => ({
+    default: module.WhiteLabelPage,
+  })),
+);
+
 const AutomationSettingsRoutes = lazy(() =>
   import(
     '@/automations/components/settings/components/AutomationSettingsRoutes'
@@ -210,6 +216,10 @@ export function SettingsRoutes() {
         <Route
           path={SettingsWorkspacePath.Brands}
           element={<BrandsSettingsRoutes />}
+        />
+        <Route
+          path={SettingsWorkspacePath.WhiteLabel}
+          element={<WhiteLabelSettings />}
         />
         <Route
           path={SettingsWorkspacePath.ProductsCatchAll}

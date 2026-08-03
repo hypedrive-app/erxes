@@ -68,26 +68,44 @@ const srgbToOklch = (hex: string): Oklch | null => {
 };
 
 /**
- * Reads REACT_APP_ACCENT_COLOR (hex) or REACT_APP_ACCENT_HUE (degrees) and
- * applies it. Absent or unparseable values leave the stylesheet default in
- * place — a typo should not produce an unreadable app.
+ * Applies one hex colour as the accent, returning whether it was usable.
+ *
+ * Exported so the org-config path can call it directly: white-label settings
+ * arrive after boot, and re-reading window.env at that point would ignore them.
+ */
+export const applyAccentColor = (colour: string): boolean => {
+  const parsed = srgbToOklch(colour);
+
+  if (!parsed) return false;
+
+  const root = document.documentElement;
+
+  root.style.setProperty('--accent-hue', parsed.h.toFixed(2));
+  // Chroma comes from the brand colour too, so a deliberately muted brand
+  // stays muted instead of being forced to the default's saturation.
+  root.style.setProperty('--accent-chroma', parsed.c.toFixed(4));
+
+  return true;
+};
+
+/**
+ * Applies the DEPLOYMENT's accent from window.env, before the first paint.
+ *
+ * This is the floor, not the last word: white-label settings stored in the CRM
+ * override it once /initial-setup answers (see applyOrgAccent). Setting the env
+ * value first is what keeps a themed deployment from flashing the stock accent
+ * while that request is in flight.
+ *
+ * Absent or unparseable values leave the stylesheet default in place — a typo
+ * should not produce an unreadable app.
  */
 export const applyRuntimeTheme = () => {
   const env: Record<string, string | undefined> = window.env ?? {};
-  const root = document.documentElement;
 
   const colour = env.REACT_APP_ACCENT_COLOR;
 
   if (colour) {
-    const parsed = srgbToOklch(colour);
-
-    if (parsed) {
-      root.style.setProperty('--accent-hue', parsed.h.toFixed(2));
-      // Chroma comes from the brand colour too, so a deliberately muted brand
-      // stays muted instead of being forced to the default's saturation.
-      root.style.setProperty('--accent-chroma', parsed.c.toFixed(4));
-      return;
-    }
+    if (applyAccentColor(colour)) return;
 
     // Named rather than swallowed: a mistyped brand colour otherwise looks
     // like the feature simply does not work.
@@ -99,6 +117,27 @@ export const applyRuntimeTheme = () => {
   const hue = env.REACT_APP_ACCENT_HUE;
 
   if (hue && Number.isFinite(Number(hue))) {
-    root.style.setProperty('--accent-hue', String(Number(hue)));
+    document.documentElement.style.setProperty(
+      '--accent-hue',
+      String(Number(hue)),
+    );
+  }
+};
+
+/**
+ * Applies the accent stored in the CRM's white-label settings.
+ *
+ * Called when /initial-setup resolves. A stored colour outranks the deployment
+ * env because it is the more specific decision — an operator changed it in this
+ * instance's own settings — and it is the only one that can be changed without
+ * a redeploy.
+ */
+export const applyOrgAccent = (colour?: string | null) => {
+  if (!colour) return;
+
+  if (!applyAccentColor(colour)) {
+    console.warn(
+      `[theme] white-label accent "${colour}" is not a hex colour; keeping the deployment default.`,
+    );
   }
 };

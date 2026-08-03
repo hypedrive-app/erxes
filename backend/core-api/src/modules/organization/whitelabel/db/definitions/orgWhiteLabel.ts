@@ -13,6 +13,17 @@ export const orgWhiteLabelSchema = new mongoose.Schema(
     orgFavicon: String,
     orgShortDescription: String,
     orgShortName: String,
+
+    /**
+     * Accent colour as a hex string, e.g. "#3B90FA".
+     *
+     * Stored as the operator typed it rather than as oklch: a brand guide
+     * quotes hex, and converting on the way in would mean the value read back
+     * into the settings form no longer matches what was entered. The browser
+     * converts it when applying (core-ui applyRuntimeTheme).
+     */
+    orgAccentColor: String,
+
     enabled: {
       type: Boolean,
       default: false,
