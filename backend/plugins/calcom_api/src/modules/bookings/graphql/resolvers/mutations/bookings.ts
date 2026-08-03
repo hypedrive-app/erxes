@@ -1,17 +1,13 @@
-
-  import { IContext } from '~/connectionResolvers';
-
-  export const bookingsMutations = {
-    createBookings: async (_parent: undefined, { name }, { models }: IContext) => {
-      return models.Bookings.createBookings({name});
-    },
-
-    updateBookings: async (_parent: undefined, { _id, name }, { models }: IContext) => {
-      return models.Bookings.updateBookings(_id, {name});
-    },
-
-    removeBookings: async (_parent: undefined, { _id }, { models }: IContext) => {
-      return models.Bookings.removeBookings(_id);
-    },
-  };
-
+/**
+ * No mutations.
+ *
+ * Cal.com owns bookings; this plugin mirrors them from webhooks, so there is
+ * nothing here a user could safely create, edit or delete — any such write
+ * would drift from Cal.com the moment it was made. Writing back into Cal.com is
+ * a separate feature with its own conflict semantics.
+ *
+ * The generated createBookings/updateBookings/removeBookings stubs were removed
+ * rather than left unused: keeping them would advertise a write path this
+ * plugin does not have.
+ */
+export const bookingsMutations = {};
