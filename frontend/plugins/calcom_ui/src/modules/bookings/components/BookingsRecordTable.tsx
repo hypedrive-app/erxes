@@ -4,16 +4,29 @@ import { useMemo, useState } from 'react';
 
 import { BookingDetailSheet } from '~/modules/bookings/components/BookingDetailSheet';
 import { getBookingsColumns } from '~/modules/bookings/components/BookingsColumns';
+import { CancelBookingDialog } from '~/modules/bookings/components/CancelBookingDialog';
+import { RescheduleBookingDialog } from '~/modules/bookings/components/RescheduleBookingDialog';
 import { useCalcomBookings } from '~/modules/bookings/hooks/useCalcomBookings';
+import { ICalcomBooking } from '~/modules/bookings/types/booking';
 
 export const BookingsRecordTable = () => {
   const { bookings, loading, hasMore, handleFetchMore } = useCalcomBookings();
   const [openBookingId, setOpenBookingId] = useState<string>();
 
-  // Memoised on the stable setter: rebuilding the column array every render
+  // The whole booking is held, not just the uid: the dialogs show its title and
+  // the reschedule flow needs its eventTypeId to ask Cal.com for slots.
+  const [cancelTarget, setCancelTarget] = useState<ICalcomBooking>();
+  const [rescheduleTarget, setRescheduleTarget] = useState<ICalcomBooking>();
+
+  // Memoised on the stable setters: rebuilding the column array every render
   // would remount every cell and lose the table's internal state.
   const columns = useMemo(
-    () => getBookingsColumns({ onOpenBooking: setOpenBookingId }),
+    () =>
+      getBookingsColumns({
+        onOpenBooking: setOpenBookingId,
+        onCancelBooking: setCancelTarget,
+        onRescheduleBooking: setRescheduleTarget,
+      }),
     [],
   );
 
@@ -25,6 +38,21 @@ export const BookingsRecordTable = () => {
         // The id is cleared on close so reopening the same row refetches
         // rather than showing a stale sheet.
         onOpenChange={(next) => !next && setOpenBookingId(undefined)}
+      />
+
+      <CancelBookingDialog
+        uid={cancelTarget?.uid}
+        title={cancelTarget?.title}
+        open={!!cancelTarget}
+        onOpenChange={(next) => !next && setCancelTarget(undefined)}
+      />
+
+      <RescheduleBookingDialog
+        uid={rescheduleTarget?.uid}
+        eventTypeId={rescheduleTarget?.eventTypeId}
+        title={rescheduleTarget?.title}
+        open={!!rescheduleTarget}
+        onOpenChange={(next) => !next && setRescheduleTarget(undefined)}
       />
     <RecordTable.Provider
       columns={columns}

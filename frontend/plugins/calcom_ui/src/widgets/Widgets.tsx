@@ -1,4 +1,4 @@
-import { IRelationWidgetProps } from 'ui-modules';
+import { IRelationWidgetProps, useCustomerDetail } from 'ui-modules';
 
 import { CustomerBookingsWidget } from '~/modules/bookings/components/CustomerBookingsWidget';
 
@@ -24,6 +24,14 @@ export const Widgets = (props: IRelationWidgetProps) => {
     customerId ||
     (CUSTOMER_CONTENT_TYPES.includes(contentType) ? contentId : undefined);
 
+  // Reuses the shared contact hook rather than adding a query: the booking
+  // form prefills the attendee from the contact it is being created for, and
+  // the host only ever hands over ids.
+  const { customerDetail } = useCustomerDetail({
+    variables: { _id: resolvedCustomerId },
+    skip: !resolvedCustomerId,
+  });
+
   // Renders nothing rather than an empty state: with no customer there is no
   // question to ask, and an empty panel would read as "no bookings" when the
   // truth is "not applicable here".
@@ -31,7 +39,17 @@ export const Widgets = (props: IRelationWidgetProps) => {
     return null;
   }
 
-  return <CustomerBookingsWidget customerId={resolvedCustomerId} />;
+  const fullName = [customerDetail?.firstName, customerDetail?.lastName]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <CustomerBookingsWidget
+      customerId={resolvedCustomerId}
+      customerName={fullName || undefined}
+      customerEmail={customerDetail?.primaryEmail || undefined}
+    />
+  );
 };
 
 export default Widgets;

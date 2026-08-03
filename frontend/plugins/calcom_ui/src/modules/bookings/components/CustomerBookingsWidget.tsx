@@ -1,9 +1,14 @@
-import { IconCalendarOff, IconExternalLink } from '@tabler/icons-react';
-import { Badge, Skeleton } from 'erxes-ui';
+import {
+  IconCalendarOff,
+  IconCalendarPlus,
+  IconExternalLink,
+} from '@tabler/icons-react';
+import { Badge, Button, Skeleton } from 'erxes-ui';
 import { format } from 'date-fns';
 import { useState } from 'react';
 
 import { BookingDetailSheet } from '~/modules/bookings/components/BookingDetailSheet';
+import { CreateBookingDialog } from '~/modules/bookings/components/CreateBookingDialog';
 import { getStatusVariant } from '~/modules/bookings/constants/bookingStatus';
 import { useCalcomBookings } from '~/modules/bookings/hooks/useCalcomBookings';
 import { ICalcomBooking } from '~/modules/bookings/types/booking';
@@ -52,10 +57,15 @@ const BookingRow = ({
  */
 export const CustomerBookingsWidget = ({
   customerId,
+  customerName,
+  customerEmail,
 }: {
   customerId: string;
+  customerName?: string;
+  customerEmail?: string;
 }) => {
   const [openBookingId, setOpenBookingId] = useState<string>();
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { bookings, totalCount, loading, hasMore, handleFetchMore } =
     useCalcomBookings({
@@ -66,25 +76,10 @@ export const CustomerBookingsWidget = ({
       skip: !customerId,
     });
 
-  if (loading && !bookings.length) {
-    return (
-      <div className="flex flex-col gap-2 p-3">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
-      </div>
-    );
-  }
-
-  if (!bookings.length) {
-    return (
-      <div className="flex flex-col items-center gap-2 p-6 text-center">
-        <IconCalendarOff size={28} className="text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          No Cal.com bookings for this contact.
-        </p>
-      </div>
-    );
-  }
+  // One shell around all three states rather than three early returns: the
+  // book action has to stay reachable while loading and, especially, when the
+  // list is empty — an empty panel is exactly when someone wants to book.
+  const isEmpty = !loading && !bookings.length;
 
   return (
     <>
@@ -94,7 +89,31 @@ export const CustomerBookingsWidget = ({
         onOpenChange={(next) => !next && setOpenBookingId(undefined)}
       />
 
+      <CreateBookingDialog
+        customerId={customerId}
+        defaultName={customerName}
+        defaultEmail={customerEmail}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+      />
+
       <div className="flex flex-col gap-2 p-3">
+        {loading && !bookings.length && (
+          <>
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </>
+        )}
+
+        {isEmpty && (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <IconCalendarOff size={28} className="text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              No Cal.com bookings for this contact.
+            </p>
+          </div>
+        )}
+
         {bookings.map((booking) => (
           <BookingRow
             key={booking._id}
@@ -111,6 +130,18 @@ export const CustomerBookingsWidget = ({
           >
             Show more ({bookings.length} of {totalCount})
           </button>
+        )}
+
+        {!loading && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-1 w-full"
+            onClick={() => setCreateOpen(true)}
+          >
+            <IconCalendarPlus className="w-4 h-4" />
+            Book a time
+          </Button>
         )}
       </div>
     </>

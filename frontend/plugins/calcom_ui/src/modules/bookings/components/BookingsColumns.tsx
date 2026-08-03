@@ -1,5 +1,6 @@
 import {
   IconCalendarEvent,
+  IconCalendarX,
   IconClock,
   IconLabel,
   IconLink,
@@ -10,6 +11,10 @@ import {
 import { ColumnDef } from '@tanstack/table-core';
 import {
   Badge,
+  Combobox,
+  Command,
+  Popover,
+  RecordTable,
   RecordTableInlineCell,
   RelativeDateDisplay,
   TextOverflowTooltip,
@@ -39,9 +44,54 @@ const HeaderCell = ({
  */
 export const getBookingsColumns = ({
   onOpenBooking,
+  onCancelBooking,
+  onRescheduleBooking,
 }: {
   onOpenBooking: (bookingId: string) => void;
+  onCancelBooking: (booking: ICalcomBooking) => void;
+  onRescheduleBooking: (booking: ICalcomBooking) => void;
 }): ColumnDef<ICalcomBooking>[] => [
+  {
+    id: 'more',
+    size: 33,
+    cell: ({ row }) => {
+      const booking = row.original;
+
+      // Cal.com refuses changes to a booking that is already cancelled or
+      // rejected, so the menu is withheld rather than offering actions that
+      // are guaranteed to fail.
+      const isTerminal =
+        booking.status === 'CANCELLED' || booking.status === 'REJECTED';
+
+      if (isTerminal) return null;
+
+      return (
+        <Popover>
+          <Popover.Trigger asChild>
+            <RecordTable.MoreButton className="w-full h-full" />
+          </Popover.Trigger>
+          <Combobox.Content>
+            <Command shouldFilter={false}>
+              <Command.List>
+                <Command.Item
+                  value="reschedule"
+                  onSelect={() => onRescheduleBooking(booking)}
+                >
+                  <IconCalendarEvent /> Reschedule
+                </Command.Item>
+                <Command.Item
+                  value="cancel"
+                  onSelect={() => onCancelBooking(booking)}
+                >
+                  <IconCalendarX /> Cancel
+                </Command.Item>
+              </Command.List>
+            </Command>
+          </Combobox.Content>
+        </Popover>
+      );
+    },
+  },
   {
     id: 'title',
     accessorKey: 'title',

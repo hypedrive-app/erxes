@@ -1,9 +1,17 @@
-import { IconExternalLink } from '@tabler/icons-react';
-import { Badge, Sheet, Skeleton } from 'erxes-ui';
+import {
+  IconCalendarX,
+  IconExternalLink,
+  IconUserX,
+} from '@tabler/icons-react';
+import { Badge, Button, Sheet, Skeleton } from 'erxes-ui';
 import { format } from 'date-fns';
+import { useState } from 'react';
 
+import { CancelBookingDialog } from '~/modules/bookings/components/CancelBookingDialog';
+import { RescheduleBookingDialog } from '~/modules/bookings/components/RescheduleBookingDialog';
 import { getStatusVariant } from '~/modules/bookings/constants/bookingStatus';
 import { useCalcomBooking } from '~/modules/bookings/hooks/useCalcomBooking';
+import { useCalcomBookingActions } from '~/modules/bookings/hooks/useCalcomBookingActions';
 
 const Field = ({
   label,
@@ -31,6 +39,22 @@ export const BookingDetailSheet = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { booking, loading } = useCalcomBooking({ _id: bookingId });
+  const { markNoShow, pending } = useCalcomBookingActions();
+
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+
+  // Cal.com rejects changes to a booking that is already cancelled or rejected,
+  // so the actions are hidden rather than offered and then failed. An action
+  // the user cannot take should not be a button they can press.
+  const isTerminal =
+    booking?.status === 'CANCELLED' || booking?.status === 'REJECTED';
+
+  // No-show only makes sense once the meeting was supposed to have happened;
+  // before that there is nothing to report.
+  const hasStarted = booking?.startTime
+    ? new Date(booking.startTime) <= new Date()
+    : false;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -170,7 +194,57 @@ export const BookingDetailSheet = ({
             </>
           )}
         </Sheet.Content>
+
+        {/* Actions live in a footer rather than beside each field: they act on
+            the booking as a whole, and keeping them in one place means the
+            destructive one is never adjacent to something harmless. */}
+        {booking && !isTerminal && (
+          <Sheet.Footer className="border-t shrink-0">
+            {hasStarted && (
+              <Button
+                variant="ghost"
+                disabled={pending}
+                onClick={() =>
+                  booking.uid && markNoShow(booking.uid, { noShowHost: true })
+                }
+              >
+                <IconUserX className="w-4 h-4" />
+                Host no-show
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              disabled={pending}
+              onClick={() => setRescheduleOpen(true)}
+            >
+              Reschedule
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={pending}
+              onClick={() => setCancelOpen(true)}
+            >
+              <IconCalendarX className="w-4 h-4" />
+              Cancel
+            </Button>
+          </Sheet.Footer>
+        )}
       </Sheet.View>
+
+      <CancelBookingDialog
+        uid={booking?.uid}
+        title={booking?.title}
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+      />
+
+      <RescheduleBookingDialog
+        uid={booking?.uid}
+        eventTypeId={booking?.eventTypeId}
+        title={booking?.title}
+        open={rescheduleOpen}
+        onOpenChange={setRescheduleOpen}
+      />
     </Sheet>
   );
 };
