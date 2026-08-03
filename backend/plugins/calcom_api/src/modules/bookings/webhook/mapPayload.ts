@@ -50,13 +50,26 @@ const readMeetingUrl = (payload: Record<string, any>): string | undefined =>
 const readAttendees = (payload: Record<string, any>): IBookingAttendee[] => {
   const raw = Array.isArray(payload.attendees) ? payload.attendees : [];
 
-  return raw
+  const attendees: IBookingAttendee[] = raw
     .map((a: Record<string, any>) => ({
       email: a?.email,
       name: a?.name,
       timeZone: a?.timeZone,
     }))
     .filter((a: IBookingAttendee) => !!a.email);
+
+  // A booking created from within erxes stamps the contact it was made for into
+  // Cal.com's metadata, which Cal.com echoes back here. Applied to the first
+  // attendee — the person the booking is for — so the link survives even when
+  // the attendee's email is one the CRM has never seen. Without this the link
+  // would depend entirely on an email lookup that may legitimately miss.
+  const hinted = payload.metadata?.erxesCustomerId;
+
+  if (hinted && attendees.length) {
+    attendees[0] = { ...attendees[0], erxesCustomerId: hinted };
+  }
+
+  return attendees;
 };
 
 /**

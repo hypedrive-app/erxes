@@ -76,6 +76,16 @@ export const linkAttendeesToCustomers = async (
   const linked: IBookingAttendee[] = [];
 
   for (const attendee of attendees) {
+    // Already resolved. A booking created from erxes carries the contact id in
+    // Cal.com metadata and the mapper stamps it on before this runs; that hint
+    // is more authoritative than an email lookup, which can miss entirely when
+    // the attendee booked under an address the CRM has never seen. Re-running
+    // the lookup here could only downgrade a known link to none.
+    if (attendee.erxesCustomerId) {
+      linked.push(attendee);
+      continue;
+    }
+
     if (!attendee.email) {
       linked.push(attendee);
       continue;

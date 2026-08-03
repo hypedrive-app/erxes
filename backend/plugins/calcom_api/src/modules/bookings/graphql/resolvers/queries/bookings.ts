@@ -1,5 +1,7 @@
 import { IContext } from '~/connectionResolvers';
 
+import { getCalcomSlots, listCalcomEventTypes } from '@/bookings/calcomApi';
+
 type ListArgs = {
   customerId?: string;
   status?: string;
@@ -55,5 +57,68 @@ export const bookingsQueries = {
     ]);
 
     return { list, totalCount };
+  },
+
+  /**
+   * Bookable event types, read live from Cal.com.
+   *
+   * Not mirrored and not cached: an event type is configuration, no webhook
+   * announces a change to one, and a stale copy would offer people a duration
+   * or an event that no longer exists.
+   */
+  calcomEventTypes: async (
+    _parent: undefined,
+    { username }: { username?: string },
+    _context: IContext,
+  ) => {
+    const result = await listCalcomEventTypes(username);
+
+    // v2 wraps list results in { data: [...] }; some deployments answer with a
+    // bare array. Both are accepted rather than assuming one shape.
+    const raw: any[] = Array.isArray(result) ? result : result?.data || [];
+
+    return raw.map((eventType) => ({
+      id: eventType?.id,
+      title: eventType?.title,
+      slug: eventType?.slug,
+      length: eventType?.length ?? eventType?.lengthInMinutes,
+      description: eventType?.description,
+      hidden: eventType?.hidden,
+    }));
+  },
+
+  /**
+   * Free slots for an event type. Availability is computed by Cal.com against
+   * calendars erxes cannot see, so it is asked for rather than derived.
+   */
+  calcomSlots: async (
+    _parent: undefined,
+    {
+      eventTypeId,
+      start,
+      end,
+      timeZone,
+    }: { eventTypeId: number; start: string; end: string; timeZone?: string },
+    _context: IContext,
+  ) => {
+    const result = await getCalcomSlots({ eventTypeId, start, end, timeZone });
+
+    const payload = result?.data ?? result;
+
+    // v2 returns slots keyed by date — { "2026-08-04": [{ start }, ...] } —
+    // rather than a flat list, so the day buckets are flattened. An array is
+    // still handled for deployments that answer with one.
+    const raw: any[] = Array.isArray(payload)
+      ? payload
+      : Object.values(payload || {}).flatMap((day) =>
+          Array.isArray(day) ? day : [],
+        );
+
+    return raw
+      .map((slot) => ({
+        start: slot?.start ?? slot?.time,
+        end: slot?.end,
+      }))
+      .filter((slot) => !!slot.start);
   },
 };
