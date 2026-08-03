@@ -96,13 +96,63 @@ export async function retryGetProxyTargets(): Promise<ErxesProxyTarget[]> {
   try {
     const serviceNames = await getPlugins();
 
-    const proxyTargets: ErxesProxyTarget[] = await Promise.all(
+    // allSettled, not all: with Promise.all a single plugin that never joins
+    // service discovery rejects the whole array, the catch below runs
+    // process.exit(1), and main.ts never reaches httpServer.listen(). Under
+    // `restart: unless-stopped` that is a permanent crash-loop in which the
+    // gateway serves NOTHING — not /graphql, not /health, not the core-api
+    // passthrough that /initial-setup and /core-login ride on. One misnamed or
+    // slow-starting plugin therefore took down every working plugin with it.
+    //
+    // `core` is the exception and is still fatal: the gateway proxies its own
+    // auth and setup routes to it, so a gateway without core is not degraded,
+    // it is useless.
+    const settled = await Promise.allSettled(
       serviceNames.map(retryGetProxyTarget),
     );
 
-    await Promise.all(proxyTargets.map(retryEnsureGraphqlEndpointIsUp));
+    const proxyTargets: ErxesProxyTarget[] = [];
 
-    return proxyTargets;
+    settled.forEach((outcome, idx) => {
+      const name = serviceNames[idx];
+
+      if (outcome.status === 'fulfilled') {
+        proxyTargets.push(outcome.value);
+        return;
+      }
+
+      if (name === 'core') {
+        throw outcome.reason;
+      }
+
+      console.error(
+        `Plugin ${name} never joined service discovery — starting without it. ` +
+          `Its routes will 404 until it registers and the gateway is restarted.`,
+        outcome.reason,
+      );
+    });
+
+    // Same reasoning: a plugin whose graphql endpoint is down must not stop the
+    // ones that are up. It is dropped from the targets rather than kept as a
+    // target that would proxy into a dead address.
+    const healthChecked = await Promise.allSettled(
+      proxyTargets.map(retryEnsureGraphqlEndpointIsUp),
+    );
+
+    const liveTargets = proxyTargets.filter((target, idx) => {
+      if (healthChecked[idx].status === 'fulfilled') return true;
+
+      if (target.name === 'core') {
+        throw (healthChecked[idx] as PromiseRejectedResult).reason;
+      }
+
+      console.error(
+        `Plugin ${target.name} graphql endpoint never came up — dropping it from the proxy targets.`,
+      );
+      return false;
+    });
+
+    return liveTargets;
   } catch (e) {
     console.log(e);
     console.error(e);
