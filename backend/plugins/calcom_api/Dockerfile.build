@@ -1,0 +1,108 @@
+# calcom_api — self-contained build from a CLEAN GIT CHECKOUT.
+#
+# Deliberately mirrors backend/plugins/operation_api/Dockerfile.build, which in
+# turn mirrors frontline_api's. Keep the family in sync: the reasoning for every
+# non-obvious line (NX_SOCKET_DIR, the whole-tree COPY, the flattened runtime
+# node_modules, the erxes-api-shared replacement) is written out in full there
+# and is not repeated here. Only the plugin-specific parts are annotated.
+#
+# Note there is no sibling packaging-only `Dockerfile` for this plugin, unlike
+# operation_api. That file exists there to serve project.json's `docker-build`
+# target on a workstation that has already run an Nx build; nothing invokes such
+# a target for calcom_api, and a recipe that COPYs a gitignored dist/ would only
+# be a trap for whoever tries it from a fresh clone.
+#
+# BUILD CONTEXT IS THE REPO ROOT:
+#   docker build -f backend/plugins/calcom_api/Dockerfile.build .
+
+# ── Stage 1: compile the workspace ───────────────────────────────────────────
+FROM node:22-alpine3.22 AS build
+WORKDIR /app
+
+ENV NX_DAEMON=false \
+    NX_SOCKET_DIR=/tmp/nx-sock \
+    NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
+    CI=true
+
+RUN npm install -g pnpm@9
+
+COPY . .
+
+RUN pnpm install --frozen-lockfile
+
+# erxes-api-shared first, as its own layer — same ordering race as the siblings.
+RUN pnpm nx build erxes-api-shared
+
+RUN pnpm nx build calcom_api
+
+RUN test -f backend/plugins/calcom_api/dist/src/main.js \
+    && echo "calcom_api build OK"
+
+# ── Stage 2: production dependency tree, flattened ───────────────────────────
+FROM node:22-alpine3.22 AS installer
+WORKDIR /app
+RUN npm install -g pnpm@9
+
+COPY pnpm-lock.yaml ./
+COPY backend/plugins/calcom_api/package.json backend/plugins/calcom_api/
+COPY backend/erxes-api-shared/package.json backend/erxes-api-shared/
+RUN node -e "\
+const fs = require('fs'); \
+const shared = require('./backend/erxes-api-shared/package.json'); \
+const service = require('./backend/plugins/calcom_api/package.json'); \
+const dependencies = { \
+  ...(shared.dependencies || {}), \
+  ...(service.dependencies || {}), \
+}; \
+delete dependencies['erxes-api-shared']; \
+fs.writeFileSync( \
+  'package.json', \
+  JSON.stringify( \
+    { name: 'runtime-deps', version: '1.0.0', private: true, dependencies }, \
+    null, \
+    2, \
+  ), \
+); \
+" \
+    && pnpm install --prod --shamefully-hoist --no-frozen-lockfile \
+    && find node_modules -type f \( \
+         -name "*.d.ts" -o -name "*.map" -o -name "*.md" \
+         -o -name "LICENSE*" -o -name "LICENCE*" \
+         -o -name "CHANGELOG*" -o -name "README*" \
+         -o -name "CONTRIBUTING*" -o -name "AUTHORS*" \
+         -o -name ".npmignore" -o -name ".eslintrc*" -o -name "Makefile" \
+       \) -delete \
+    && find node_modules -mindepth 2 -maxdepth 3 -type d \( \
+         -name "test" -o -name "tests" -o -name "__tests__" -o -name "spec" \
+         -o -name "docs" -o -name "doc" -o -name "examples" -o -name "example" \
+         -o -name ".github" -o -name "coverage" \
+       \) -prune -exec rm -rf {} \; 2>/dev/null || true
+
+# ── Stage 3: minimal runtime ─────────────────────────────────────────────────
+FROM node:22-alpine3.22
+WORKDIR /app
+
+COPY --from=installer /app/node_modules ./node_modules
+
+RUN rm -rf ./node_modules/erxes-api-shared
+COPY --from=build /app/backend/erxes-api-shared/dist ./node_modules/erxes-api-shared/dist
+COPY --from=build /app/backend/erxes-api-shared/utils ./node_modules/erxes-api-shared/utils
+COPY --from=build /app/backend/erxes-api-shared/core-types ./node_modules/erxes-api-shared/core-types
+COPY --from=build /app/backend/erxes-api-shared/core-modules ./node_modules/erxes-api-shared/core-modules
+COPY --from=build /app/backend/erxes-api-shared/package.json ./node_modules/erxes-api-shared/
+
+COPY --from=build /app/backend/plugins/calcom_api/dist ./dist
+
+ENV NODE_ENV=production
+USER 1000
+
+# LOAD-BEARING — see operation_api/Dockerfile.build for the full explanation of
+# why the gateway's finite retry budget makes this a readiness gate rather than
+# a cosmetic ping.
+#
+# Port 3314 matches startPlugin({name:'calcom', port:3314}) in src/main.ts.
+# 3314 and not the generator's default 33010, which collides with insurance_api.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=180s --retries=12 \
+  CMD ["node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3314)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+
+CMD ["node", "dist/src/main.js"]

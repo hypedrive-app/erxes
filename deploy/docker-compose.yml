@@ -191,7 +191,7 @@ services:
       # ENABLED_PLUGINS occurrence in this file (core-api, each plugin api, and
       # the gateway) must stay identical — the gateway compares its list
       # against what the plugins actually registered.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
       # ENABLED_PLUGINS_ONLY_API stays ABSENT — same empty-string trap.
       # ── PLUGIN_CDN_URL: where the BROWSER fetches plugin remotes ─────────
       # routes.ts builds `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
@@ -279,7 +279,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. frontline itself
       # calls isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Frontline needs these in its own right, not just for parity: inbound
       # WhatsApp media and email (imap) attachments are streamed straight to
@@ -372,7 +372,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. sales itself calls
       # isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Deal attachments and import/export artifacts are streamed to object
       # storage by this process. Same readConfigValue fallback chain as
@@ -438,7 +438,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Task attachments and import/export artifacts are streamed to object
       # storage by this process. Same readConfigValue fallback chain as
@@ -457,6 +457,64 @@ services:
       NODE_OPTIONS: --max-old-space-size=1536
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3307)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 180s
+    restart: unless-stopped
+    networks: [erxes]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  plugin-calcom-api:
+    # Built from source — there is no published image for this plugin at all,
+    # it exists only in this fork. See backend/plugins/calcom_api/Dockerfile.build.
+    build:
+      context: ..
+      dockerfile: backend/plugins/calcom_api/Dockerfile.build
+    depends_on:
+      mongo: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      plugin-core-api: {condition: service_started}
+    environment:
+      NODE_ENV: production
+      VERSION: os
+      # Must equal the port in startPlugin({name:'calcom', port:3314})
+      # (backend/plugins/calcom_api/src/main.ts). 3314 and not the plugin
+      # generator's default 33010, which insurance_api already claims.
+      PORT: "3314"
+      DOMAIN: https://${ERXES_UI_DOMAIN}
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+
+      # ── Cal.com integration ──────────────────────────────────────────────
+      # Shared secret configured on the Cal.com webhook subscription. The
+      # receiver HMACs the raw request body with it and compares against
+      # X-Cal-Signature-256; an unset value makes every delivery fail
+      # verification and answer 401, which is the correct closed default —
+      # accepting unsigned webhooks would let anyone write into the CRM.
+      CALCOM_WEBHOOK_SECRET: ${CALCOM_WEBHOOK_SECRET:-}
+      # Cal.com API key, used for the outbound direction only: cancel,
+      # reschedule, mark-absent, and the reconciliation backfill. Inbound
+      # webhooks do not need it, so the mirror still fills without one.
+      CALCOM_API_KEY: ${CALCOM_API_KEY:-}
+      # Defaults to Cal.com Cloud. Point at a self-hosted instance's /v2 if the
+      # calendar is the one we run at cal.sharksmarketing.com.
+      CALCOM_API_URL: ${CALCOM_API_URL:-https://api.cal.com/v2}
+      # Guards POST /calcom/reconcile, which drives a loop of outbound API
+      # calls and CRM writes. Unset means the route answers 503 rather than
+      # running unauthenticated — see the comment on the route in routes.ts.
+      CALCOM_ADMIN_TOKEN: ${CALCOM_ADMIN_TOKEN:-}
+
+      NODE_OPTIONS: --max-old-space-size=1536
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3314)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -546,6 +604,18 @@ services:
       # racing two more cold-booting plugins with the same finite 60-try budget.
       plugin-sales-api: {condition: service_healthy}
       plugin-operation-api: {condition: service_healthy}
+      # calcom gets the same gate for the same reason. Note the coupling this
+      # creates, because compose cannot express "only if enabled": this
+      # depends_on is UNCONDITIONAL, so the gateway waits for
+      # plugin-calcom-api to go healthy even when `calcom` is absent from
+      # ENABLED_PLUGINS. That is a wait, not a deadlock — the plugin boots and
+      # becomes healthy regardless of whether the gateway is looking for it —
+      # but it does mean the SERVICE and the ENV LIST must be removed together.
+      # To drop calcom entirely: delete `calcom` from ENABLED_PLUGINS, delete
+      # this line, and delete the plugin-calcom-api service. Removing only the
+      # name from ENABLED_PLUGINS leaves a container nothing talks to; removing
+      # only the service makes compose fail to start on an unknown dependency.
+      plugin-calcom-api: {condition: service_healthy}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -569,7 +639,7 @@ services:
       # true of sales and operation: each name added here is one more subgraph
       # the gateway REQUIRES before it will serve anything.
       # Still never "" — see the long note on plugin-core-api.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
       # Bound the service-discovery retry loop. Unset => MAX_SAFE_INTEGER, i.e.
       # the gateway waits forever instead of failing visibly (targets.ts).
       #
@@ -858,7 +928,7 @@ services:
       # marks all 13 published articles "skipped — the source is unavailable or
       # not published" while the BullMQ job still reports success. Confirmed on
       # this instance: frontline logged nothing at all during a reindex.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
       # LOAD_BALANCER_ADDRESS is intentionally unset: it would override the
       # container-DNS address the service registers for itself.
       #
@@ -919,7 +989,7 @@ services:
       # defaultValue unless isEnabled(pluginName) is true — which is decided
       # solely by this env var. Without it every afterProcess hook is a no-op,
       # and because sendProducer swallows errors it fails silently.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
       # Lighter than automations: two Mongo-writing queue workers, no AI path.
       NODE_OPTIONS: --max-old-space-size=192
     healthcheck:
