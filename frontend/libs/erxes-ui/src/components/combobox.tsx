@@ -140,35 +140,81 @@ export const ComboboxCheck = React.forwardRef<
 ComboboxCheck.displayName = 'ComboboxCheck';
 
 export const ComboboxFetchMore = React.forwardRef<
-  React.ElementRef<typeof Command.Item>,
-  React.ComponentPropsWithoutRef<typeof Command.Item> & {
+  HTMLDivElement,
+  React.ComponentPropsWithoutRef<'div'> & {
     totalCount: number;
     currentLength: number;
     fetchMore: () => void;
+    /**
+     * Render as a cmdk item. Only valid inside a <Command> — see the note
+     * below on why this is opt-in rather than the default.
+     */
+    asCommandItem?: boolean;
   }
->(({ className, totalCount, currentLength, fetchMore, ...props }, ref) => {
-  const { ref: bottomRef } = useInView({
-    onChange: (inView) => inView && fetchMore(),
-  });
+>(
+  (
+    { className, totalCount, currentLength, fetchMore, asCommandItem, ...props },
+    ref,
+  ) => {
+    const { ref: bottomRef } = useInView({
+      onChange: (inView) => inView && fetchMore(),
+    });
 
-  if (currentLength >= totalCount || !totalCount || currentLength === 0) {
-    return null;
-  }
+    if (currentLength >= totalCount || !totalCount || currentLength === 0) {
+      return null;
+    }
 
-  return (
-    <Command.Item
-      ref={mergeRefs([ref, bottomRef])}
-      {...props}
-      className={cn(className)}
-    >
-      <Spinner
-        className="size-4 text-muted-foreground"
-        containerClassName="w-auto flex-none mr-2"
-      />
-      Load more...
-    </Command.Item>
-  );
-});
+    const content = (
+      <>
+        <Spinner
+          className="size-4 text-muted-foreground"
+          containerClassName="w-auto flex-none mr-2"
+        />
+        Load more...
+      </>
+    );
+
+    /**
+     * Defaults to a plain <div>, NOT a Command.Item.
+     *
+     * Command.Item calls cmdk's useCommandState, which reads a context that
+     * only exists under a <Command> root. Rendered outside one it does not
+     * degrade — it throws
+     *   TypeError: Cannot read properties of undefined (reading 'subscribe')
+     * at module evaluation of the item, which React escalates to the nearest
+     * error boundary. In practice that took out the whole softphone widget:
+     * PlivoCallHistory renders this inside a ScrollArea with no Command
+     * anywhere, so opening the call-history tab crashed the page and the call
+     * bubble never appeared.
+     *
+     * This is only ever an infinite-scroll sentinel — it is not selectable and
+     * has no cmdk value — so nothing is lost by rendering a div. Callers that
+     * genuinely sit inside a Command list and want keyboard traversal to reach
+     * it can opt in with asCommandItem.
+     */
+    if (asCommandItem) {
+      return (
+        <Command.Item
+          ref={mergeRefs([ref, bottomRef])}
+          {...(props as React.ComponentPropsWithoutRef<typeof Command.Item>)}
+          className={cn(className)}
+        >
+          {content}
+        </Command.Item>
+      );
+    }
+
+    return (
+      <div
+        ref={mergeRefs([ref, bottomRef])}
+        {...props}
+        className={cn('flex items-center px-2 py-1.5 text-sm', className)}
+      >
+        {content}
+      </div>
+    );
+  },
+);
 
 ComboboxFetchMore.displayName = 'ComboboxFetchMore';
 
