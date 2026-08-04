@@ -62,3 +62,42 @@ export const MEDIA_MESSAGE_TYPES = [
   'document',
   'sticker',
 ] as const;
+
+export type WhatsappMediaType = (typeof MEDIA_MESSAGE_TYPES)[number];
+
+/**
+ * Per-type upload ceilings, from Meta's own media reference.
+ *
+ * Enforced before upload rather than after: Meta rejects an oversized file
+ * with a generic error, and the agent has no way to tell that from a transient
+ * failure. Checking here lets us say which file was too large and by how much.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/
+ */
+export const WHATSAPP_MEDIA_MAX_BYTES: Record<WhatsappMediaType, number> = {
+  image: 5 * 1024 * 1024,
+  document: 100 * 1024 * 1024,
+  audio: 16 * 1024 * 1024,
+  video: 16 * 1024 * 1024,
+  sticker: 500 * 1024,
+};
+
+/**
+ * Maps a MIME type onto the message type Meta expects.
+ *
+ * Meta keys the message body on a coarse type ("image", "document"), not the
+ * MIME type — the MIME type only travels on the upload. Anything unrecognised
+ * is sent as a document, which is Meta's own catch-all and accepts the widest
+ * range of formats.
+ */
+export const whatsappMediaTypeFor = (mimetype = ''): WhatsappMediaType => {
+  const mime = mimetype.toLowerCase();
+
+  // WebP is a sticker to Meta, not an image, and has its own much smaller
+  // size ceiling — misclassifying it produces a confusing rejection.
+  if (mime === 'image/webp') return 'sticker';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+
+  return 'document';
+};

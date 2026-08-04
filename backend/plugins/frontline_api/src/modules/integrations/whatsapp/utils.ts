@@ -4,6 +4,9 @@ import {
   ERROR_CODE_OUTSIDE_SERVICE_WINDOW,
   GRAPH_API_URL,
   RETRYABLE_ERROR_CODES,
+  WHATSAPP_MEDIA_MAX_BYTES,
+  WhatsappMediaType,
+  whatsappMediaTypeFor,
 } from '@/integrations/whatsapp/constants';
 import {
   debugError,
@@ -397,5 +400,199 @@ export const getWhatsappMediaUrl = async ({
   } catch (e: any) {
     debugError(`Failed to resolve WhatsApp media ${mediaId}: ${e.message}`);
     return '';
+  }
+};
+
+/**
+ * Uploads a file to Meta and returns the media id to send it with.
+ *
+ * Deliberately NOT the `link` alternative. Meta will fetch a public URL, but it
+ * caches the asset for only 10 minutes and the URL has to stay reachable for
+ * that whole window — a miss is a silent delivery failure. It would also mean
+ * exposing CRM attachments publicly, since this deployment serves files through
+ * an authenticated proxy with no public bucket policy. An uploaded id avoids
+ * both: it is valid for 30 days and the bytes already live on Meta's servers.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/
+ *
+ * Written with fetch + FormData rather than graphRequest because that helper
+ * sends JSON; this endpoint requires multipart/form-data. The Authorization
+ * header is set by hand for the same reason — letting fetch derive the
+ * Content-Type is what produces the correct multipart boundary.
+ */
+export const uploadWhatsappMedia = async ({
+  accessToken,
+  phoneNumberId,
+  buffer,
+  fileName,
+  mimetype,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  buffer: Buffer;
+  fileName: string;
+  mimetype: string;
+}): Promise<string> => {
+  const mediaType = whatsappMediaTypeFor(mimetype);
+  const limit = WHATSAPP_MEDIA_MAX_BYTES[mediaType];
+
+  // Checked before the request: Meta answers an oversized upload with a
+  // generic failure, which an agent cannot tell apart from a transient one.
+  if (buffer.byteLength > limit) {
+    throw new WhatsappApiError(
+      400,
+      `"${fileName}" is ${Math.round(buffer.byteLength / 1024 / 1024)}MB. WhatsApp allows up to ${Math.round(limit / 1024 / 1024)}MB for ${mediaType} files.`,
+    );
+  }
+
+  const form = new FormData();
+
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mimetype);
+  form.append(
+    'file',
+    new Blob([new Uint8Array(buffer)], { type: mimetype }),
+    fileName,
+  );
+
+  const url = `${GRAPH_API_URL}/${phoneNumberId}/media`;
+
+  debugExternalRequests(`WhatsApp POST ${url} (${fileName})`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+
+  const data = parseResponseBody(await response.text());
+
+  if (!response.ok) {
+    const error = data?.error || {};
+
+    throw new WhatsappApiError(
+      response.status,
+      error.message || `Failed to upload ${fileName} to WhatsApp`,
+      error.code,
+    );
+  }
+
+  // parseResponseBody is typed Record<string, unknown>, so the id is narrowed
+  // rather than asserted — a non-string here means Meta changed the contract,
+  // and treating it as an id would store garbage in a unique index.
+  const mediaId = typeof data?.id === 'string' ? data.id : undefined;
+
+  if (!mediaId) {
+    throw new WhatsappApiError(
+      200,
+      `WhatsApp accepted ${fileName} but returned no media id`,
+    );
+  }
+
+  return mediaId;
+};
+
+/**
+ * Sends one already-uploaded media file.
+ *
+ * `caption` is only honoured by image, video and document — Meta ignores it on
+ * audio and stickers, so it is omitted there rather than sent and dropped.
+ * `filename` is document-only and is what the recipient sees; without it
+ * WhatsApp shows an opaque generated name.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages/
+ */
+export const sendWhatsappMedia = async ({
+  accessToken,
+  phoneNumberId,
+  to,
+  mediaId,
+  mediaType,
+  caption,
+  fileName,
+  replyToMid,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  to: string;
+  mediaId: string;
+  mediaType: WhatsappMediaType;
+  caption?: string;
+  fileName?: string;
+  replyToMid?: string;
+}): Promise<string> => {
+  const media: Record<string, unknown> = { id: mediaId };
+
+  if (caption && mediaType !== 'audio' && mediaType !== 'sticker') {
+    media.caption = caption;
+  }
+
+  if (mediaType === 'document' && fileName) {
+    media.filename = fileName;
+  }
+
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: mediaType,
+    [mediaType]: media,
+  };
+
+  if (replyToMid) {
+    body.context = { message_id: replyToMid };
+  }
+
+  const response = await graphRequest<{ messages?: Array<{ id: string }> }>({
+    accessToken,
+    method: 'POST',
+    path: `/${phoneNumberId}/messages`,
+    body,
+  });
+
+  const mid = response?.messages?.[0]?.id;
+
+  // Same reasoning as sendWhatsappText: `mid` is uniquely indexed, so a blank
+  // one would collide with every other unidentified send.
+  if (!mid) {
+    throw new WhatsappApiError(
+      200,
+      'WhatsApp accepted the media but returned no message id',
+    );
+  }
+
+  return mid;
+};
+
+/**
+ * Downloads media Meta holds for us.
+ *
+ * Two calls, both required: the id resolves to a signed URL that expires after
+ * 5 MINUTES, and the download from that URL still needs the bearer token. That
+ * is why the URL is never stored — see rehostWhatsappMedia, which is what
+ * callers should use.
+ */
+export const downloadWhatsappMedia = async ({
+  accessToken,
+  mediaId,
+}: {
+  accessToken: string;
+  mediaId: string;
+}): Promise<Buffer | null> => {
+  const url = await getWhatsappMediaUrl({ accessToken, mediaId });
+
+  if (!url) return null;
+
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  } catch (e: any) {
+    debugError(`Failed to download WhatsApp media ${mediaId}: ${e.message}`);
+    return null;
   }
 };

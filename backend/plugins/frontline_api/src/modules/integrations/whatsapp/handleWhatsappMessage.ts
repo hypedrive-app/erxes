@@ -1,11 +1,16 @@
 import { stripHtml } from 'string-strip-html';
 import { IModels } from '~/connectionResolvers';
 import {
+  sendWhatsappMedia,
   sendWhatsappTemplate,
   sendWhatsappText,
   WhatsappApiError,
 } from '@/integrations/whatsapp/utils';
-import { CUSTOMER_SERVICE_WINDOW_MS } from '@/integrations/whatsapp/constants';
+import { uploadAttachmentToWhatsapp } from '@/integrations/whatsapp/media';
+import {
+  CUSTOMER_SERVICE_WINDOW_MS,
+  whatsappMediaTypeFor,
+} from '@/integrations/whatsapp/constants';
 import { debugError } from '@/integrations/whatsapp/debuggers';
 import {
   IWhatsappTemplateDispatch,
@@ -76,7 +81,13 @@ const getTemplateDispatch = (
  * Internal notes never reach here: `conversationMessageAdd` stores them and
  * returns before it dispatches to any integration.
  */
-export const handleWhatsappMessage = async (models: IModels, msg) => {
+// `subdomain` is threaded in because sending an attachment has to read it back
+// out of this tenant's own file storage, and storage config is per-subdomain.
+export const handleWhatsappMessage = async (
+  models: IModels,
+  subdomain: string,
+  msg,
+) => {
   const { payload } = msg;
   const doc = JSON.parse(payload || '{}');
 
@@ -110,25 +121,65 @@ export const handleWhatsappMessage = async (models: IModels, msg) => {
     throw new Error(OUTSIDE_WINDOW_MESSAGE);
   }
 
+  const attachments = doc.attachments || [];
+
   let mid: string;
 
   try {
-    mid = template
-      ? await sendWhatsappTemplate({
+    if (template) {
+      mid = await sendWhatsappTemplate({
+        accessToken: integration.accessToken,
+        phoneNumberId: integration.phoneNumberId,
+        // Meta expects the recipient without a leading `+`.
+        to: conversation.senderId,
+        name: template.name,
+        languageCode: template.languageCode,
+        components: template.components,
+      });
+    } else if (attachments.length) {
+      /**
+       * Attachments used to be written to our database and never sent — the
+       * agent saw the file in the inbox while the recipient got text only.
+       *
+       * Meta sends one media file per message, so each attachment becomes its
+       * own message. The first carries the agent's text as its caption, which
+       * is how WhatsApp itself pairs a note with a file; any remaining files
+       * follow uncaptioned. The mid recorded against the row is the FIRST
+       * one — that is the message the caption belongs to, and the row's
+       * content is that same text.
+       */
+      const mids: string[] = [];
+
+      for (const [index, attachment] of attachments.entries()) {
+        const mediaId = await uploadAttachmentToWhatsapp({
+          subdomain,
           accessToken: integration.accessToken,
           phoneNumberId: integration.phoneNumberId,
-          // Meta expects the recipient without a leading `+`.
-          to: conversation.senderId,
-          name: template.name,
-          languageCode: template.languageCode,
-          components: template.components,
-        })
-      : await sendWhatsappText({
-          accessToken: integration.accessToken,
-          phoneNumberId: integration.phoneNumberId,
-          to: conversation.senderId,
-          text: content,
+          attachment,
         });
+
+        mids.push(
+          await sendWhatsappMedia({
+            accessToken: integration.accessToken,
+            phoneNumberId: integration.phoneNumberId,
+            to: conversation.senderId,
+            mediaId,
+            mediaType: whatsappMediaTypeFor(attachment.type),
+            caption: index === 0 ? content || undefined : undefined,
+            fileName: attachment.name,
+          }),
+        );
+      }
+
+      mid = mids[0];
+    } else {
+      mid = await sendWhatsappText({
+        accessToken: integration.accessToken,
+        phoneNumberId: integration.phoneNumberId,
+        to: conversation.senderId,
+        text: content,
+      });
+    }
   } catch (e) {
     if (e instanceof WhatsappApiError && e.isOutsideServiceWindow) {
       throw new Error(OUTSIDE_WINDOW_MESSAGE);

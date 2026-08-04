@@ -27,7 +27,7 @@ export const handleWhatsappIntegration = async ({ subdomain, data }) => {
 
   try {
     if (type === 'whatsapp') {
-      response.data = await handleWhatsappMessage(models, data);
+      response.data = await handleWhatsappMessage(models, subdomain, data);
     }
   } catch (e) {
     response = {

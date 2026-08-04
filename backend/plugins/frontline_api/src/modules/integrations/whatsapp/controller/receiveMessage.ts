@@ -9,6 +9,7 @@ import {
   getOrCreateCustomer,
 } from '@/integrations/whatsapp/controller/store';
 import { getWhatsappMediaUrl } from '@/integrations/whatsapp/utils';
+import { rehostInboundMedia } from '@/integrations/whatsapp/media';
 import { MEDIA_MESSAGE_TYPES } from '@/integrations/whatsapp/constants';
 import {
   IWhatsappAttachment,
@@ -40,6 +41,7 @@ const isMediaMessage = (
  * attachment we cannot resolve is worth less than a thread that never appears.
  */
 const extractContent = async (
+  subdomain: string,
   message: IWhatsappWebhookMessage,
   integration: IWhatsappIntegrationDocument,
 ): Promise<{ content: string; attachments: IWhatsappAttachment[] }> => {
@@ -59,11 +61,31 @@ const extractContent = async (
       });
 
       if (url) {
-        attachments.push({
-          url,
-          name: media.filename || `${message.type}-${media.id}`,
-          type: media.mime_type || message.type,
-        });
+        /**
+         * Meta's URL is NOT stored. It expires after 5 minutes and requires a
+         * bearer token even before then, so an <img src> could never render
+         * it — inbound media was effectively never viewable. The bytes are
+         * copied into our own storage and the permanent key is stored instead.
+         *
+         * Meta keeps webhook media for 7 days, so this has to happen on
+         * receipt rather than lazily on first view.
+         *
+         * rehostInboundMedia falls back to the original attachment if the copy
+         * fails, which keeps a message with an unreachable file rather than
+         * losing the message itself.
+         */
+        attachments.push(
+          await rehostInboundMedia({
+            subdomain,
+            accessToken: integration.accessToken,
+            mediaId: media.id,
+            attachment: {
+              url,
+              name: media.filename || `${message.type}-${media.id}`,
+              type: media.mime_type || message.type,
+            },
+          }),
+        );
       }
     }
 
@@ -174,7 +196,11 @@ const receiveCustomerMessage = async (
     profileName,
   );
 
-  const { content, attachments } = await extractContent(message, integration);
+  const { content, attachments } = await extractContent(
+    subdomain,
+    message,
+    integration,
+  );
 
   const conversation = await getOrCreateConversation(
     models,
