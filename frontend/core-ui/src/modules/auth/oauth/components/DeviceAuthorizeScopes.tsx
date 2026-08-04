@@ -5,6 +5,7 @@ import type { ActionGroup } from '../types';
 
 type Props = {
   loadingDetails: boolean;
+  loadError: string | null;
   isCodeMissing: boolean;
   isReady: boolean;
   actionGroups: ActionGroup[];
@@ -15,6 +16,7 @@ type Props = {
 
 export const DeviceAuthorizeScopes = ({
   loadingDetails,
+  loadError,
   isCodeMissing,
   isReady,
   actionGroups,
@@ -36,6 +38,24 @@ export const DeviceAuthorizeScopes = ({
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         Device authorization code is missing.
+      </div>
+    );
+  }
+
+  // Previously `return null` — which rendered a card with a title, two buttons
+  // and nothing in between, explaining nothing. The details request having
+  // failed is the single most likely reason to land here (an expired or
+  // already-used code), so it says so, and the Cancel button beside it still
+  // works because deny() needs only the user code.
+  if (loadError) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        <p className="font-medium">Could not load this access request.</p>
+        <p className="mt-1 text-destructive/80">{loadError}</p>
+        <p className="mt-2 text-destructive/80">
+          The code may have expired or already been used. Start the sign-in
+          again from the device.
+        </p>
       </div>
     );
   }

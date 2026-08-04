@@ -209,11 +209,38 @@ router.post('/oauth/device/approve', async (req: Request, res: Response) => {
       );
     }
 
+    // The consent screen sends back the subset of scopes the user ticked, but
+    // it is a browser and its body is attacker-controlled. Without this
+    // intersection a crafted POST to /oauth/device/approve could name ANY
+    // scope — including ones the device never requested and the user never
+    // saw — and it would be written to grantedScope verbatim and then handed
+    // to the token endpoint, which issues on grantedScope with no further
+    // check. Narrowing to what the device code actually asked for is what
+    // keeps consent an upper bound rather than a suggestion.
+    const requestedScopes = new Set(
+      (deviceCode.scope || '').split(' ').filter(Boolean),
+    );
+
     const grantedScopes: string[] = Array.isArray(req.body?.grantedScopes)
       ? req.body.grantedScopes.filter(
-          (s: unknown) => typeof s === 'string' && s.trim(),
+          (s: unknown): s is string =>
+            typeof s === 'string' &&
+            !!s.trim() &&
+            requestedScopes.has(s.trim()),
         )
       : [];
+
+    // Approving nothing is not an approval. Allowing it would store an empty
+    // grantedScope and mint a token with no scope at all, which reads as a
+    // successful authorization to the waiting device.
+    if (!grantedScopes.length) {
+      return sendOAuthError(
+        res,
+        400,
+        'invalid_scope',
+        'No requested scopes were granted',
+      );
+    }
 
     const [oauthClientApp] = await Promise.all([
       getOAuthClientApp(models, deviceCode.clientId),

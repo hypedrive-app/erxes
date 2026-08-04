@@ -13,6 +13,10 @@ export const useDeviceAuthorize = () => {
   const [approved, setApproved] = useState(false);
   const [denied, setDenied] = useState(false);
   const [details, setDetails] = useState<ConsentDetailsResponse | null>(null);
+  // Kept in state, not just surfaced as a toast. A toast disappears, and the
+  // consent screen has no other way to say why it is empty — see the
+  // loadError branch in DeviceAuthorizeScopes.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
 
   const userCode = useMemo(
@@ -35,6 +39,7 @@ export const useDeviceAuthorize = () => {
 
     const loadDetails = async () => {
       setLoadingDetails(true);
+      setLoadError(null);
 
       try {
         const response = await fetch(
@@ -57,10 +62,14 @@ export const useDeviceAuthorize = () => {
       } catch (error) {
         if (controller.signal.aborted) return;
 
+        const message =
+          error instanceof Error ? error.message : 'Something went wrong.';
+
+        setLoadError(message);
+
         toast({
           title: 'Could not load access request',
-          description:
-            error instanceof Error ? error.message : 'Something went wrong.',
+          description: message,
           variant: 'destructive',
         });
       } finally {
@@ -193,6 +202,7 @@ export const useDeviceAuthorize = () => {
     userCode,
     loading,
     loadingDetails,
+    loadError,
     approved,
     denied,
     details,

@@ -15,6 +15,7 @@ export const DeviceAuthorize = () => {
     userCode,
     loading,
     loadingDetails,
+    loadError,
     approved,
     denied,
     details,
@@ -82,6 +83,7 @@ export const DeviceAuthorize = () => {
         <Card.Content className="space-y-6 px-8 pb-8">
           <DeviceAuthorizeScopes
             loadingDetails={loadingDetails}
+            loadError={loadError}
             isCodeMissing={isCodeMissing}
             isReady={isReady}
             actionGroups={actionGroups}
@@ -91,9 +93,13 @@ export const DeviceAuthorize = () => {
           />
 
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            {/* Deliberately NOT gated on `details`. deny() only needs the
+                user code, and the case where details failed to load is exactly
+                when someone most wants out — gating on details left the device
+                polling until it timed out, with no way to refuse it. */}
             <Button
               variant="outline"
-              disabled={loading || loadingDetails || !details}
+              disabled={loading || loadingDetails || !userCode}
               onClick={deny}
             >
               Cancel
