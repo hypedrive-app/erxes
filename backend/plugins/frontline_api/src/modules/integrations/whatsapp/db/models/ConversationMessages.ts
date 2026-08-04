@@ -40,7 +40,11 @@ export const loadWhatsappConversationMessageClass = (models: IModels) => {
       try {
         return await models.WhatsappConversationMessages.create(doc);
       } catch (e: any) {
-        if (e.message?.includes('duplicate')) {
+        // 11000 is Mongo's duplicate-key code and the reliable signal. The
+        // string match is only a fallback: it depends on the driver's wording
+        // and casing, so on its own it would let a genuine duplicate rethrow
+        // as a 500 and make Meta retry the whole batch.
+        if (e.code === 11000 || e.message?.includes('duplicate')) {
           return await models.WhatsappConversationMessages.getMessage({
             mid: doc.mid,
           });

@@ -185,6 +185,21 @@ export const handleWhatsappMessage = async (
       throw new Error(OUTSIDE_WINDOW_MESSAGE);
     }
 
+    // A dead token is otherwise invisible until someone happens to open
+    // settings and click repair — `isAuthError`/`isRetryable` were computed on
+    // every failure but nothing ever read them, so the integration could sit
+    // broken through any number of failed sends while `healthStatus` still
+    // said 'healthy'. Rate limits and other transient codes are deliberately
+    // left alone: they are not evidence the integration is broken, and
+    // flapping the status on every throttle would make the settings screen
+    // noise rather than signal.
+    if (e instanceof WhatsappApiError && e.isAuthError) {
+      await models.WhatsappIntegrations.updateOne(
+        { erxesApiId: integration.erxesApiId },
+        { $set: { healthStatus: 'error', error: e.message } },
+      ).catch(() => undefined);
+    }
+
     debugError(`Failed to send WhatsApp message: ${e.message}`);
     throw e;
   }

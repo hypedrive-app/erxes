@@ -57,7 +57,9 @@ export const getOrCreateCustomer = async (
   } catch (e: any) {
     // A concurrent webhook for the same sender won the race. Its row is only
     // usable once that request has linked it to a core contact.
-    if (e.message?.includes('duplicate')) {
+    // 11000 is the reliable duplicate-key signal; the string match is a
+    // wording-dependent fallback that must not be the only test.
+    if (e.code === 11000 || e.message?.includes('duplicate')) {
       const winner = await models.WhatsappCustomers.getCustomer({ waId });
 
       if (!winner.erxesApiId) {
@@ -164,7 +166,9 @@ export const getOrCreateConversation = async (
   } catch (e: any) {
     // The unique (senderId, recipientId) index rejected a concurrent insert.
     // The winning row is only usable once it has been linked to the inbox.
-    if (e.message?.includes('duplicate')) {
+    // 11000 is the reliable duplicate-key signal; the string match is a
+    // wording-dependent fallback that must not be the only test.
+    if (e.code === 11000 || e.message?.includes('duplicate')) {
       const winner =
         await models.WhatsappConversations.getConversation(selector);
 

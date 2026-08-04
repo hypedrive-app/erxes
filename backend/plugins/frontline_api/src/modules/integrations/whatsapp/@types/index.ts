@@ -69,6 +69,7 @@ export interface IWhatsappConversationMessage {
   customerId?: string;
   userId?: string;
   deliveryStatus?: string;
+  deliveryStatusRank?: number;
   errorMessage?: string;
   internal?: boolean;
   // from inbox

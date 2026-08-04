@@ -273,14 +273,36 @@ const receiveCustomerMessage = async (
 };
 
 /**
- * Records a delivery receipt for a message we sent. Statuses for messages we
- * never stored are ignored.
+ * Records a delivery receipt for a message we sent.
  *
  * Meta documents five values — sent, delivered, read, played and failed —
  * where `played` is the first play of a voice note. They are stored verbatim
  * rather than mapped, so a value added later is still recorded.
  * https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/status
+ *
+ * Applied monotonically. Meta retries webhooks and documents no ordering
+ * guarantee, so `delivered` and the redelivery of an earlier `sent` can arrive
+ * in either order; a plain write would let a late `sent` overwrite `read` and
+ * walk the message backwards in the UI. Only a rank strictly greater than what
+ * is stored wins, which also makes redelivery idempotent.
  */
+const STATUS_RANK: Record<string, number> = {
+  sent: 1,
+  delivered: 2,
+  read: 3,
+  played: 4,
+};
+
+/**
+ * `failed` is terminal, not a step: it can follow any earlier status and must
+ * never be overwritten by one. Ranking it above every other value expresses
+ * that with the same comparison rather than a special case.
+ */
+const FAILED_RANK = 100;
+
+const rankOf = (status: string) =>
+  status === 'failed' ? FAILED_RANK : STATUS_RANK[status] ?? 0;
+
 const receiveStatusUpdate = async (
   models: IModels,
   status: IWhatsappWebhookStatus,
@@ -298,15 +320,43 @@ const receiveStatusUpdate = async (
     ? error.error_data?.details || error.message || error.title
     : undefined;
 
-  await models.WhatsappConversationMessages.updateOne(
-    { mid: status.id },
-    {
-      $set: {
-        deliveryStatus: status.status,
-        ...(errorMessage ? { errorMessage } : {}),
-      },
+  const incomingRank = rankOf(status.status);
+
+  // An unrecognised status ranks 0 and would never satisfy the guard below, so
+  // it is written unconditionally — recording something Meta added later is
+  // better than silently dropping it.
+  const query: Record<string, unknown> = { mid: status.id };
+
+  if (incomingRank > 0) {
+    query.$or = [
+      { deliveryStatusRank: { $exists: false } },
+      { deliveryStatusRank: { $lt: incomingRank } },
+    ];
+  }
+
+  const result = await models.WhatsappConversationMessages.updateOne(query, {
+    $set: {
+      deliveryStatus: status.status,
+      ...(incomingRank > 0 ? { deliveryStatusRank: incomingRank } : {}),
+      ...(errorMessage ? { errorMessage } : {}),
     },
-  );
+  });
+
+  // Nothing matched: either the status is stale (already superseded) or it
+  // arrived before the row exists. Meta can report `sent` before our own send
+  // call has returned and been written, so this is expected, not an error —
+  // but a status for a message we never stored is worth seeing.
+  if (result.matchedCount === 0) {
+    const exists = await models.WhatsappConversationMessages.exists({
+      mid: status.id,
+    });
+
+    if (!exists) {
+      debugWhatsapp(
+        `Delivery status "${status.status}" for unknown message ${status.id}`,
+      );
+    }
+  }
 };
 
 /**

@@ -24,10 +24,21 @@ export const conversationMessageSchema = new Schema({
   userId: { type: String, index: true },
   createdAt: { type: Date, index: true, label: 'Created At' },
   updatedAt: { type: Date, index: true, label: 'Updated At' },
-  // sent | delivered | read | failed — driven by the statuses webhook.
+  // sent | delivered | read | played | failed — driven by the statuses webhook.
   deliveryStatus: {
     type: String,
     label: 'Latest delivery status reported by Meta',
+    optional: true,
+  },
+  /**
+   * How far along `deliveryStatus` is, so an out-of-order or redelivered
+   * webhook cannot walk the message backwards. Stored rather than derived
+   * because the comparison happens inside the update's own query, which
+   * cannot call back into application code.
+   */
+  deliveryStatusRank: {
+    type: Number,
+    label: 'Ordering rank of the latest delivery status',
     optional: true,
   },
   errorMessage: {
