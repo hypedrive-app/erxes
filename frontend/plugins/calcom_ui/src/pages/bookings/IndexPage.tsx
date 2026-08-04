@@ -1,6 +1,6 @@
 import {
   IconCalendarPlus,
-  IconSandbox,
+  IconCalendarEvent,
   IconSettings,
 } from '@tabler/icons-react';
 import { Breadcrumb, Button, Separator } from 'erxes-ui';
@@ -27,9 +27,9 @@ export const IndexPage = () => {
             <Breadcrumb.List className="gap-1">
               <Breadcrumb.Item>
                 <Button variant="ghost" asChild>
-                  <Link to="/settings/bookings">
-                    <IconSandbox />
-                    bookings
+                  <Link to="/calcom/bookings">
+                    <IconCalendarEvent />
+                    Bookings
                   </Link>
                 </Button>
               </Breadcrumb.Item>
@@ -43,7 +43,7 @@ export const IndexPage = () => {
         </PageHeader.Start>
         <PageHeader.End>
           <Button variant="outline" asChild>
-            <Link to="/settings/bookings">
+            <Link to="/settings/calcom/bookings">
               <IconSettings />
               Go to settings
             </Link>
