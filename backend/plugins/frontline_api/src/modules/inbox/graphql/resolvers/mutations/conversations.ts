@@ -693,6 +693,28 @@ export const conversationMutations = {
           message._id,
         );
 
+        /**
+         * Bind the integration's own row to this message.
+         *
+         * The integration sends before the inbox message exists, so it cannot
+         * record the inbox id itself. Without this bind, Meta's delivery
+         * status — which the WhatsApp module already stores — has nothing to
+         * join back to, and a message Meta REFUSED looks exactly like a
+         * delivered one in the inbox.
+         *
+         * Best-effort on purpose: the reply has already gone out, and failing
+         * the mutation now would tell the agent their message did not send
+         * when it did.
+         */
+        const whatsappMessageId = response.data.data?.whatsappMessageId;
+
+        if (whatsappMessageId) {
+          await models.WhatsappConversationMessages.updateOne(
+            { _id: whatsappMessageId },
+            { $set: { erxesApiMessageId: message._id } },
+          ).catch(() => undefined);
+        }
+
         await markAutomatedReplyHumanActive({
           models,
           conversation,

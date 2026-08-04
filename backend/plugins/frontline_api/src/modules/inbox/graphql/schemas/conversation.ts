@@ -82,6 +82,26 @@ export const types = `
     mailData: MailData
     contentType: String
     mid: String
+
+    """
+    Delivery state reported by Meta for a WhatsApp message. Null on every other
+    channel — they do not report delivery this way, and inventing a status for
+    them would be worse than saying nothing.
+    """
+    whatsappDelivery: WhatsappDeliveryState
+  }
+
+  """
+  What Meta told us about one outbound WhatsApp message.
+
+  The status field is Meta's own vocabulary: sent, delivered, read, failed.
+  The error field is populated only on failure and carries Meta's reason — the
+  difference between "it did not send" and "it did not send because the number
+  is not on WhatsApp".
+  """
+  type WhatsappDeliveryState {
+    status: String
+    error: String
   }
 
   type Email {

@@ -189,7 +189,7 @@ export const handleWhatsappMessage = async (
     throw e;
   }
 
-  return models.WhatsappConversationMessages.addMessage({
+  const sent = await models.WhatsappConversationMessages.addMessage({
     mid,
     conversationId: conversation._id,
     content,
@@ -197,4 +197,16 @@ export const handleWhatsappMessage = async (
     userId: doc.userId,
     createdAt: new Date(),
   });
+
+  /**
+   * `whatsappMessageId` is returned so the inbox can bind this row to the
+   * message it is about to create.
+   *
+   * The two are only linkable in that direction: the integration sends BEFORE
+   * the inbox message exists, so this row cannot know the inbox id yet, and
+   * without the bind nothing joins Meta's delivery status back to the message
+   * an agent is looking at. `erxesApiMessageId` was already being set on the
+   * inbound path for exactly this purpose; outbound never set it.
+   */
+  return { ...sent.toObject(), whatsappMessageId: sent._id };
 };
