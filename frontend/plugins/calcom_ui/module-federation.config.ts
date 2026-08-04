@@ -23,6 +23,12 @@ export const config: ModuleFederationConfig = {
     // (WidgetsComponent.tsx), so an expose named anything else is never
     // requested and the widget silently never renders.
     './relationWidget': './src/widgets/Widgets.tsx',
+    // Required by core-ui, not optional: core-api emits a
+    // `<plugin>:system.welcome` notification for every enabled plugin, and
+    // NotificationContent.tsx renders its detail by loading this exact remote
+    // name. Without it, opening that notification shows
+    // "Module unavailable — calcom_ui/notificationWidget".
+    './notificationWidget': './src/widgets/NotificationRemoteEntries.tsx',
   },
 
   shared: (libraryName, defaultConfig) => {
