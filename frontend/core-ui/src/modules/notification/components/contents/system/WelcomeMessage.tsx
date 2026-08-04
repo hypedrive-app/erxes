@@ -5,9 +5,11 @@ import {
   IconAffiliate,
   IconFile,
 } from '@tabler/icons-react';
+import { useAtomValue } from 'jotai';
 import {
   WelcomeNotificationContentLayout,
   TOnboardingStepItem,
+  currentOrganizationState,
 } from 'ui-modules';
 const OnboardingSteps: TOnboardingStepItem[] = [
   {
@@ -65,9 +67,15 @@ const OnboardingSteps: TOnboardingStepItem[] = [
 ];
 
 export const WelcomeMessageContent = () => {
+  // Reads the white-label name rather than hardcoding "erxes": this instance
+  // is branded, and the welcome notification was the one place still greeting
+  // people with the upstream product name. Falls back to erxes when
+  // white-labelling is off, which is the correct default there.
+  const organization = useAtomValue(currentOrganizationState);
+
   return (
     <WelcomeNotificationContentLayout
-      title="Welcome to erxes"
+      title={`Welcome to ${organization?.orgShortName || 'erxes'}`}
       description="A New Experience Begins!"
       videoSrc="https://pub-3bcba1ff529f4ce3bf25b4e16962c239.r2.dev/intro.mp4"
       onboardingSteps={OnboardingSteps}

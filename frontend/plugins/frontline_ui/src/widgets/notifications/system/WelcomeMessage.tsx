@@ -8,11 +8,13 @@ import {
   IconAffiliate,
   IconInfoCircle,
 } from '@tabler/icons-react';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import {
   WelcomeNotificationContentLayout,
   TOnboardingStepItem,
   TVideoTabItem,
+  currentOrganizationState,
 } from 'ui-modules';
 
 export const OnboardingSteps: TOnboardingStepItem[] = [
@@ -106,9 +108,14 @@ const TabItems: TVideoTabItem[] = [
 
 export const WelcomeMessageContent = () => {
   const { t } = useTranslation('frontline');
+  // Same reasoning as core-ui's WelcomeMessage: this instance is white-labelled,
+  // and greeting people with the upstream product name contradicts that.
+  // Falls back to "erxes" when white-labelling is off.
+  const organization = useAtomValue(currentOrganizationState);
+
   return (
     <WelcomeNotificationContentLayout
-      title="erxes Frontline"
+      title={`${organization?.orgShortName || 'erxes'} Frontline`}
       description={t('engage-customers-description')}
       tabItems={TabItems}
       videoSrc="https://pub-3bcba1ff529f4ce3bf25b4e16962c239.r2.dev/frontline-web.mp4"

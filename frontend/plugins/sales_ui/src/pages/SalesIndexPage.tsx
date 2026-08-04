@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { AddDealSheet } from '@/deals/components/AddDealSheet';
 import { CommonDealSearch } from '@/deals/components/commonSearch';
 import { DealsView } from '@/deals/actionBar/components/DealViewControl';
-import { IconSandbox, IconSettings } from '@tabler/icons-react';
+import { IconCoins, IconSettings } from '@tabler/icons-react';
 import MainActionBar from '@/deals/actionBar/components/MainActionBar';
 import { PageHeader } from 'ui-modules';
 import { SalesBreadCrumb } from '@/deals/components/breadcrumb/SalesBreadCrumb';
@@ -40,7 +40,7 @@ export const SalesIndexPage = () => {
                 <Breadcrumb.Item className="shrink-0">
                   <Button variant="ghost" asChild>
                     <Link to="/sales/deal">
-                      <IconSandbox />
+                      <IconCoins />
                       {t('sales-pipeline', 'Sales Pipeline')}
                     </Link>
                   </Button>

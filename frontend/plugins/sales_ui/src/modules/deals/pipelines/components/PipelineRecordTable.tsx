@@ -4,7 +4,7 @@ import {
   IconCalendarTime,
   IconCopy,
   IconEdit,
-  IconSandbox,
+  IconArrowRight,
   IconSettings,
   IconTrash,
   IconUser,
@@ -172,7 +172,7 @@ export const PipelineMoreColumnCell = ({
                 })
               }
             >
-              <IconSandbox /> {t('go-to-pipeline')}
+              <IconArrowRight /> {t('go-to-pipeline')}
             </Command.Item>
             <Command.Item
               disabled={removeLoading}

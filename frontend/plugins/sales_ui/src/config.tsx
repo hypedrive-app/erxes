@@ -1,4 +1,4 @@
-import { IconBriefcase, IconReceipt, IconSandbox } from '@tabler/icons-react';
+import { IconBriefcase, IconCoins, IconReceipt } from '@tabler/icons-react';
 import { Suspense, lazy } from 'react';
 
 import { IUIConfig, TPropertyInputProps } from 'erxes-ui';
@@ -79,7 +79,7 @@ export const CONFIG: IUIConfig = {
     relationWidgets: [
       {
         name: 'deals',
-        icon: IconSandbox,
+        icon: IconCoins,
       },
       {
         name: 'posOrders',
