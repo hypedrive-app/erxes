@@ -1,6 +1,18 @@
 import { IntegrationType } from '@/types/Integration';
 
-export const INTEGRATIONS = {
+/**
+ * Display metadata per integration kind.
+ *
+ * Typed by IntegrationType rather than left as an inferred object literal, so a
+ * kind added to the enum without an entry here is a COMPILE error. It was
+ * previously inferred, and two kinds — message-pro and lead — had no entry:
+ * IntegrationDetailPage reads this with optional chaining, so those rendered
+ * with a blank name and no icon rather than failing visibly.
+ */
+export const INTEGRATIONS: Record<
+  IntegrationType,
+  { name: string; descriptionKey: string; img: string }
+> = {
   [IntegrationType.ERXES_MESSENGER]: {
     name: 'erxes Messenger',
     descriptionKey: 'integration-desc-erxes-messenger',
@@ -50,5 +62,17 @@ export const INTEGRATIONS = {
     name: 'IMAP',
     descriptionKey: 'integration-desc-imap',
     img: 'email.webp',
+  },
+  [IntegrationType.MESSAGE_PRO]: {
+    name: 'Message Pro',
+    descriptionKey: 'integration-desc-message-pro',
+    // No dedicated asset ships for this one; the generic messenger mark is the
+    // closest existing image rather than a broken src.
+    img: 'messenger.webp',
+  },
+  [IntegrationType.LEAD]: {
+    name: 'Forms',
+    descriptionKey: 'integration-desc-lead',
+    img: 'webhook.webp',
   },
 };

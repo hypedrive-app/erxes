@@ -587,6 +587,8 @@
   "integration-desc-instagram-post": "Instagram пост дахь сэтгэгдэл болон хариуг удирдаарай.",
   "integration-desc-call": "Grandstream дуудлагын холболтыг ашиглан ирж буй болон гарч буй дуудлагуудыг удирдаарай.",
   "integration-desc-imap": "Имэйл харилцаа удирдахын тулд IMAP-аар дамжуулан имэйл бүртгэлээ холбоорой.",
+  "integration-desc-message-pro": "Message Pro-оор SMS болон мессеж илгээх, хүлээн авах.",
+  "integration-desc-lead": "Вэб сайтад байршуулсан формоос лид цуглуулах.",
   "integration-desc-discord": "Discord сувгийн зурвасуудыг Багийн Инбокснаас холбож удирдаарай.",
   "integration-desc-whatsapp": "WhatsApp Business дугаараа холбож харилцагчийн чатыг Багийн Инбокснаас удирдаарай.",
   "whatsapp-add-number": "WhatsApp дугаар нэмэх",

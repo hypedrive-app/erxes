@@ -587,6 +587,8 @@
   "integration-desc-instagram-post": "Manage comments and replies on your Instagram posts.",
   "integration-desc-call": "Handle inbound and outbound calls using the Grandstream call integration.",
   "integration-desc-imap": "Connect your email account via IMAP to manage email conversations.",
+  "integration-desc-message-pro": "Send and receive SMS and messaging campaigns through Message Pro.",
+  "integration-desc-lead": "Capture leads from forms embedded on your website.",
   "integration-desc-discord": "Connect and manage Discord channel messages right from your Team Inbox.",
   "integration-desc-whatsapp": "Connect a WhatsApp Business number to handle customer chats from your Team Inbox.",
   "whatsapp-add-number": "Add WhatsApp number",
