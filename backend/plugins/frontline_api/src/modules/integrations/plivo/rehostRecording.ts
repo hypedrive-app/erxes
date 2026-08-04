@@ -18,7 +18,13 @@ export interface IRehostedRecording {
   failureReason?: string;
 }
 
-/** Plivo caps `<Record maxLength>` at an hour; an hour of mono WAV is ~57MB. */
+/**
+ * Plivo caps `<Record maxLength>` at an hour. An hour of MP3 — Plivo's actual
+ * default format, confirmed against a real `RecordUrl` — is a few megabytes at
+ * typical call-quality bitrates, so this cap is generous rather than tight; it
+ * exists to reject a corrupt or unexpectedly huge download, not to fit a
+ * specific format's real size.
+ */
 const MAX_RECORDING_BYTES = 100 * 1024 * 1024;
 
 /**
@@ -51,7 +57,13 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
  */
 const RETRY_DELAYS_MS = [1_000, 3_000, 7_000, 20_000] as const;
 
-/** Plivo writes WAV by default and MP3 when the application asks for it. */
+/**
+ * Plivo's own default is MP3, not WAV — its `<Record>` XML element documents
+ * `fileFormat` as defaulting to `mp3`, confirmed against a real recording
+ * callback whose `RecordUrl` ends `.mp3` with no `fileFormat` set anywhere in
+ * this codebase's XML. This was previously assumed backwards.
+ * https://www.plivo.com/docs/voice/xml/record
+ */
 const MIME_BY_EXTENSION: Record<string, string> = {
   wav: 'audio/wav',
   mp3: 'audio/mpeg',
@@ -77,16 +89,20 @@ const getErrorMessage = (e: unknown): string =>
 /**
  * Derives the stored file name from the recording URL.
  *
- * Plivo's URL ends in `<recording-id>.wav`, which already identifies the file;
- * the call uuid is prefixed so a recording can be traced back to its call from
- * the storage listing alone. Anything that is not a word character is dropped
+ * Plivo's URL ends in `<recording-id>.<format>` — `.mp3` by default, `.wav`
+ * only when `fileFormat="wav"` is set on `<Record>`, which nothing in this
+ * codebase does — so the extension already identifies the real file. The call
+ * uuid is prefixed so a recording can be traced back to its call from the
+ * storage listing alone. Anything that is not a word character is dropped
  * because the name reaches an object store key.
  */
 export const buildRecordingFileName = (
   recordUrl: string,
   callUuid?: string,
 ): string => {
-  let extension = 'wav';
+  // Matches Plivo's own default, so a URL this cannot parse still gets the
+  // extension the file actually has rather than the wrong one.
+  let extension = 'mp3';
 
   try {
     const { pathname } = new URL(recordUrl);
@@ -107,7 +123,7 @@ export const buildRecordingFileName = (
 
 const getMimetype = (fileName: string): string =>
   MIME_BY_EXTENSION[fileName.split('.').pop()?.toLowerCase() || ''] ||
-  'audio/wav';
+  'audio/mpeg';
 
 /**
  * The dependencies this module reaches outside the process through, injected so

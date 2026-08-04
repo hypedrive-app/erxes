@@ -545,7 +545,7 @@ const buildVoicemailElements = (
     buildSiblingCallbackUrl(req, subdomain, '/voicemail'),
   )}" method="POST" maxLength="${
     integration.voicemailMaxLength || PLIVO_DEFAULT_VOICEMAIL_MAX_SECONDS
-  }" timeout="${PLIVO_VOICEMAIL_SILENCE_TIMEOUT_SECONDS}" playBeep="true" finishOnKey="#" />`,
+  }" timeout="${PLIVO_VOICEMAIL_SILENCE_TIMEOUT_SECONDS}" playBeep="true" finishOnKey="#" fileFormat="mp3" />`,
   `<Speak>${escapeXml(PLIVO_VOICEMAIL_CLOSING_MESSAGE)}</Speak>`,
 ];
 
@@ -566,6 +566,22 @@ const buildVoicemailElements = (
  * because recording consent is jurisdiction-specific and Plivo starts recording
  * the instant the element is parsed. `redirect="false"` keeps the call going
  * after recording starts rather than jumping to the callback.
+ *
+ * `fileFormat="mp3"` is explicit rather than relying on Plivo's own default —
+ * see `rehostRecording.ts` for the assumption this codebase used to have
+ * backwards.
+ *
+ * `startOnDialAnswer` is deliberately NOT set, which means recording starts
+ * the instant this element is parsed — including the ringback and any
+ * voicemail prompt before a real conversation begins, for an inbound call
+ * routed through the agent/fallback/voicemail stages below. Setting it would
+ * be the more correct behaviour for the common case, but Plivo does not
+ * document how it behaves across MULTIPLE sequential `<Dial>` stages (agents,
+ * then a fallback number) or whether it stays correctly dormant when the call
+ * falls through to the voicemail `<Record>` instead of ever being answered —
+ * getting either wrong would silently produce a recording with no audio at
+ * all on the fallback leg, which is worse than today's "includes some
+ * ringback". Left as a known, deliberately unclosed gap rather than guessed.
  * https://www.plivo.com/docs/voice/xml/record
  */
 const buildAnswerXml = async (
@@ -587,7 +603,7 @@ const buildAnswerXml = async (
     elements.push(
       `<Record action="${escapeXml(
         buildSiblingCallbackUrl(req, subdomain, '/recording'),
-      )}" method="POST" redirect="false" maxLength="3600" recordSession="true" />`,
+      )}" method="POST" redirect="false" maxLength="3600" recordSession="true" fileFormat="mp3" />`,
     );
   }
 

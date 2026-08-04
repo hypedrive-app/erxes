@@ -177,7 +177,12 @@ const describeRecording = (duration: number | undefined): string => {
   return seconds ? `Call recording (${seconds}s)` : 'Call recording';
 };
 
-/** Plivo writes WAV by default and MP3 when the application asks for it. */
+/**
+ * Plivo's own default is MP3, not WAV — see `rehostRecording.ts` for how this
+ * was confirmed against a real `RecordUrl` and Plivo's `<Record>` reference.
+ * WAV only happens when `fileFormat="wav"` is set, which nothing in this
+ * codebase's XML does.
+ */
 const RECORDING_MIME_BY_EXTENSION: Record<string, string> = {
   wav: 'audio/wav',
   mp3: 'audio/mpeg',
@@ -194,7 +199,7 @@ const RECORDING_MIME_BY_EXTENSION: Record<string, string> = {
  * The mime type is read from the PROVIDER URL, not from the stored value: the
  * storage key is derived from that same URL and keeps its extension, but the
  * provider URL is the authoritative statement of what Plivo actually recorded.
- * Anything unrecognised falls back to WAV, which is Plivo's default format.
+ * Anything unrecognised falls back to MP3, which is Plivo's default format.
  */
 const buildRecordingAttachment = (
   recordUrl: string,
@@ -202,7 +207,7 @@ const buildRecordingAttachment = (
   isVoicemail: boolean,
   duration: number | undefined,
 ): IPlivoMessageAttachment => {
-  let extension = 'wav';
+  let extension = 'mp3';
 
   try {
     const { pathname } = new URL(providerRecordUrl);

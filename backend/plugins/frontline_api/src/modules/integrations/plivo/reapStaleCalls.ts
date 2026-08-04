@@ -32,56 +32,101 @@ const MAX_PER_SWEEP = 50;
 
 /**
  * The subset of Plivo's call-detail response this reconciliation reads.
- * https://www.plivo.com/docs/voice/api/call#retrieve-a-specific-call
+ *
+ * `call_state` is deliberately NOT read. Plivo's own example response shows
+ * it as `"ANSWER"` — singular, uppercase, a different vocabulary entirely from
+ * the `in-progress`/`ringing`/`queued`/`completed`/`failed` values this file
+ * used to check for, none of which appear in any documented example. Matching
+ * on it silently classified every real CDR as "still live" and left every
+ * stale row open forever, which defeated the one thing this sweep exists to
+ * do. `hangup_cause_code` is used instead: it is a stable numeric id from
+ * Plivo's own hangup-causes table, immune to the wording drift that already
+ * broke this once.
+ * https://www.plivo.com/docs/voice/api/call/retrieve-a-call
+ * https://www.plivo.com/docs/voice/troubleshooting/hangup-causes
  */
 interface IPlivoCallDetail {
-  call_state?: string;
   call_duration?: number;
+  hangup_cause_code?: number;
   hangup_cause_name?: string;
-  end_time?: string;
 }
 
 /**
- * Maps Plivo's CDR `call_state` onto our terminal status.
+ * `hangup_cause_code` values meaning the callee was reachable but declined or
+ * was already on another call.
+ */
+const CDR_BUSY_CODES = new Set([3010]); // Busy Line
+
+/**
+ * `hangup_cause_code` values meaning the call rang out or was abandoned
+ * before anyone picked up — reachable, but never answered.
+ */
+const CDR_UNANSWERED_CODES = new Set([
+  1000, // Canceled
+  3000, // No Answer
+  3070, // Request timeout
+  6010, // Ring Timeout Reached
+]);
+
+/**
+ * `hangup_cause_code` values meaning the call could never have been answered
+ * at all — a routing, provisioning or platform failure rather than a missed
+ * connection.
+ */
+const CDR_FAILED_CODES = new Set([
+  1010, // Canceled (Out Of Credits)
+  1020, // Canceled (Simultaneous dial limit reached)
+  2000, // Invalid Destination Address
+  2010, // Destination Out Of Service
+  3020, // Rejected
+  3050, // Unallocated number
+  3080, // Internal server error from carrier
+  3090, // Network congestion from carrier
+  5000, // Network Error
+  5010, // Internal Error
+  5020, // Routing Error
+]);
+
+/**
+ * Maps Plivo's CDR onto our terminal status.
  *
- * Only a CDR that says the call is over produces an outcome; anything else
- * returns undefined so the caller leaves the row alone rather than guessing.
+ * Every code this function does not recognise returns undefined rather than a
+ * guess, on the same principle the rest of this module already follows: an
+ * admitted gap is better than a fabricated outcome, and the row is simply
+ * left for a human or a later, better-informed sweep. `hangup_cause_code`
+ * being present at all is what the sweep otherwise had no way to infer
+ * `call_state` for — a code is only ever assigned once a call has actually
+ * ended, so its presence is itself the "this call is over" signal, and the
+ * absent-`call_state` handling this replaced is simply gone rather than
+ * reinstated on a vocabulary nobody could confirm.
  */
 const readCdrStatus = (
   detail: IPlivoCallDetail,
 ): PlivoCallStatus | undefined => {
-  const state = (detail.call_state || '').toLowerCase();
+  const code = detail.hangup_cause_code;
 
-  if (state === 'in-progress' || state === 'ringing' || state === 'queued') {
-    // Genuinely still live — leave it open.
+  if (code === undefined) {
+    // No cause recorded yet — the CDR may not be fully written, or the call
+    // may genuinely still be live. Either way, guessing is worse than waiting
+    // for the next sweep.
     return undefined;
   }
 
-  if (state !== 'completed' && state !== 'failed') {
-    return undefined;
-  }
-
-  const cause = (detail.hangup_cause_name || '').toUpperCase();
-
-  if (cause === 'USER_BUSY') {
+  if (CDR_BUSY_CODES.has(code)) {
     return 'busy';
   }
 
-  if (
-    cause === 'NO_ANSWER' ||
-    cause === 'NO_USER_RESPONSE' ||
-    cause === 'ORIGINATOR_CANCEL' ||
-    cause === 'ALLOTTED_TIMEOUT'
-  ) {
+  if (CDR_UNANSWERED_CODES.has(code)) {
     return 'no-answer';
   }
 
-  if (state === 'failed') {
+  if (CDR_FAILED_CODES.has(code)) {
     return 'failed';
   }
 
-  // A completed CDR with real talk time is the only case that may claim the
-  // call was actually answered.
+  // Normal Hangup (4000) and every other code not classified above: only real
+  // talk time may claim the call was actually answered, matching the webhook
+  // path's own reasoning that a connected call can still bill zero seconds.
   return (detail.call_duration || 0) > 0 ? 'completed' : 'no-answer';
 };
 

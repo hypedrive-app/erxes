@@ -358,6 +358,17 @@ export const buildPlivoNumberSelector = (
  * up; Plivo fetches it at answer time, not now, so a broken answer URL surfaces
  * as a dropped call rather than an error here.
  *
+ * `fallback_url` is set to the same address as `answerUrl`. Plivo's own
+ * purpose for it is a genuinely separate server or region to fall back to
+ * (invoked after 3 retries or 60s against `answer_url` fail), which this
+ * deployment does not have — there is exactly one place these webhooks are
+ * served from. Pointing it at the same URL is still strictly better than
+ * leaving it unset: undocumented, but a transient blip (a deploy mid-call, one
+ * dropped request) can clear inside that 60s retry window and let the retry
+ * itself succeed, where leaving `fallback_url` empty gives Plivo nothing to
+ * call at all and the leg simply dies with no explanation to whoever answered.
+ * https://www.plivo.com/docs/voice/api/call/make-a-call
+ *
  * @returns Plivo's request uuid, which identifies the request rather than the
  *   call — the CallUUID only exists once the call is actually created and
  *   arrives on the first callback.
@@ -391,6 +402,8 @@ export const createPlivoCall = async ({
     to,
     answer_url: answerUrl,
     answer_method: 'POST',
+    fallback_url: answerUrl,
+    fallback_method: 'POST',
     time_limit: timeLimit || PLIVO_DEFAULT_TIME_LIMIT_SECONDS,
     ring_timeout: ringTimeout || PLIVO_DEFAULT_RING_TIMEOUT_SECONDS,
   };
