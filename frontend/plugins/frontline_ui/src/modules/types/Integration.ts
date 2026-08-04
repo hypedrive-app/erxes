@@ -5,6 +5,10 @@ export enum IntegrationType {
   ERXES_MESSENGER = 'messenger',
   CALL = 'calls',
   MESSAGE_PRO = 'message-pro',
+  // Form/lead-capture integrations. Live in the product — cleanIntegrationKind,
+  // MessageInput and messageThreadIntegrationKinds all branch on it — but it
+  // was missing from this enum, so nothing type-checked against it.
+  LEAD = 'lead',
   INSTAGRAM_MESSENGER = 'instagram-messenger',
   INSTAGRAM_POST = 'instagram-post',
   DISCORD_MESSENGER = 'discord-messenger',
