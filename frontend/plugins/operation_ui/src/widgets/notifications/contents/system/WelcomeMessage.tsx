@@ -5,10 +5,12 @@ import {
   IconClipboard,
   IconFlag,
 } from '@tabler/icons-react';
+import { useAtomValue } from 'jotai';
 import {
   WelcomeNotificationContentLayout,
   TOnboardingStepItem,
   TVideoTabItem,
+  currentOrganizationState,
 } from 'ui-modules';
 
 export const OnboardingSteps: TOnboardingStepItem[] = [
@@ -79,9 +81,13 @@ const TabItems: TVideoTabItem[] = [
 ];
 
 export const WelcomeMessageContent = () => {
+  // Same as the core-ui and frontline welcome messages: use the white-label
+  // name, falling back to "erxes" when white-labelling is off.
+  const organization = useAtomValue(currentOrganizationState);
+
   return (
     <WelcomeNotificationContentLayout
-      title="erxes Operation"
+      title={`${organization?.orgShortName || 'erxes'} Operation`}
       description="Team management, ticket management, deal management"
       tabItems={TabItems}
       videoSrc="https://pub-3bcba1ff529f4ce3bf25b4e16962c239.r2.dev/intro.mp4"
