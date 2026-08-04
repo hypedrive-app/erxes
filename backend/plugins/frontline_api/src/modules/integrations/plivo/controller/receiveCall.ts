@@ -332,7 +332,8 @@ export const registerIncomingCall = async (
 };
 
 /**
- * Records a call an agent placed from their browser softphone.
+ * Records a call an agent placed from their browser softphone, OR one placed
+ * on their behalf by click-to-call.
  *
  * Separate from {@link registerIncomingCall} because the two disagree on every
  * field that matters. Plivo labels a softphone-originated leg `inbound` — it is
@@ -348,6 +349,12 @@ export const registerIncomingCall = async (
  *
  * Written before any XML is returned, for the same reason as the inbound path:
  * the unique `callUuid` is what makes a redelivered answer callback a no-op.
+ *
+ * @param destinationOverride - the number actually being dialled, when it is
+ *   not `params.To`. On a softphone call `To` is the PSTN number the browser
+ *   dialled, but on a click-to-call answer `To` is the AGENT's own SIP URI —
+ *   that leg is what just answered — so the real destination has to come from
+ *   wherever `handlePlivoClickToCall` put it, not from this callback.
  */
 export const registerOutgoingCall = async (
   models: IModels,
@@ -355,6 +362,7 @@ export const registerOutgoingCall = async (
   integration: IPlivoIntegrationDocument,
   userId: string,
   params: IPlivoCallbackParams,
+  destinationOverride?: string,
 ): Promise<IPlivoCallSessionDocument | null> => {
   const callUuid = params.CallUUID;
 
@@ -369,11 +377,16 @@ export const registerOutgoingCall = async (
     return existing;
   }
 
-  const to = normalizePhone(params.To, integration.defaultCountryCode);
+  const to = normalizePhone(
+    destinationOverride ?? params.To,
+    integration.defaultCountryCode,
+  );
 
   if (!to) {
     throw new Error(
-      `Outgoing Plivo call ${callUuid} dialled an unusable number: ${params.To}`,
+      `Outgoing Plivo call ${callUuid} dialled an unusable number: ${
+        destinationOverride ?? params.To
+      }`,
     );
   }
 

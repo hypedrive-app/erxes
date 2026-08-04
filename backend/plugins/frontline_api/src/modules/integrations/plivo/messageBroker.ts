@@ -1,6 +1,6 @@
 import { generateModels } from '~/connectionResolvers';
 import {
-  handlePlivoCall,
+  handlePlivoClickToCall,
   handlePlivoHangup,
 } from '@/integrations/plivo/handlePlivoCall';
 import {
@@ -30,7 +30,7 @@ export const handlePlivoIntegration = async ({ subdomain, data }) => {
 
   try {
     if (type === 'plivo-call') {
-      response.data = await handlePlivoCall(models, subdomain, data);
+      response.data = await handlePlivoClickToCall(models, subdomain, data);
     }
 
     if (type === 'plivo-hangup') {

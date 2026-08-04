@@ -230,6 +230,18 @@ export interface IPlivoCallbackParams {
   RecordingStartMs?: string;
   RecordingEndMs?: string;
   /**
+   * Present only on the answer callback for a click-to-call agent leg.
+   *
+   * Not one of Plivo's own parameters — it rides on the `answer_url` query
+   * string that `handlePlivoClickToCall` builds, because the agent's endpoint
+   * is what Plivo actually dials for that leg and there is nowhere else to
+   * carry "who to bridge to next" across the round trip to Plivo and back.
+   * `parseCallbackParams` merges the query string in for exactly this.
+   */
+  ClickToCallTo?: string;
+  /** Erxes user id the click-to-call leg is attributed to. See `ClickToCallTo`. */
+  ClickToCallUserId?: string;
+  /**
    * Plivo forwards custom SIP headers prefixed `X-PH-`, so an arbitrary key is
    * possible on any callback.
    */

@@ -147,6 +147,17 @@ export const types = `
     """Why the integration is broken, when it is."""
     error: String
   }
+
+  """Result of placing a call outside the softphone widget."""
+  type PlivoClickToCallResult {
+    """Plivo's id for the REQUEST, not the call — see plivoClickToCall."""
+    requestUuid: String!
+  }
+
+  """Result of ending a call outside the softphone widget."""
+  type PlivoEndCallResult {
+    callUuid: String!
+  }
 `;
 
 export const queries = `
@@ -172,4 +183,27 @@ export const queries = `
   ): PlivoCallHistoryList
 `;
 
-export const mutations = ``;
+export const mutations = `
+  """
+  Places an outbound call without opening the softphone widget: rings the
+  requesting agent's own SIP endpoint first, then bridges them to \`to\` once
+  they pick up.
+
+  Only reaches the agent while their widget is mounted and registered — there
+  is no desk phone or mobile number on file to fall back to. Meant for
+  triggering a call from somewhere the widget's own dial button is not
+  available, not as a replacement for it.
+  """
+  plivoClickToCall(
+    integrationId: String!
+    to: String!
+    """Shown as the caller's name where the destination's phone supports it."""
+    callerName: String
+  ): PlivoClickToCallResult
+
+  """
+  Ends a live call from outside the softphone widget. The widget ends its own
+  calls through the SDK directly and has no need of this.
+  """
+  plivoEndCall(integrationId: String!, callUuid: String!): PlivoEndCallResult
+`;

@@ -46,6 +46,15 @@ import {
  * and `URLSearchParams` yields each repeat separately — the LAST wins, matching
  * how `express.urlencoded({ extended: false })` collapses the same input, so
  * the parsed view and the signed view cannot disagree.
+ *
+ * The query string is merged in AFTER the body, on every branch, and body keys
+ * win on a collision. This is what makes click-to-call's own `answer_url`
+ * query params (`clickToCallTo`, `clickToCallUserId`) visible at all: they ride
+ * on the URL Plivo fetches, not in the POST body, so a body-only read would
+ * silently lose them. The V3 signature is unaffected either way — it is
+ * verified against `req` directly in {@link isVerifiedCallback}, and the query
+ * string is part of the signed URI per the V3 algorithm, not the signed POST
+ * params this function otherwise returns.
  */
 const parseCallbackParams = (req): IPlivoCallbackParams => {
   const params: IPlivoCallbackParams = {};
@@ -53,6 +62,24 @@ const parseCallbackParams = (req): IPlivoCallbackParams => {
   const rawBody: Buffer | string | undefined = req.rawBody;
   const raw = rawBody === undefined ? '' : rawBody.toString();
   const trimmed = raw.trim();
+
+  const mergeQuery = () => {
+    const query = req.query;
+
+    if (!query || typeof query !== 'object') {
+      return;
+    }
+
+    for (const [key, value] of Object.entries(query)) {
+      if (
+        params[key] === undefined &&
+        value !== null &&
+        typeof value !== 'object'
+      ) {
+        params[key] = String(value);
+      }
+    }
+  };
 
   if (trimmed.startsWith('{')) {
     try {
@@ -64,6 +91,7 @@ const parseCallbackParams = (req): IPlivoCallbackParams => {
         }
       }
 
+      mergeQuery();
       return params;
     } catch {
       // Not the JSON it looked like; fall through to the form reading below.
@@ -75,6 +103,7 @@ const parseCallbackParams = (req): IPlivoCallbackParams => {
       params[key] = value;
     }
 
+    mergeQuery();
     return params;
   }
 
@@ -88,6 +117,7 @@ const parseCallbackParams = (req): IPlivoCallbackParams => {
     }
   }
 
+  mergeQuery();
   return params;
 };
 
@@ -400,6 +430,21 @@ export const plivoAnswerWebhook = async (req, res, next) => {
           credential.userId,
           params,
         );
+      } else if (params.ClickToCallTo && params.ClickToCallUserId) {
+        // The agent's endpoint just answered a call placed on their behalf —
+        // see buildAnswerXml's matching branch for why this cannot be read as
+        // an ordinary softphone leg (`To` here is the endpoint's own SIP URI,
+        // not a caller). `destinationOverride` is what makes this leg register
+        // as an outbound call to the CUSTOMER rather than failing to parse the
+        // SIP URI as a phone number.
+        await registerOutgoingCall(
+          models,
+          subdomain,
+          integration,
+          params.ClickToCallUserId,
+          params,
+          params.ClickToCallTo,
+        );
       } else {
         await registerIncomingCall(models, subdomain, integration, params);
       }
@@ -635,10 +680,47 @@ const buildAnswerXml = async (
         '<Hangup />',
       );
     }
+  } else if (params.ClickToCallTo) {
+    // The agent's SIP endpoint just answered a call `handlePlivoClickToCall`
+    // placed on their behalf — this is the FIRST leg of Plivo's own
+    // click-to-call pattern, not the customer. `To` on this callback is the
+    // endpoint's own SIP URI, not a dialable number, so the destination could
+    // never come from the callback the way `isFromSoftphone` reads it above;
+    // it was carried here on the answer_url query string precisely because of
+    // that. Bridging it is the entire job, same as the softphone branch.
+    // https://www.plivo.com/docs/voice/use-cases/connect-call-to-second-person
+    const destination = normalizePhone(
+      params.ClickToCallTo,
+      integration.defaultCountryCode,
+    );
+
+    if (destination) {
+      elements.push(
+        `<Dial timeout="${
+          integration.forwardTimeout || PLIVO_DEFAULT_FORWARD_RING_SECONDS
+        }" callerId="${escapeXml(
+          integration.plivoPhoneNumber.replace(/^\+/, ''),
+        )}" dialMusic="real">` +
+          `<Number>${escapeXml(destination.replace(/^\+/, ''))}</Number>` +
+          `</Dial>`,
+      );
+    } else {
+      // The number was already validated by `handlePlivoClickToCall` before
+      // Plivo was ever called, so reaching this means the query string was
+      // tampered with or lost in transit — the agent still hears why rather
+      // than being left on a silently dead line.
+      elements.push(
+        '<Speak>Sorry, that number could not be dialled. Goodbye.</Speak>',
+        '<Hangup />',
+      );
+    }
   } else {
-    // A call Plivo itself reports as outbound: the answer XML drives the leg
-    // that was just picked up, and a `<Response>` carrying no verb would make
-    // Plivo hang up instantly. `<Speak>` keeps the leg up until it is bridged.
+    // A call Plivo itself reports as outbound with neither a softphone
+    // registration nor a click-to-call destination behind it — nothing in this
+    // codebase creates that combination today, but the answer XML still has to
+    // drive whatever leg was just picked up, and a `<Response>` carrying no
+    // verb would make Plivo hang up instantly. `<Speak>` keeps the leg up
+    // rather than dropping a call this code cannot explain.
     elements.push('<Speak>Connecting you now.</Speak>');
   }
 
