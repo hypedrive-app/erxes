@@ -223,10 +223,19 @@ export const TemplateList = () => {
               )}
             />
             {loading && <RecordTable.RowSkeleton rows={5} />}
+            {/* <tr>/<td colSpan> rather than a bare <div>: Body renders a
+                <tbody>, and an invalid table child is laid out against the
+                first column — the message rendered as a narrow sliver of
+                wrapped text instead of spanning the table. */}
             {templates.length === 0 && !loading && (
-              <div className="p-8 text-center text-muted-foreground text-sm italic">
-                {t('no-templates-found')}
-              </div>
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="p-8 text-center text-muted-foreground text-sm italic"
+                >
+                  {t('no-templates-found')}
+                </td>
+              </tr>
             )}
           </RecordTable.Body>
         </RecordTable>
