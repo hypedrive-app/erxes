@@ -85,7 +85,19 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      'align-middle p-0 *:[[role=checkbox]]:translate-y-[2px] bg-background whitespace-nowrap h-cell border-r border-spacing-0 group-data-[state=selected]/table-row:bg-primary/10 group-hover/table-row:bg-muted',
+      // px-2 matches Table.Head, which has always had it — without it a plain
+      // <Table.Cell> renders its text flush against the cell border while the
+      // header above it sits indented, which is what the calcom tables looked
+      // like. p-0 was the old default and cost every such table a manual
+      // pl-2/px-2 on every cell to look right; the ones that forgot (calcom's
+      // five, accounting's row forms) simply looked broken.
+      //
+      // Safe for the tables that genuinely want no padding: cn() is twMerge,
+      // so a p-0 passed by the caller still wins. RecordTableCell — the one
+      // consumer that really depends on zero padding, since its cells own
+      // their own inner layout — already passes p-0 explicitly rather than
+      // relying on this default.
+      'align-middle px-2 *:[[role=checkbox]]:translate-y-[2px] bg-background whitespace-nowrap h-cell border-r border-spacing-0 group-data-[state=selected]/table-row:bg-primary/10 group-hover/table-row:bg-muted',
       className,
     )}
     {...props}
