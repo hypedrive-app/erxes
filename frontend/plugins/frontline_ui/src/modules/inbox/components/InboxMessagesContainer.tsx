@@ -1,9 +1,17 @@
-import { ScrollArea } from 'erxes-ui';
-import { IconMessage2 } from '@tabler/icons-react';
-import { useEffect, useRef } from 'react';
+import { Button, ScrollArea, cn } from 'erxes-ui';
+import { IconArrowDown, IconMessage2 } from '@tabler/icons-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { useTranslation } from 'react-i18next';
 import { InboxMessagesSkeleton } from './InboxMessagesSkeleton';
+
+/**
+ * How far from the bottom the viewport may sit and still count as "at the
+ * bottom". Anything inside this margin is treated as the agent still watching
+ * the live end of the thread, so a new message follows automatically; past it
+ * they are reading history and must not be yanked away.
+ */
+const AT_BOTTOM_THRESHOLD_PX = 80;
 
 /**
  * A conversation with no renderable messages yet — a brand-new lead thread,
@@ -38,6 +46,7 @@ export const InboxMessagesContainer = ({
   totalCount: number;
   loading: boolean;
 }>) => {
+  const { t } = useTranslation('frontline');
   const viewportRef = useRef<HTMLDivElement>(null);
 
   const [fetchMoreRef] = useInView({
@@ -51,29 +60,72 @@ export const InboxMessagesContainer = ({
     },
   });
   const distanceFromBottomRef = useRef(0);
+  const isAtBottomRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     setTimeout(() => {
       if (viewportRef.current) {
         viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
       }
     });
-  };
+  }, []);
+
+  /**
+   * Tracked on every scroll rather than read inside the new-message effect,
+   * because by the time that effect runs the DOM already contains the new
+   * message — scrollHeight has grown, so the distance measured then would
+   * report the agent as further from the bottom than they were when the
+   * message arrived.
+   */
+  const handleScroll = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const distanceFromBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const atBottom = distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX;
+
+    isAtBottomRef.current = atBottom;
+
+    if (atBottom) {
+      setShowJumpToLatest(false);
+    }
+  }, []);
+
+  const jumpToLatest = useCallback(() => {
+    isAtBottomRef.current = true;
+    setShowJumpToLatest(false);
+    scrollToBottom();
+  }, [scrollToBottom]);
+
   useEffect(() => {
     if (viewportRef.current) {
       if (distanceFromBottomRef.current) {
+        // Older page just prepended: hold the agent's place rather than
+        // moving them, and leave the at-bottom flag alone — paginating
+        // upwards is not the same as choosing to leave the live end.
         viewportRef.current.scrollTop =
           viewportRef.current.scrollHeight - distanceFromBottomRef.current;
         distanceFromBottomRef.current = 0;
       } else if (messagesLength > 0) {
-        scrollToBottom();
+        // A new message arrived. Following it is only correct when the agent
+        // was already watching the bottom; if they had scrolled up to read
+        // history, this used to yank them away mid-sentence with no way back
+        // except scrolling by hand. Offer the jump instead — the pattern
+        // Slack, Discord, Telegram and WhatsApp all use.
+        if (isAtBottomRef.current) {
+          scrollToBottom();
+        } else {
+          setShowJumpToLatest(true);
+        }
       }
     }
-  }, [messagesLength, fetchMore]);
+  }, [messagesLength, fetchMore, scrollToBottom]);
 
   return (
-    <ScrollArea.Root className="h-full">
-      <ScrollArea.Viewport ref={viewportRef}>
+    <ScrollArea.Root className="relative h-full">
+      <ScrollArea.Viewport ref={viewportRef} onScroll={handleScroll}>
         {!!messagesLength && totalCount > messagesLength && (
           <p ref={fetchMoreRef} />
         )}
@@ -89,6 +141,20 @@ export const InboxMessagesContainer = ({
         </div>
         <InboxMessagesSkeleton isFetched={!loading} />
       </ScrollArea.Viewport>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={jumpToLatest}
+        aria-hidden={!showJumpToLatest}
+        tabIndex={showJumpToLatest ? 0 : -1}
+        className={cn(
+          'absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-opacity',
+          showJumpToLatest ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
+      >
+        <IconArrowDown />
+        {t('new-messages')}
+      </Button>
       <ScrollArea.Bar orientation="vertical" />
       <ScrollArea.Bar orientation="horizontal" />
     </ScrollArea.Root>

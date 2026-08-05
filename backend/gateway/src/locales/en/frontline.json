@@ -1,6 +1,7 @@
 {
   "more-actions": "More actions",
   "no-messages-yet": "No messages yet",
+  "new-messages": "New messages",
   "conversation-load-failed": "Could not load this conversation",
   "retry": "Try again",
   "changed-assignee": "changed assignee",
