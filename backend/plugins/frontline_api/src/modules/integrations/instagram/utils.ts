@@ -7,12 +7,13 @@ import {
   IAttachmentMessage,
 } from '@/integrations/instagram/@types/utils';
 import { IInstagramIntegrationDocument } from '@/integrations/instagram/@types/integrations';
+import { META_GRAPH_API_VERSION } from '@/integrations/meta/graphApiVersion';
 
 export const graphRequest = {
   base(method: string, path?: any, accessToken?: any, ...otherParams) {
     // set access token
     graph.setAccessToken(accessToken);
-    graph.setVersion('21.0');
+    graph.setVersion(META_GRAPH_API_VERSION);
 
     return new Promise((resolve, reject) => {
       graph[method](path, ...otherParams, (error, response) => {

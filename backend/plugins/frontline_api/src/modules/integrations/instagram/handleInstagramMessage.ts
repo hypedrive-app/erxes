@@ -128,10 +128,7 @@ export const handleInstagramMessage = async (
       conversationId,
       content = '',
       attachments = [],
-      extraInfo,
     } = doc;
-
-    const tag = extraInfo && extraInfo.tag ? extraInfo.tag : '';
 
     const images = (content.match(/<img[^>]* src="([^"]*)"/g) || []).map(
       (img) => img.match(/src="([^"]*)"/)[1],
@@ -154,14 +151,18 @@ export const handleInstagramMessage = async (
 
     try {
       if (strippedContent) {
+        // No `messaging_type`/`tag`: those are Messenger Send API fields.
+        // Instagram's messaging API documents only `recipient`, `message`,
+        // `sender_action`, `payload` and `reply_to` — its spec has diverged
+        // from Messenger's, and these were carried over from the Facebook
+        // implementation rather than from Instagram's own reference.
+        // https://developers.facebook.com/docs/messenger-platform/instagram/features/send-message
         const resp = await sendReply(
           models,
           'me/messages',
           {
             recipient: { id: senderId },
             message: { text: strippedContent },
-            messaging_type: tag ? 'MESSAGE_TAG' : 'RESPONSE',
-            ...(tag && { tag }),
           },
           integrationId,
         );
@@ -188,8 +189,6 @@ export const handleInstagramMessage = async (
           {
             recipient: { id: senderId },
             message,
-            messaging_type: tag ? 'MESSAGE_TAG' : 'RESPONSE',
-            ...(tag && { tag }),
           },
           integrationId,
         );

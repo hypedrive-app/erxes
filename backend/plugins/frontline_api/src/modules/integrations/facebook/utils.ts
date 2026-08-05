@@ -9,6 +9,7 @@ import * as AWS from 'aws-sdk';
 import { randomAlphanumeric, sendTRPCMessage } from 'erxes-api-shared/utils';
 import * as graph from 'fbgraph';
 import { IModels } from '~/connectionResolvers';
+import { META_GRAPH_API_VERSION } from '@/integrations/meta/graphApiVersion';
 import { SUBSCRIBED_FIELDS } from './constants';
 import { validateMediaUrl } from './urlValidation';
 
@@ -16,7 +17,7 @@ export const graphRequest = {
   base(method: string, path?: any, accessToken?: any, ...otherParams) {
     // set access token
     graph.setAccessToken(accessToken);
-    graph.setVersion('7.0');
+    graph.setVersion(META_GRAPH_API_VERSION);
 
     return new Promise((resolve, reject) => {
       graph[method](path, ...otherParams, (error, response) => {
