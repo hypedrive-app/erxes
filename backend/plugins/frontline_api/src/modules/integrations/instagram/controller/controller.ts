@@ -231,13 +231,17 @@ export const instagramWebhook = async (req, res) => {
             debugError(`Error processing comment: ${e.message}`);
           }
         }
-        // NOTE: `field === 'feed'` (post) events are not handled here.
-        // `receivePost.ts` exists and is exercised by the dead
-        // `instagramController.ts`/`instagramWebhookHandler`, which is never
-        // imported by `routes.ts` — so post/feed webhook events are not
-        // processed by any code path real Instagram traffic reaches today.
-        // This is a functional gap, not part of this fix; wiring it up is
-        // separate follow-up work.
+        // Only `comments` is handled, and that is correct: Instagram has no
+        // `feed` field. `feed` is a Facebook *Page* webhook field, and the
+        // dead controller that used to branch on it here (archived) was
+        // Facebook code copy-pasted onto Instagram — it could never have
+        // fired. Meta's Instagram webhook reference lists `comments`,
+        // `live_comments`, `mentions`, `messages`, `message_edit`,
+        // `message_reactions`, `messaging_seen`, `messaging_postbacks`,
+        // `messaging_referral`, `messaging_handover`, `story_insights` and
+        // `standby` — no `feed`. Posts surface through `mentions`, which
+        // this integration does not subscribe to today.
+        // https://developers.facebook.com/docs/graph-api/webhooks/reference/instagram
       }
     }
   }

@@ -65,3 +65,26 @@ Tabler component (IUIConfig types `icon` as React.ElementType, so a file could
 not be used there anyway).
 
 Safe to delete.
+
+## backend/plugins/frontline_api/.../instagram/controller/instagramController.ts (2026-08-05)
+
+`instagramWebhookHandler` and its helpers — a second, parallel Instagram
+webhook handler that `routes.ts` never imported. Confirmed dead via repo-wide
+grep: the only references to it were its own definition and a comment pointing
+out that it was dead.
+
+Not revived, because it could never have worked. It branches on
+`field === 'feed'` to call `receivePost`, but `feed` is a Facebook *Page*
+webhook field — Meta's Instagram webhook reference lists no `feed` field at
+all (comments arrive as `comments`, and there are `live_comments`, `mentions`,
+`messages`, `message_edit`, `message_reactions`, `messaging_seen`,
+`messaging_postbacks`, `messaging_referral`, `messaging_handover`,
+`story_insights`, `standby` — no `feed`). This is Facebook controller code
+copy-pasted onto Instagram; wiring it up would have registered a branch that
+Instagram traffic can never enter.
+
+`receivePost.ts` is left in place: it is the only remaining caller-less piece,
+but it is Instagram *post* plumbing that a future `mentions`-based feature
+would plausibly reuse, and it is referenced by comment handling in `store.ts`.
+
+Safe to delete.
