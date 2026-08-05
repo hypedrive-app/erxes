@@ -261,13 +261,20 @@ export const MessageItem = () => {
               Boolean(embeds?.length)) && (
             <div
               className={cn(
-                'text-muted-foreground mt-1 text-xs',
-                userId ? 'text-right' : 'text-left',
+                'text-muted-foreground mt-1 flex items-center gap-1 text-xs',
+                userId ? 'justify-end' : 'justify-start',
               )}
             >
               <RelativeDateDisplay value={createdAt}>
                 <RelativeDateDisplay.Value value={createdAt} />
               </RelativeDateDisplay>
+              {/* An attachment- or poll-only outbound message carries delivery
+                  state exactly like a text one does; without this a photo that
+                  silently failed (24h window expiry, blocked number) looks
+                  identical to one that was delivered. */}
+              {!!userId && (
+                <WhatsappDeliveryTicks whatsappDelivery={whatsappDelivery} />
+              )}
             </div>
           )}
         </div>

@@ -685,6 +685,7 @@ export const MessageInput = ({
             <Button
               variant="ghost"
               size="icon"
+              aria-label={t('response-templates')}
               className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <IconMessage2 className="h-4 w-4" />
@@ -694,6 +695,7 @@ export const MessageInput = ({
           <Button
             variant="ghost"
             size="icon"
+            aria-label={t('upload-file')}
             className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => document.getElementById('file-upload')?.click()}
           >

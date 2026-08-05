@@ -1,6 +1,8 @@
 {
   "more-actions": "Нэмэлт үйлдлүүд",
   "no-messages-yet": "Мессеж алга байна",
+  "conversation-load-failed": "Энэ харилцан яриаг ачаалж чадсангүй",
+  "retry": "Дахин оролдох",
   "changed-assignee": "хариуцагч өөрчлөгдсөн",
   "from": "аас",
   "to": "руу",

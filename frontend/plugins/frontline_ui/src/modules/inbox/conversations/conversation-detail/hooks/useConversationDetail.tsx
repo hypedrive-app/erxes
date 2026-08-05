@@ -23,7 +23,7 @@ export const useConversationDetail = (
     IConversationDetailQueryVariables
   >,
 ) => {
-  const { data, loading, refetch, subscribeToMore } = useQuery<
+  const { data, loading, error, refetch, subscribeToMore } = useQuery<
     IConversationDetailQueryResponse,
     IConversationDetailQueryVariables
   >(GET_CONVERSATION_DETAIL, options);
@@ -53,5 +53,7 @@ export const useConversationDetail = (
   return {
     conversationDetail: data?.conversationDetail,
     loading,
+    error,
+    refetch,
   };
 };
