@@ -50,7 +50,12 @@ const API_VERSION_BOOKINGS = '2024-08-13';
 const API_VERSION_SLOTS = '2024-09-04';
 const API_VERSION_EVENT_TYPES = '2024-06-14';
 
-const request = async (
+/**
+ * Exported (not just used locally) so the event-types, schedules and teams
+ * clients share one fetch/auth/error-handling path instead of each
+ * reimplementing the version-header and non-JSON-response handling above.
+ */
+export const calcomRequest = async (
   path: string,
   init: {
     method: string;
@@ -130,7 +135,7 @@ export const cancelCalcomBooking = async (
   uid: string,
   cancellationReason?: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/cancel`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/cancel`, {
     method: 'POST',
     body: { cancellationReason: cancellationReason || 'Cancelled by erxes' },
     models,
@@ -147,7 +152,7 @@ export const rescheduleCalcomBooking = async (
   start: string,
   reschedulingReason?: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/reschedule`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/reschedule`, {
     method: 'POST',
     body: {
       start,
@@ -168,7 +173,7 @@ export const confirmCalcomBooking = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/confirm`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/confirm`, {
     method: 'POST',
     models,
   });
@@ -184,7 +189,7 @@ export const declineCalcomBooking = async (
   uid: string,
   reason?: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/decline`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/decline`, {
     method: 'POST',
     body: reason ? { reason } : {},
     models,
@@ -208,7 +213,7 @@ export const markCalcomNoShow = async (
     attendees?: { email: string; absent: boolean }[];
   },
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/mark-absent`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/mark-absent`, {
     method: 'POST',
     body: {
       // Renamed at the boundary rather than through the codebase: callers and
@@ -233,7 +238,7 @@ export const getCalcomRecordings = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/recordings`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/recordings`, {
     method: 'GET',
     models,
   });
@@ -243,7 +248,7 @@ export const getCalcomTranscripts = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/transcripts`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/transcripts`, {
     method: 'GET',
     models,
   });
@@ -259,7 +264,7 @@ export const getCalcomCalendarLinks = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/calendar-links`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/calendar-links`, {
     method: 'GET',
     models,
   });
@@ -276,7 +281,7 @@ export const getCalcomReferences = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/references`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/references`, {
     method: 'GET',
     models,
   });
@@ -286,7 +291,7 @@ export const getCalcomConferencingSessions = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/conferencing-sessions`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/conferencing-sessions`, {
     method: 'GET',
     models,
   });
@@ -302,7 +307,7 @@ export const getCalcomBookingBySeat = async (
   models: IModels | undefined,
   seatUid: string,
 ): Promise<any> =>
-  request(`/bookings/by-seat/${encodeURIComponent(seatUid)}`, {
+  calcomRequest(`/bookings/by-seat/${encodeURIComponent(seatUid)}`, {
     method: 'GET',
     models,
   });
@@ -323,7 +328,7 @@ export const updateCalcomBookingLocation = async (
   uid: string,
   location: Record<string, unknown>,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/location`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/location`, {
     method: 'PATCH',
     body: { location },
     models,
@@ -339,7 +344,7 @@ export const reassignCalcomBooking = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}/reassign`, {
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}/reassign`, {
     method: 'POST',
     models,
   });
@@ -351,7 +356,7 @@ export const reassignCalcomBookingToUser = async (
   userId: number,
   reason?: string,
 ): Promise<any> =>
-  request(
+  calcomRequest(
     `/bookings/${encodeURIComponent(uid)}/reassign/${encodeURIComponent(
       String(userId),
     )}`,
@@ -374,7 +379,7 @@ export const listCalcomWebhooks = async (
   models: IModels | undefined,
   params: { take?: number; skip?: number } = {},
 ): Promise<any> =>
-  request('/webhooks', { method: 'GET', query: params, models });
+  calcomRequest('/webhooks', { method: 'GET', query: params, models });
 
 /**
  * Creates a subscription.
@@ -392,7 +397,7 @@ export const createCalcomWebhook = async (
     active?: boolean;
   },
 ): Promise<any> =>
-  request('/webhooks', {
+  calcomRequest('/webhooks', {
     method: 'POST',
     body: {
       active: input.active ?? true,
@@ -414,7 +419,7 @@ export const updateCalcomWebhook = async (
     active?: boolean;
   },
 ): Promise<any> =>
-  request(`/webhooks/${encodeURIComponent(webhookId)}`, {
+  calcomRequest(`/webhooks/${encodeURIComponent(webhookId)}`, {
     method: 'PATCH',
     body: input,
     models,
@@ -424,7 +429,7 @@ export const deleteCalcomWebhook = async (
   models: IModels | undefined,
   webhookId: string,
 ): Promise<any> =>
-  request(`/webhooks/${encodeURIComponent(webhookId)}`, {
+  calcomRequest(`/webhooks/${encodeURIComponent(webhookId)}`, {
     method: 'DELETE',
     models,
   });
@@ -438,7 +443,7 @@ export const listCalcomEventTypes = async (
   models: IModels | undefined,
   username?: string,
 ): Promise<any> =>
-  request('/event-types', {
+  calcomRequest('/event-types', {
     method: 'GET',
     query: { username },
     apiVersion: API_VERSION_EVENT_TYPES,
@@ -463,7 +468,7 @@ export const getCalcomSlots = async (
     format?: 'time' | 'range';
   },
 ): Promise<any> =>
-  request('/slots', {
+  calcomRequest('/slots', {
     method: 'GET',
     query: {
       eventTypeId: params.eventTypeId,
@@ -492,14 +497,14 @@ export const createCalcomBooking = async (
     metadata?: Record<string, string>;
   },
 ): Promise<any> =>
-  request('/bookings', { method: 'POST', body: input, models });
+  calcomRequest('/bookings', { method: 'POST', body: input, models });
 
 /** Reads a single booking, for reconciling a uid the mirror may have missed. */
 export const getCalcomBooking = async (
   models: IModels | undefined,
   uid: string,
 ): Promise<any> =>
-  request(`/bookings/${encodeURIComponent(uid)}`, { method: 'GET', models });
+  calcomRequest(`/bookings/${encodeURIComponent(uid)}`, { method: 'GET', models });
 
 /**
  * Lists bookings, used by the backfill/reconciliation path: webhooks can be
@@ -516,4 +521,4 @@ export const listCalcomBookings = async (
     skip?: number;
   },
 ): Promise<any> =>
-  request('/bookings', { method: 'GET', query: params, models });
+  calcomRequest('/bookings', { method: 'GET', query: params, models });

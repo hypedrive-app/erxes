@@ -45,6 +45,18 @@ export const CONFIG: IUIConfig = {
       hasAutomation: true,
       hasRelationWidget: true,
     },
+    {
+      name: 'eventTypes',
+      path: 'event-types',
+    },
+    {
+      name: 'schedules',
+      path: 'schedules',
+    },
+    {
+      name: 'teams',
+      path: 'teams',
+    },
   ],
 
   // Declares the contact-panel tab. useRelationWidgetsModules builds the tab

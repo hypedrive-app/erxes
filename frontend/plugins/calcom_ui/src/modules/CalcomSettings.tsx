@@ -1,3 +1,11 @@
+import {
+  IconCalendarCog,
+  IconClock,
+  IconUsersGroup,
+} from '@tabler/icons-react';
+import { Button } from 'erxes-ui';
+import { Link } from 'react-router-dom';
+
 import { CalcomConfigForm } from '~/modules/bookings/components/CalcomConfigForm';
 import { CalcomIntegrationStatus } from '~/modules/bookings/components/IntegrationStatus';
 import { WebhookHealthCard } from '~/modules/bookings/components/WebhookHealthCard';
@@ -18,6 +26,27 @@ export const CalcomSettings = () => {
           Bookings made in Cal.com are mirrored into the CRM and linked to the
           contact who booked them.
         </p>
+
+        <div className="flex flex-wrap gap-2 mt-4">
+          <Button variant="secondary" size="sm" asChild>
+            <Link to="/calcom/event-types">
+              <IconCalendarCog />
+              Manage event types
+            </Link>
+          </Button>
+          <Button variant="secondary" size="sm" asChild>
+            <Link to="/calcom/schedules">
+              <IconClock />
+              Manage schedules
+            </Link>
+          </Button>
+          <Button variant="secondary" size="sm" asChild>
+            <Link to="/calcom/teams">
+              <IconUsersGroup />
+              Manage teams
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <section>
