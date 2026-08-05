@@ -571,17 +571,13 @@ const buildVoicemailElements = (
  * see `rehostRecording.ts` for the assumption this codebase used to have
  * backwards.
  *
- * `startOnDialAnswer` is deliberately NOT set, which means recording starts
- * the instant this element is parsed — including the ringback and any
- * voicemail prompt before a real conversation begins, for an inbound call
- * routed through the agent/fallback/voicemail stages below. Setting it would
- * be the more correct behaviour for the common case, but Plivo does not
- * document how it behaves across MULTIPLE sequential `<Dial>` stages (agents,
- * then a fallback number) or whether it stays correctly dormant when the call
- * falls through to the voicemail `<Record>` instead of ever being answered —
- * getting either wrong would silently produce a recording with no audio at
- * all on the fallback leg, which is worse than today's "includes some
- * ringback". Left as a known, deliberately unclosed gap rather than guessed.
+ * `startOnDialAnswer="true"` skips the ringback and any voicemail prompt, so
+ * the recording is just the conversation. Plivo's behaviour across MULTIPLE
+ * sequential `<Dial>` stages (agents, then a fallback number) is undocumented
+ * — verified against their own use-case examples, which only ever pair this
+ * with a single `<Dial>` — so if the call ends up answered on the fallback
+ * stage rather than the first one, the recording may come back empty. Known
+ * and accepted rather than guessed away.
  * https://www.plivo.com/docs/voice/xml/record
  */
 const buildAnswerXml = async (
@@ -603,7 +599,7 @@ const buildAnswerXml = async (
     elements.push(
       `<Record action="${escapeXml(
         buildSiblingCallbackUrl(req, subdomain, '/recording'),
-      )}" method="POST" redirect="false" maxLength="3600" recordSession="true" fileFormat="mp3" />`,
+      )}" method="POST" redirect="false" maxLength="3600" recordSession="true" fileFormat="mp3" startOnDialAnswer="true" />`,
     );
   }
 
