@@ -3,6 +3,7 @@ import {
   getSubdomain,
   getSaasOrganizations,
   getSaasCoreConnection,
+  extractUserFromHeader,
 } from 'erxes-api-shared/utils';
 import { generateModels } from '~/connectionResolvers';
 import { routeErrorHandling, findAttachmentParts, toUpper } from './utils';
@@ -115,6 +116,25 @@ const onServerInitImap = async (app) => {
     '/read-mail-attachment',
     routeErrorHandling(
       async (req, res, next) => {
+        // This route serves a customer's private email attachments and had no
+        // authentication at all — anyone who could reach it and guess (or
+        // enumerate) a messageId/integrationId pair could download them.
+        //
+        // Plugins never authenticate a request themselves: the gateway runs
+        // `userMiddleware` on every request, verifies the JWT/auth-token
+        // cookie against its redis session, and forwards the resolved user as
+        // a base64 `user` header (setUserHeader). Apollo's context does the
+        // same extraction for every GraphQL request; plain Express routes
+        // registered via onServerInit get nothing automatically and have to
+        // read that header themselves, which is what this does. A request
+        // that did not come through the gateway carries no such header and is
+        // rejected here.
+        const user = extractUserFromHeader(req.headers);
+
+        if (!user?._id) {
+          return res.sendStatus(401);
+        }
+
         const subdomain = getSubdomain(req);
         const models = await generateModels(subdomain);
 
