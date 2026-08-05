@@ -109,12 +109,12 @@ export const PipelineStageItem = (props: Props) => {
           relative flex grow items-center
           px-5 py-[18px] bg-background rounded
           shadow-md list-none select-none
-          text-gray-800 font-normal text-base
+          text-foreground font-normal text-base
           whitespace-nowrap
           transition-shadow duration-200 ease-out
           ${!handle ? 'cursor-grab touch-manipulation' : ''}
           ${dragging && !dragOverlay ? 'opacity-50' : ''}
-          ${disabled ? 'text-gray-400 bg-gray-100 cursor-not-allowed' : ''}
+          ${disabled ? 'text-muted-foreground bg-muted cursor-not-allowed' : ''}
           ${dragOverlay ? 'cursor-default shadow-lg' : ''}
         `}
         style={style}

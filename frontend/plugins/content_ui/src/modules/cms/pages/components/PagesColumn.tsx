@@ -90,7 +90,7 @@ export const usePagesColumns = (
       header: () => <RecordTable.InlineHead icon={IconArticle} label={t('slug')} />,
       accessorKey: 'slug',
       cell: ({ cell }) => (
-        <RecordTableInlineCell className="text-gray-500">
+        <RecordTableInlineCell className="text-muted-foreground">
           <TextOverflowTooltip
             value={cell.getValue() as string}
             className="leading-normal"

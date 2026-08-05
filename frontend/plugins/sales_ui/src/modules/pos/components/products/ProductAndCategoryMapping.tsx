@@ -33,7 +33,7 @@ export const ProductAndCategoryMapping: React.FC<
       </div>
 
       {!mappings || mappings.length === 0 ? (
-        <div className="py-8 text-center text-gray-500">
+        <div className="py-8 text-center text-muted-foreground">
           <p>{t('no-mappings-found')}</p>
         </div>
       ) : (

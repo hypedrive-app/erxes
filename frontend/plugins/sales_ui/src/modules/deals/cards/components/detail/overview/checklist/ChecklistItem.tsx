@@ -188,7 +188,7 @@ const ChecklistItem = ({
       </Collapsible.TriggerButton>
 
       <Collapsible.Content
-        className={cn(open && 'flex flex-col gap-1 py-1 pl-2 bg-white')}
+        className={cn(open && 'flex flex-col gap-1 py-1 pl-2 bg-background')}
       >
         <SortableList
           items={hideChecked ? items.filter((i) => !i.isChecked) : items}

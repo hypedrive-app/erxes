@@ -124,7 +124,7 @@ export const ContentTab = ({
             <Form.Label>
               {t('post-type')}
               {isTranslationMode && (
-                <span className="ml-2 text-xs text-gray-500">
+                <span className="ml-2 text-xs text-muted-foreground">
                   ({t('shared-across-languages')})
                 </span>
               )}

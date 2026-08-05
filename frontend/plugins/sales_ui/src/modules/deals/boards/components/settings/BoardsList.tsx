@@ -80,7 +80,7 @@ const BoardMenuItem = ({ board }: { board: IBoard }) => {
   };
 
   return (
-    <div className="group relative flex items-center justify-between w-full hover:bg-gray-100 transition-colors duration-200">
+    <div className="group relative flex items-center justify-between w-full hover:bg-muted transition-colors duration-200">
       <Link
         className="w-full"
         to={`/settings/sales/deals?activeBoardId=${board._id}`}
@@ -91,19 +91,19 @@ const BoardMenuItem = ({ board }: { board: IBoard }) => {
       </Link>
       <div
         className={`absolute right-0 top-0 bottom-0 flex items-center gap-1 opacity-0 ${
-          isActive ? 'bg-primary/20' : 'bg-gray-100'
+          isActive ? 'bg-primary/20' : 'bg-muted'
         } translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pr-2`}
       >
         <button
           onClick={() => setBoardId(board._id)}
-          className="text-gray-400 hover:text-blue-500 p-1 rounded transition-colors"
+          className="text-muted-foreground hover:text-blue-500 p-1 rounded transition-colors"
         >
           <IconPencil className="w-4 h-4" />
         </button>
         <button
           onClick={() => onRemove(board._id)}
           disabled={removeLoading}
-          className="text-gray-400 hover:text-red-500 p-1 rounded transition-colors"
+          className="text-muted-foreground hover:text-red-500 p-1 rounded transition-colors"
         >
           <IconTrash className="w-4 h-4" />
         </button>

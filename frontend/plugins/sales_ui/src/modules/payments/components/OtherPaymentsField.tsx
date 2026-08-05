@@ -76,7 +76,7 @@ export const OtherPaymentsField = <TFieldValues extends FieldValues>({
               name={fieldPath(index, 'type')}
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label className="text-xs text-gray-600">
+                  <Form.Label className="text-xs text-muted-foreground">
                     {t('TYPE')}
                   </Form.Label>
                   <Form.Control>
@@ -97,7 +97,7 @@ export const OtherPaymentsField = <TFieldValues extends FieldValues>({
               name={fieldPath(index, 'title')}
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label className="text-xs text-gray-600">
+                  <Form.Label className="text-xs text-muted-foreground">
                     {t('TITLE')}
                   </Form.Label>
                   <Form.Control>
@@ -118,7 +118,7 @@ export const OtherPaymentsField = <TFieldValues extends FieldValues>({
               name={fieldPath(index, 'icon')}
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label className="text-xs text-gray-600">
+                  <Form.Label className="text-xs text-muted-foreground">
                     {t('ICON')}
                   </Form.Label>
                   <Form.Control>
@@ -167,7 +167,7 @@ export const OtherPaymentsField = <TFieldValues extends FieldValues>({
               name={fieldPath(index, 'config')}
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label className="text-xs text-gray-600">
+                  <Form.Label className="text-xs text-muted-foreground">
                     {t('CONFIG')}
                   </Form.Label>
                   <Form.Control>
@@ -188,7 +188,7 @@ export const OtherPaymentsField = <TFieldValues extends FieldValues>({
               name={fieldPath(index, 'scoreCampaignId')}
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label className="text-xs text-gray-600">
+                  <Form.Label className="text-xs text-muted-foreground">
                     {t('score-campaign')}
                   </Form.Label>
                   <Form.Control>

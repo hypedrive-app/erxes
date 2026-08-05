@@ -55,7 +55,7 @@ export const DayList = ({
               onDrop(index);
             }}
             className={`transition-all rounded-md border border-dashed ${
-              isDragging ? 'border-gray-400 bg-muted/30' : 'border-transparent'
+              isDragging ? 'border-border bg-muted/30' : 'border-transparent'
             }`}
           >
             <DayForm

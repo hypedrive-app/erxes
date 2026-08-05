@@ -45,12 +45,12 @@ export const AgentRecordTable = () => {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center justify-center text-center">
               <div className="mb-6">
-                <IconUsers size={48} className="text-gray-400" />
+                <IconUsers size={48} className="text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-muted-foreground">
                 {t('no-agents-yet')}
               </h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {t('get-started-agent')}
               </p>
             </div>

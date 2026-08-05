@@ -36,7 +36,7 @@ export const ProgressDot = ({
       <Tooltip delayDuration={0}>
         <Tooltip.Trigger>
           <IconCircleFilled
-            className={cn('size-2', config?.color || 'text-gray-400')}
+            className={cn('size-2', config?.color || 'text-muted-foreground')}
           />
         </Tooltip.Trigger>
         <Tooltip.Content>

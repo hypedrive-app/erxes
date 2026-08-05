@@ -199,7 +199,7 @@ export function Cms() {
 
                     {website.domain && (
                       <div className="absolute bottom-2 right-2">
-                        <div className="px-2 py-1 bg-white/90 rounded text-xs font-medium text-gray-700">
+                        <div className="px-2 py-1 bg-background/90 rounded text-xs font-medium text-foreground">
                           {website.domain}
                         </div>
                       </div>
@@ -207,7 +207,7 @@ export function Cms() {
 
                     {!canAccessWebsite(website) && (
                       <div className="absolute top-2 left-2">
-                        <div className="flex items-center gap-1 px-2 py-1 bg-black/60 rounded text-xs font-medium text-white">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-black/60 rounded text-xs font-medium text-primary-foreground">
                           <IconLock className="w-3 h-3" />
                           <span>{t('restricted')}</span>
                         </div>

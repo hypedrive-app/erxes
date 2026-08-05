@@ -672,7 +672,7 @@ export function CmsCategoryDrawer({
                     <Form.Label>
                       {t('slug')}
                       {isTranslationMode && (
-                        <span className="ml-2 text-xs text-gray-500">
+                        <span className="ml-2 text-xs text-muted-foreground">
                           ({t('shared-across-languages')})
                         </span>
                       )}
@@ -726,7 +726,7 @@ export function CmsCategoryDrawer({
                     <Form.Label>
                       {t('parent-category')}
                       {isTranslationMode && (
-                        <span className="ml-2 text-xs text-gray-500">
+                        <span className="ml-2 text-xs text-muted-foreground">
                           ({t('shared-across-languages')})
                         </span>
                       )}
@@ -761,7 +761,7 @@ export function CmsCategoryDrawer({
                     <Form.Label>
                       {t('status')}
                       {isTranslationMode && (
-                        <span className="ml-2 text-xs text-gray-500">
+                        <span className="ml-2 text-xs text-muted-foreground">
                           ({t('shared-across-languages')})
                         </span>
                       )}

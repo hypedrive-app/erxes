@@ -47,7 +47,7 @@ const ChecklistForm = () => {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col h-full overflow-hidden"
       >
-        <h3 className="text-sm font-semibold text-gray-600 border-b pb-2">
+        <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">
           {t('add-checklist')}
         </h3>
         <div className="flex-auto overflow-hidden py-2 px-1">

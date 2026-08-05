@@ -203,7 +203,7 @@ export function FieldGroupDrawer({
                 {...groupForm.register('code')}
                 placeholder={t('enter-code-group-eg')}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {t('unique-identifier-for-programmatic-access')}
               </p>
             </div>

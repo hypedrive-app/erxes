@@ -19,7 +19,7 @@ const CircularProgressBar: React.FC<CircularProgressBarProps> = ({
   size = 80,
   strokeWidth = 8,
   showText = true,
-  textColor = 'text-black',
+  textColor = 'text-foreground',
   progressColor = '#4f46e5',
   trackColor = '#e5e7eb',
   className,

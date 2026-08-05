@@ -14,20 +14,20 @@ export const Widgets = ({
   });
 
   if (loading) {
-    return <div className="p-4 text-sm text-gray-500">Ачааллаж байна...</div>;
+    return <div className="p-4 text-sm text-muted-foreground">Ачааллаж байна...</div>;
   }
 
   const contracts = data?.contracts || [];
 
   if (contracts.length === 0) {
     return (
-      <div className="p-4 text-sm text-gray-400">Даатгалын гэрээ байхгүй</div>
+      <div className="p-4 text-sm text-muted-foreground">Даатгалын гэрээ байхгүй</div>
     );
   }
 
   return (
     <div className="p-4 space-y-2">
-      <h3 className="text-sm font-semibold text-gray-700">
+      <h3 className="text-sm font-semibold text-foreground">
         Даатгалын гэрээнүүд ({contracts.length})
       </h3>
       {contracts.map(
@@ -55,7 +55,7 @@ export const Widgets = ({
                   : 'Хүлээгдэж буй'}
               </span>
             </div>
-            <div className="text-gray-500">
+            <div className="text-muted-foreground">
               {contract.chargedAmount?.toLocaleString()}₮
             </div>
           </div>

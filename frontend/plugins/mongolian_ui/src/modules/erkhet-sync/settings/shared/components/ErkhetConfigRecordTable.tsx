@@ -34,11 +34,11 @@ export const ErkhetConfigRecordTable = <T extends object>({
       {configs.length === 0 && (
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-3 text-center">
-            <IconSettings2 size={48} className="text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900">
+            <IconSettings2 size={48} className="text-muted-foreground" />
+            <h3 className="text-lg font-semibold text-foreground">
               {t('no-configs-yet')}
             </h3>
-            <p className="text-sm text-gray-500">{emptyDescription}</p>
+            <p className="text-sm text-muted-foreground">{emptyDescription}</p>
           </div>
         </div>
       )}

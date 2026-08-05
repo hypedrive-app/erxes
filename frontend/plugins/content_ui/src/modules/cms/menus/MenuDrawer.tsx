@@ -125,7 +125,7 @@ export function MenuDrawer(props: MenuDrawerProps) {
                   <Form.Label>
                     {t('kind')}
                     {isTranslationMode && (
-                      <span className="ml-2 text-xs text-gray-500">({t('shared-across-languages')})</span>
+                      <span className="ml-2 text-xs text-muted-foreground">({t('shared-across-languages')})</span>
                     )}
                   </Form.Label>
                   <Form.Control>
@@ -152,7 +152,7 @@ export function MenuDrawer(props: MenuDrawerProps) {
                   <Form.Label>
                     {t('parent-menu')}
                     {isTranslationMode && (
-                      <span className="ml-2 text-xs text-gray-500">({t('shared-across-languages')})</span>
+                      <span className="ml-2 text-xs text-muted-foreground">({t('shared-across-languages')})</span>
                     )}
                   </Form.Label>
                   <Form.Control>

@@ -131,7 +131,7 @@ const ErrorTip = ({ index, errors }: { index: number; errors?: any }) => {
       </Tooltip.Trigger>
       <Tooltip.Content
         side="bottom"
-        className="max-w-[300px] bg-white text-red-400 border border-red-50 rounded-md shadow-md p-2"
+        className="max-w-[300px] bg-background text-red-400 border border-red-50 rounded-md shadow-md p-2"
       >
         <ul className="text-sm space-y-1 list-disc pl-4">
           {renderErrors(errs)}

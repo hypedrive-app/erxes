@@ -9,7 +9,7 @@ type Props = {
 
 export const DealsDatePicker = ({ date, Icon, text }: Props) => {
   return (
-    <div className="text-xs flex items-center gap-1 text-gray-500">
+    <div className="text-xs flex items-center gap-1 text-muted-foreground">
       <Icon />
       <DatePicker
         value={date}

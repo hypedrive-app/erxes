@@ -228,10 +228,10 @@ export const PosCoversSheet = () => {
                     {(!posCovers.details || posCovers.details.length === 0) && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="flex flex-col items-center justify-center text-center">
-                          <h3 className="text-lg font-semibold text-gray-900">
+                          <h3 className="text-lg font-semibold text-foreground">
                             {t('no-payment-details')}
                           </h3>
-                          <p className="mt-1 text-sm text-gray-500">
+                          <p className="mt-1 text-sm text-muted-foreground">
                             {t('cover-no-payment-breakdown')}
                           </p>
                         </div>

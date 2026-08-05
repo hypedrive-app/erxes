@@ -77,7 +77,7 @@ const LabelOverlay = ({ labels }: { labels: IPipelineLabel[] }) => {
 
   return (
     <>
-      <h3 className="text-sm font-semibold text-gray-600 border-b pb-2">
+      <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">
         {t('labels')}
       </h3>
       <div className="flex-auto overflow-hidden py-2">
@@ -101,7 +101,7 @@ const LabelOverlay = ({ labels }: { labels: IPipelineLabel[] }) => {
                   key={label._id}
                   className={cn(
                     'flex items-center justify-between p-2 rounded-md border cursor-pointer',
-                    'border-gray-200 hover:bg-gray-50',
+                    'border-border hover:bg-muted',
                     selectedLabelIds.includes(label._id || '')
                       ? 'bg-blue-50 border-blue-300'
                       : '',
@@ -122,7 +122,7 @@ const LabelOverlay = ({ labels }: { labels: IPipelineLabel[] }) => {
                     )}
                     <IconPencil
                       size={14}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditLabelId(label._id || '');
@@ -133,7 +133,7 @@ const LabelOverlay = ({ labels }: { labels: IPipelineLabel[] }) => {
                 </li>
               ))}
               {filteredLabels.length === 0 && (
-                <li className="text-sm text-gray-400">
+                <li className="text-sm text-muted-foreground">
                   {t('no-matching-labels-found')}
                 </li>
               )}

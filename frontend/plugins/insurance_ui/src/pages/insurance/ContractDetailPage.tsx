@@ -104,7 +104,7 @@ export const ContractDetailPage = () => {
         );
       case 'cancelled':
         return (
-          <Badge className="bg-gray-100 text-gray-800">
+          <Badge className="bg-muted text-foreground">
             {t('cancelled-label')}
           </Badge>
         );

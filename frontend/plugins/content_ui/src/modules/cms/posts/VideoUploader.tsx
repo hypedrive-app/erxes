@@ -36,7 +36,7 @@ export const VideoUploader = ({ value, onChange }: VideoUploaderProps) => {
     <div className="space-y-2">
       {value && (
         <div className="relative">
-          <div className="relative border rounded overflow-hidden bg-black">
+          <div className="relative border rounded overflow-hidden bg-muted">
             <video
               src={value}
               controls
@@ -45,7 +45,7 @@ export const VideoUploader = ({ value, onChange }: VideoUploaderProps) => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+              className="absolute top-2 right-2 bg-background/80 hover:bg-background"
               type="button"
               onClick={handleRemove}
             >
@@ -53,8 +53,8 @@ export const VideoUploader = ({ value, onChange }: VideoUploaderProps) => {
             </Button>
           </div>
           {uploadProps.loading && (
-            <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
-              <div className="text-sm text-gray-500">{t('uploading')}</div>
+            <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+              <div className="text-sm text-muted-foreground">{t('uploading')}</div>
             </div>
           )}
         </div>

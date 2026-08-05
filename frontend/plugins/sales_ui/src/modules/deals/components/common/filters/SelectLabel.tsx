@@ -146,7 +146,7 @@ export const SelectLabelsCommand = () => {
           >
             {t('back')}
           </button>
-          <h3 className="text-sm font-semibold text-gray-600">
+          <h3 className="text-sm font-semibold text-muted-foreground">
             {editLabelId ? t('edit-label') : t('add-label')}
           </h3>
           <span />
@@ -228,7 +228,7 @@ export const SelectLabelsCommand = () => {
                     <IconCheck className="w-4 h-4 text-green-600" />
                   )}
                   <IconPencil
-                    className="w-5 h-5 cursor-pointer text-gray-400"
+                    className="w-5 h-5 cursor-pointer text-muted-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditLabelId(label._id || '');
@@ -274,7 +274,7 @@ export const SelectLabelsValue = ({
       <span className="text-muted-foreground flex items-center gap-1 -ml-1">
         {showLabels ? (
           <>
-            <IconLabel className="w-4 h-4 text-gray-400" />
+            <IconLabel className="w-4 h-4 text-muted-foreground" />
             {pipelineLabels
               .filter((label) => label._id && selectedIds.has(label._id))
               .map((label) => label.name)
@@ -282,7 +282,7 @@ export const SelectLabelsValue = ({
           </>
         ) : (
           <>
-            <IconLabel className="w-4 h-4 text-gray-400" /> {t('label')} +
+            <IconLabel className="w-4 h-4 text-muted-foreground" /> {t('label')} +
             {(labelIds || []).length}
           </>
         )}

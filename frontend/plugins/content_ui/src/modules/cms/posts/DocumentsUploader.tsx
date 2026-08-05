@@ -68,8 +68,8 @@ export const DocumentsUploader = ({
             </div>
           ))}
           {uploadProps.loading && (
-            <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
-              <div className="text-sm text-gray-500">{t('uploading')}</div>
+            <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+              <div className="text-sm text-muted-foreground">{t('uploading')}</div>
             </div>
           )}
         </div>

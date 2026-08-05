@@ -47,11 +47,11 @@ export const MSDynamicConfigTable = () => {
         {!(configsLoading || loading || saveLoading) && rows.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center text-center">
-              <IconClipboardList size={48} className="mb-4 text-gray-400" />
-              <h3 className="text-lg font-semibold text-gray-900">
+              <IconClipboardList size={48} className="mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold text-foreground">
                 {t('no-ms-dynamic-config-yet')}
               </h3>
-              <p className="mb-4 mt-1 text-sm text-gray-500">
+              <p className="mb-4 mt-1 text-sm text-muted-foreground">
                 {t('create-first-ms-dynamic-config')}
               </p>
               <AddMSDynamicConfig />

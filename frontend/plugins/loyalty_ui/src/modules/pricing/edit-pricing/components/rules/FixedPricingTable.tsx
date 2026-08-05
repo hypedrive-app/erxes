@@ -293,7 +293,8 @@ export const FixedPricingTable = ({
         <Table.Row>
           <Table.Cell
             colSpan={7}
-            style={{ textAlign: 'center', padding: '24px', color: '#6b7280' }}
+            className="text-muted-foreground"
+            style={{ textAlign: 'center', padding: '24px' }}
           >
             Loading...
           </Table.Cell>
@@ -305,7 +306,8 @@ export const FixedPricingTable = ({
         <Table.Row>
           <Table.Cell
             colSpan={7}
-            style={{ textAlign: 'center', padding: '24px', color: '#6b7280' }}
+            className="text-muted-foreground"
+            style={{ textAlign: 'center', padding: '24px' }}
           >
             No products found.
           </Table.Cell>
@@ -509,7 +511,10 @@ export const FixedPricingTable = ({
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: '13px', color: '#6b7280' }}>
+        <span
+          className="text-muted-foreground"
+          style={{ fontSize: '13px' }}
+        >
           {totalCount} results · Page {currentPage} of {totalPages}
         </span>
         <button

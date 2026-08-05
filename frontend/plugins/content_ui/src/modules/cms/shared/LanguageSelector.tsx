@@ -33,7 +33,7 @@ export const LanguageSelector = ({
             <Select.Item key={option.value} value={option.value}>
               {option.label}
               {option.isDefault && (
-                <span className="ml-2 text-xs text-gray-500">(Default)</span>
+                <span className="ml-2 text-xs text-muted-foreground">(Default)</span>
               )}
               {option.hasTranslation && (
                 <span className="ml-2 text-green-600">&#10003;</span>

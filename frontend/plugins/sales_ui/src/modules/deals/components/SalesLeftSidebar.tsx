@@ -61,7 +61,7 @@ export const SalesLeftSidebar = () => {
             defaultValue={['boards', 'pipelines']}
           >
             <Accordion.Item value="boards">
-              <Accordion.Trigger className="text-gray-400 text-sm">
+              <Accordion.Trigger className="text-muted-foreground text-sm">
                 {t('boards')} ({boards?.length || 0})
               </Accordion.Trigger>
               <Accordion.Content className="content">

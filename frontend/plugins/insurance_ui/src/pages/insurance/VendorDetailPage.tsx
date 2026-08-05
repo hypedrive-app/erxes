@@ -306,7 +306,7 @@ export const VendorDetailPage = () => {
                   {vendor.offeredProducts.map((vp: any) => (
                     <div
                       key={vp.product.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
                     >
                       <div className="flex items-center gap-3">
                         <IconPackage size={20} className="text-blue-600" />

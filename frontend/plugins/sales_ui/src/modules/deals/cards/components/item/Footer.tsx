@@ -19,7 +19,7 @@ export const ItemFooter = ({
 }: Props) => {
   return (
     <div className="flex justify-between items-center p-2">
-      <div className="flex items-center gap-1 text-gray-500 text-xs">
+      <div className="flex items-center gap-1 text-muted-foreground text-xs">
         {number ? (
           <CopyText
             value={number}

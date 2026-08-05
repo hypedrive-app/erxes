@@ -364,7 +364,7 @@ export const RegionsPage = () => {
       </div>
 
       {showCreateForm && (
-        <div className="mb-6 p-4 border rounded-lg bg-white shadow-sm">
+        <div className="mb-6 p-4 border rounded-lg bg-card shadow-sm">
           <h3 className="font-semibold mb-3">Шинэ бүс нутаг</h3>
           <div className="space-y-3">
             <input
@@ -391,7 +391,7 @@ export const RegionsPage = () => {
               </button>
               <button
                 onClick={() => setShowCreateForm(false)}
-                className="flex items-center gap-1 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="flex items-center gap-1 px-4 py-2 bg-muted rounded-lg hover:bg-muted/70"
               >
                 <IconX size={16} />
                 Цуцлах
@@ -405,7 +405,7 @@ export const RegionsPage = () => {
         {regions.map((region: InsuranceRegion) => (
           <div
             key={region.id}
-            className="p-4 border rounded-lg bg-white shadow-sm"
+            className="p-4 border rounded-lg bg-card shadow-sm"
           >
             {editingId === region.id ? (
               <div className="space-y-3">
@@ -431,7 +431,7 @@ export const RegionsPage = () => {
                   </button>
                   <button
                     onClick={() => setEditingId(null)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 rounded-lg text-sm"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-muted rounded-lg text-sm"
                   >
                     <IconX size={14} />
                     Цуцлах
@@ -456,7 +456,7 @@ export const RegionsPage = () => {
                     </button>
                     <button
                       onClick={() => startEdit(region)}
-                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                      className="p-1.5 text-muted-foreground hover:bg-muted rounded"
                     >
                       <IconEdit size={16} />
                     </button>
@@ -470,7 +470,7 @@ export const RegionsPage = () => {
                         </button>
                         <button
                           onClick={() => setDeleteConfirmId(null)}
-                          className="px-2 py-1 text-xs bg-gray-200 rounded"
+                          className="px-2 py-1 text-xs bg-muted rounded"
                         >
                           Үгүй
                         </button>
@@ -506,7 +506,7 @@ export const RegionsPage = () => {
                     </span>
                   ))}
                   {region.countries.length === 0 && (
-                    <span className="text-sm text-gray-400">
+                    <span className="text-sm text-muted-foreground">
                       Улс бүртгэгдээгүй
                     </span>
                   )}
@@ -538,7 +538,7 @@ export const RegionsPage = () => {
         ))}
 
         {regions.length === 0 && !showCreateForm && (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-muted-foreground">
             <IconAlertTriangle size={48} className="mx-auto mb-4 opacity-50" />
             <p>Бүс нутаг бүртгэгдээгүй байна</p>
           </div>

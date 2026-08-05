@@ -57,7 +57,7 @@ const GalleryThumbnail = ({
     />
     <span
       className={cn(
-        'absolute top-1 left-1 flex items-center gap-0.5 rounded bg-black/60 pr-1.5 pl-1 py-0.5 text-[10px] font-medium text-white transition-opacity',
+        'absolute top-1 left-1 flex items-center gap-0.5 rounded bg-black/60 pr-1.5 pl-1 py-0.5 text-[10px] font-medium text-primary-foreground transition-opacity',
         dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
       )}
     >
@@ -238,7 +238,7 @@ export const GalleryUploader = ({
                       />
                     )}
                     <div
-                      className="absolute inset-0 bg-white/70"
+                      className="absolute inset-0 bg-background/70"
                       aria-label={
                         uploadProps.loading ? t('uploading-image') : t('ready')
                       }
@@ -263,8 +263,8 @@ export const GalleryUploader = ({
             )}
           </DndContext>
           {uploadProps.loading && (
-            <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
-              <div className="text-sm text-gray-500">{t('uploading')}</div>
+            <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+              <div className="text-sm text-muted-foreground">{t('uploading')}</div>
             </div>
           )}
         </div>

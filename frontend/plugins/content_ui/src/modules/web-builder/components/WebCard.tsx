@@ -58,14 +58,14 @@ export const WebCard = ({ web, index }: WebCardProps) => {
           </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-              <IconWorldPlus className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 bg-background/40 rounded-full flex items-center justify-center">
+              <IconWorldPlus className="w-8 h-8 text-muted-foreground" />
             </div>
           </div>
         )}
         {web.domain && (
           <div className="absolute bottom-2 right-2">
-            <div className="px-2 py-1 bg-white/90 rounded text-xs font-medium text-gray-700">
+            <div className="px-2 py-1 bg-background/90 rounded text-xs font-medium text-foreground">
               {web.domain}
             </div>
           </div>

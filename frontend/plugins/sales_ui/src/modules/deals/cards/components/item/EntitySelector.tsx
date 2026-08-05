@@ -28,7 +28,7 @@ export const EntityItem = ({ Icon, text, totalCount }: EntityItemProps) => {
     <Button size="sm" variant="secondary">
       <Icon />
       {text}
-      <span className="text-gray-400">{totalCount}</span>
+      <span className="text-muted-foreground">{totalCount}</span>
     </Button>
   );
 };

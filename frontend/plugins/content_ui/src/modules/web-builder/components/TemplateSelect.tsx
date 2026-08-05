@@ -52,7 +52,7 @@ export const TemplateSelect = ({
                   : 'border-border',
               ].join(' ')}
             >
-              <div className="aspect-video bg-gray-100 overflow-hidden">
+              <div className="aspect-video bg-muted overflow-hidden">
                 {tmpl.thumbnail ? (
                   <img
                     src={tmpl.thumbnail}
@@ -61,7 +61,7 @@ export const TemplateSelect = ({
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <IconWorldPlus className="w-6 h-6 text-gray-400" />
+                    <IconWorldPlus className="w-6 h-6 text-muted-foreground" />
                   </div>
                 )}
               </div>
@@ -77,7 +77,7 @@ export const TemplateSelect = ({
                 setPreview(tmpl);
               }}
               title={t('preview')}
-              className="text-sm cursor-pointer flex gap-2 items-center text-white absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 hover:bg-black/80 rounded py-1 px-3"
+              className="text-sm cursor-pointer flex gap-2 items-center text-primary-foreground absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 hover:bg-black/80 rounded py-1 px-3"
             >
               <IconEye className="w-3 h-3 " />
               {t('preview')}
@@ -92,7 +92,7 @@ export const TemplateSelect = ({
             {t('template-preview')}
           </Dialog.Description>
 
-          <div className="aspect-video bg-gray-100 overflow-hidden">
+          <div className="aspect-video bg-muted overflow-hidden">
             {preview?.thumbnail ? (
               <img
                 src={preview.thumbnail}
@@ -101,7 +101,7 @@ export const TemplateSelect = ({
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
-                <IconWorldPlus className="w-12 h-12 text-gray-300" />
+                <IconWorldPlus className="w-12 h-12 text-muted-foreground" />
               </div>
             )}
           </div>
@@ -121,7 +121,7 @@ export const TemplateSelect = ({
             </p>
 
             {preview?.review && (
-              <p className="text-sm text-gray-500 italic border-l-2 border-border pl-3 mb-5">
+              <p className="text-sm text-muted-foreground italic border-l-2 border-border pl-3 mb-5">
                 "{preview.review}"
               </p>
             )}

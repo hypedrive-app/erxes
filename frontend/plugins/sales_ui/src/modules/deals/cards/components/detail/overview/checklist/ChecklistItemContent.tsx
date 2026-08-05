@@ -144,7 +144,7 @@ const ChecklistItemContent = ({
   return (
     <div
       key={item._id}
-      className="border-b border-gray-100 pointer-events-auto flex items-center justify-between p-1 gap-2 group relative"
+      className="border-b border-border pointer-events-auto flex items-center justify-between p-1 gap-2 group relative"
     >
       <div className="flex items-center gap-2 text-xs">
         <div
@@ -159,7 +159,7 @@ const ChecklistItemContent = ({
         </div>
         <span
           className={`text-xs ${
-            item.isChecked ? 'line-through text-gray-400' : ''
+            item.isChecked ? 'line-through text-muted-foreground' : ''
           } select-none`}
         >
           {item.content}
@@ -186,10 +186,10 @@ const ChecklistItemContent = ({
         </button>
 
         {activeMenuIndex === index && (
-          <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-white border rounded shadow-md">
+          <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-background border rounded shadow-md">
             <button
               onClick={onConvert}
-              className="flex items-center gap-2 px- py-2 hover:bg-gray-100 w-full text-sm"
+              className="flex items-center gap-2 px- py-2 hover:bg-muted w-full text-sm"
             >
               <IconRefresh size={16} className="ml-3" />
               {t('convert-to-deal')}

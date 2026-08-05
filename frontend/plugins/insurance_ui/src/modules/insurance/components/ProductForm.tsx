@@ -157,7 +157,7 @@ const RegionFields = ({
           {countries.map((country) => (
             <span
               key={country}
-              className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border rounded text-xs"
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-background border rounded text-xs"
             >
               {country}
               <button
@@ -527,7 +527,7 @@ export const ProductForm = ({
                       className={`px-3 py-1.5 rounded-md border text-sm transition-colors ${
                         isSelected
                           ? 'bg-purple-600 text-white border-purple-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-purple-400'
+                          : 'bg-background text-foreground border-border hover:border-purple-400'
                       }`}
                     >
                       {r.name}
@@ -601,7 +601,7 @@ export const ProductForm = ({
                       variant="outline"
                       size="sm"
                       onClick={() => setShowPdfEditor(!showPdfEditor)}
-                      className="bg-white"
+                      className="bg-background"
                     >
                       {showPdfEditor ? t('hide-editor') : t('edit-template')}
                     </Button>
@@ -612,7 +612,7 @@ export const ProductForm = ({
                       onClick={() =>
                         setFormData({ ...formData, pdfContent: '' })
                       }
-                      className="bg-white text-red-600 hover:bg-red-50"
+                      className="bg-background text-red-600 hover:bg-red-50"
                     >
                       {t('remove')}
                     </Button>
@@ -631,7 +631,7 @@ export const ProductForm = ({
                       className="w-full h-[400px] p-3 font-mono text-sm border rounded-md focus:ring-2 focus:ring-blue-500"
                       placeholder={t('enter-html-template')}
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Use variables like {'{{contractNumber}}'},{' '}
                       {'{{customerName}}'}, etc.
                     </p>

@@ -44,7 +44,7 @@ export const PaymentSection = ({
             <label className="block text-sm font-medium mb-2">
               {t('payment-amount')}
             </label>
-            <div className="p-3 bg-gray-50 border rounded-md">
+            <div className="p-3 bg-muted border rounded-md">
               <p className="text-lg font-semibold">
                 {calculatedPremium > 0
                   ? calculatedPremium.toLocaleString()

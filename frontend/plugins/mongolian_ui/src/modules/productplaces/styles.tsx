@@ -3,7 +3,7 @@ export const ContentBox = ({ children, id }: { children: React.ReactNode; id?: s
   return (
     <div 
       id={id}
-      className="productplaces-content-box bg-white rounded-lg border border-gray-200 p-6 shadow-sm"
+      className="productplaces-content-box bg-card rounded-lg border border-border p-6 shadow-sm"
     >
       {children}
     </div>

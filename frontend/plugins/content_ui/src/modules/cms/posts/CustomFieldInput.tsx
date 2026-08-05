@@ -89,8 +89,8 @@ function FileFieldInput({
             </div>
           ))}
           {uploadProps.loading && (
-            <div className="absolute inset-0 bg-white/50 flex items-center justify-center rounded">
-              <span className="text-sm text-gray-500">{t('uploading')}</span>
+            <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded">
+              <span className="text-sm text-muted-foreground">{t('uploading')}</span>
             </div>
           )}
         </div>

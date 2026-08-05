@@ -156,7 +156,7 @@ export const useMenusColumns = (
       accessorKey: 'url',
       cell: ({ cell }) => (
         <div className={BADGE_CLASS}>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             {(cell.getValue() as string) || ''}
           </span>
         </div>
@@ -169,7 +169,7 @@ export const useMenusColumns = (
       accessorKey: 'kind',
       cell: ({ cell }) => (
         <div className={BADGE_CLASS}>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             {(cell.getValue() as string) || ''}
           </span>
         </div>

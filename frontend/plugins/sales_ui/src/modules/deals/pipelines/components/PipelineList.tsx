@@ -27,7 +27,7 @@ export const PipelineList = ({
 
   return (
     <>
-      <Accordion.Trigger className="text-gray-400 text-sm">
+      <Accordion.Trigger className="text-muted-foreground text-sm">
         {t('pipelines')} ({pipelines?.length || 0})
       </Accordion.Trigger>
       <Accordion.Content className="content">

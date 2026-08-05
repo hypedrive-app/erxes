@@ -375,7 +375,7 @@ const StageInEbarimtConfigCard = ({
             >
               <AlertDialog.Trigger asChild>
                 <Button variant="ghost" size="sm">
-                  <p className="text-black">{t('delete')}</p>
+                  <p className="text-foreground">{t('delete')}</p>
                 </Button>
               </AlertDialog.Trigger>
               <AlertDialog.Content>
@@ -472,7 +472,7 @@ export const StageInEBarimtConfigForm = () => {
 
         <div className="space-y-4">
           {Object.keys(localConfigsMap).length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               {t('no-configurations-found')}
             </div>
           ) : (

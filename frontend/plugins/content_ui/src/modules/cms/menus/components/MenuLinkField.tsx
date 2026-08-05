@@ -89,7 +89,7 @@ export function MenuLinkField({
               <Form.Label>
                 {t('url')}
                 {isTranslationMode && (
-                  <span className="ml-2 text-xs text-gray-500">({t('shared-across-languages')})</span>
+                  <span className="ml-2 text-xs text-muted-foreground">({t('shared-across-languages')})</span>
                 )}
               </Form.Label>
               <Form.Control>

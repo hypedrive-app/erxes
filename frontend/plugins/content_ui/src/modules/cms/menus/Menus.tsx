@@ -73,7 +73,7 @@ export function Menus() {
                   </Button>
                 ))}
               </div>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-muted-foreground">
                 {t('found-x-menus', { count: totalCount })}
               </span>
             </div>
