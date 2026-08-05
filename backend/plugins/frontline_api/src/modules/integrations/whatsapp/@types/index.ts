@@ -72,6 +72,8 @@ export interface IWhatsappConversationMessage {
   deliveryStatusRank?: number;
   errorMessage?: string;
   internal?: boolean;
+  /** wamid of the message this one replies to. See the schema definition. */
+  replyToMid?: string;
   // from inbox
   createdAt?: Date;
   updatedAt?: Date;

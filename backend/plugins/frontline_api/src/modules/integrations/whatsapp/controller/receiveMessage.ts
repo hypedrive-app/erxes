@@ -8,7 +8,10 @@ import {
   getOrCreateConversation,
   getOrCreateCustomer,
 } from '@/integrations/whatsapp/controller/store';
-import { getWhatsappMediaUrl } from '@/integrations/whatsapp/utils';
+import {
+  getWhatsappMediaUrl,
+  markWhatsappMessageRead,
+} from '@/integrations/whatsapp/utils';
 import { rehostInboundMedia } from '@/integrations/whatsapp/media';
 import { MEDIA_MESSAGE_TYPES } from '@/integrations/whatsapp/constants';
 import {
@@ -227,6 +230,12 @@ const receiveCustomerMessage = async (
       attachments,
       customerId: customer.erxesApiId,
       createdAt: timestamp,
+      // `context.id` is Meta's own wamid of whatever the customer
+      // swipe-replied to. Stored verbatim — resolving it to our row happens
+      // at read time, once the referenced message (which may not exist
+      // locally yet, e.g. one we sent before this integration re-synced) can
+      // actually be looked up.
+      replyToMid: message.context?.id,
     });
   } catch (e: any) {
     if (e.code === 11000 || e.message?.includes('duplicate')) {
@@ -270,6 +279,19 @@ const receiveCustomerMessage = async (
       `Failed to deliver WhatsApp message to inbox: ${e.message}`,
     );
   }
+
+  // Read, not "read + typing". Meta's own guidance is to show the typing
+  // indicator only when actually about to respond, not on every receipt —
+  // auto-firing it here would be a false signal the moment nobody is actually
+  // composing a reply, which is worse than showing nothing. The message is
+  // durably stored and in the inbox at this point, which is the same "seen"
+  // moment every other messaging product marks read at. Best-effort: a failed
+  // read receipt is cosmetic and must not undo a message that already arrived.
+  await markWhatsappMessageRead({
+    accessToken: integration.accessToken,
+    phoneNumberId: integration.phoneNumberId,
+    messageId: message.id,
+  });
 };
 
 /**

@@ -89,6 +89,7 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-spinner: spinner 0.96s linear infinite;
+  --animate-highlight-flash: highlight-flash 1.5s ease-out;
 
   --shadow-focus: 0px 0px 0px 4px rgba(79, 70, 229, 0.25),
     0px 0px 0px 1px var(--primary);
@@ -130,6 +131,16 @@
     }
     to {
       opacity: 0.15;
+    }
+  }
+  /* Used to draw attention to a message an agent jumped to — e.g. following a
+     WhatsApp reply's quote preview back to the message it quotes. */
+  @keyframes highlight-flash {
+    from {
+      background-color: var(--accent);
+    }
+    to {
+      background-color: transparent;
     }
   }
 }

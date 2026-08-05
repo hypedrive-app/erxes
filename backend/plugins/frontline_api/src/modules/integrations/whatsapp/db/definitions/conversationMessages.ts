@@ -47,4 +47,18 @@ export const conversationMessageSchema = new Schema({
     optional: true,
   },
   internal: { type: Boolean, label: 'Internal' },
+  /**
+   * The `wamid` of the message this one is a reply to — Meta's `context.id`
+   * on an inbound swipe-to-reply, or the id we ourselves sent on `context` for
+   * an outbound one. Stored as Meta's own id, not our `erxesApiMessageId`,
+   * because that is the only identifier both directions agree on: an inbound
+   * reply's `context.id` names a wamid that may belong to either party, and
+   * resolving it to our own row happens at read time (see the `replyTo`
+   * GraphQL resolver) rather than being duplicated here.
+   */
+  replyToMid: {
+    type: String,
+    label: 'wamid of the message this one replies to',
+    optional: true,
+  },
 });

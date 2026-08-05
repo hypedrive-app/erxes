@@ -89,6 +89,21 @@ export const types = `
     them would be worse than saying nothing.
     """
     whatsappDelivery: WhatsappDeliveryState
+
+    """
+    The message this one quotes, on WhatsApp — either a customer's
+    swipe-reply, or a message an agent sent as a reply. Null when this
+    message is not a WhatsApp reply to anything, or when the quoted message
+    could not be resolved locally.
+    """
+    whatsappReplyTo: WhatsappReplyTo
+
+    """
+    This message's own wamid, when it was sent through WhatsApp. What the
+    composer sends back as context.message_id to reply to it. Null for every
+    other channel and the field to check for "can this be replied to".
+    """
+    whatsappMid: String
   }
 
   """
@@ -102,6 +117,20 @@ export const types = `
   type WhatsappDeliveryState {
     status: String
     error: String
+  }
+
+  """
+  The quoted message a WhatsApp reply points back to.
+
+  _id is OUR inbox message id, not Meta's wamid — the frontend already
+  knows how to scroll to and highlight a message by that id, so this is
+  resolved to it rather than exposing the wamid the frontend would then have
+  no use for. content rides along so a quote preview does not need a
+  second round trip to render.
+  """
+  type WhatsappReplyTo {
+    _id: String!
+    content: String
   }
 
   type Email {

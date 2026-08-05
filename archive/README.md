@@ -56,3 +56,12 @@ exist in the clean checkout Docker builds from, and they can be regenerated at
 any time with `pnpm nx build <project>`.
 
 Safe to delete.
+
+## frontend/plugins/calcom_ui/src/assets/ (2026-08-04)
+
+`example-icon.svg` and `example-image.svg` — placeholder artwork emitted by
+create-plugin. Nothing referenced them: the plugin's navigation icon is a
+Tabler component (IUIConfig types `icon` as React.ElementType, so a file could
+not be used there anyway).
+
+Safe to delete.

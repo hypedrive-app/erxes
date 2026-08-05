@@ -60,6 +60,7 @@ const getTemplateDispatch = (
   };
 };
 
+
 /**
  * Handles an agent's outgoing reply, dispatched from the inbox.
  *
@@ -100,6 +101,14 @@ export const handleWhatsappMessage = async (
   });
 
   const template = getTemplateDispatch(doc.extraInfo);
+  // The wamid the agent chose to quote. Not carried on `extraInfo` like the
+  // template above — `conversationMessageAdd` already forwards this generic,
+  // provider-agnostic field to every integration's payload (Discord reads the
+  // same field for its own reply-to, off its own foreign message id).
+  const replyToMid =
+    typeof doc.replyToMessageId === 'string' && doc.replyToMessageId
+      ? doc.replyToMessageId
+      : undefined;
 
   // The resolved template text is passed as `content` by the composer so the
   // thread shows what the customer actually received rather than a blank
@@ -135,6 +144,7 @@ export const handleWhatsappMessage = async (
         name: template.name,
         languageCode: template.languageCode,
         components: template.components,
+        replyToMid,
       });
     } else if (attachments.length) {
       /**
@@ -167,6 +177,9 @@ export const handleWhatsappMessage = async (
             mediaType: whatsappMediaTypeFor(attachment.type),
             caption: index === 0 ? content || undefined : undefined,
             fileName: attachment.name,
+            // Same reasoning as the caption: only the first message is "the"
+            // reply an agent composed, so only it carries the quote.
+            replyToMid: index === 0 ? replyToMid : undefined,
           }),
         );
       }
@@ -178,6 +191,7 @@ export const handleWhatsappMessage = async (
         phoneNumberId: integration.phoneNumberId,
         to: conversation.senderId,
         text: content,
+        replyToMid,
       });
     }
   } catch (e) {
@@ -211,6 +225,7 @@ export const handleWhatsappMessage = async (
     attachments: doc.attachments,
     userId: doc.userId,
     createdAt: new Date(),
+    replyToMid,
   });
 
   /**

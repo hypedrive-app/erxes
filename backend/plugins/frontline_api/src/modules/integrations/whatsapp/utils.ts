@@ -282,6 +282,7 @@ export const sendWhatsappTemplate = async ({
   name,
   languageCode,
   components,
+  replyToMid,
 }: {
   accessToken: string;
   phoneNumberId: string;
@@ -289,6 +290,7 @@ export const sendWhatsappTemplate = async ({
   name: string;
   languageCode: string;
   components?: IWhatsappTemplateSendComponent[];
+  replyToMid?: string;
 }): Promise<string> => {
   const template: Record<string, unknown> = {
     name,
@@ -301,17 +303,26 @@ export const sendWhatsappTemplate = async ({
     template.components = components;
   }
 
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'template',
+    template,
+  };
+
+  // `context` is documented at the level shared by every message type, not
+  // specifically excluded for templates, so it is forwarded the same way as
+  // the free-form and media sends rather than assumed unsupported.
+  if (replyToMid) {
+    body.context = { message_id: replyToMid };
+  }
+
   const response = await graphRequest<{ messages?: Array<{ id: string }> }>({
     accessToken,
     method: 'POST',
     path: `/${phoneNumberId}/messages`,
-    body: {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: 'template',
-      template,
-    },
+    body,
   });
 
   const mid = response?.messages?.[0]?.id;

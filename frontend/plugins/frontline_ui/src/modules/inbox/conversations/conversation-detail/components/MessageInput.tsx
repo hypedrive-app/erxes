@@ -48,6 +48,7 @@ import {
   useDiscordConversationParticipants,
 } from '@/integrations/discord/hooks/useDiscordSetup';
 import { discordReplyToState } from '@/integrations/discord/states/discordReplyToState';
+import { whatsappReplyToState } from '@/integrations/whatsapp/states/whatsappReplyToState';
 import { IntegrationType } from '@/types/Integration';
 import { InboxHotkeyScope } from '@/inbox/types/InboxHotkeyScope';
 import { ResponseTemplateDropdown } from '@/inbox/conversations/conversation-detail/components/ResponseTemplateDropdown';
@@ -90,8 +91,10 @@ export const MessageInput = ({
   const hideInput = useAtomValue(hideMessageInputState);
   const { integration } = useConversationContext();
   const isDiscord = integration?.kind === IntegrationType.DISCORD_MESSENGER;
+  const isWhatsapp = integration?.kind === IntegrationType.WHATSAPP_MESSENGER;
   const messageExtraInfo = useAtomValue(messageExtraInfoState);
   const [discordReplyTo, setDiscordReplyTo] = useAtom(discordReplyToState);
+  const [whatsappReplyTo, setWhatsappReplyTo] = useAtom(whatsappReplyToState);
 
   const discordParticipants = useDiscordConversationParticipants(
     conversationId,
@@ -149,7 +152,8 @@ export const MessageInput = ({
 
   useEffect(() => {
     setDiscordReplyTo(null);
-  }, [conversationId, setDiscordReplyTo]);
+    setWhatsappReplyTo(null);
+  }, [conversationId, setDiscordReplyTo, setWhatsappReplyTo]);
 
   const { channels: availableChannels } = useGetChannels();
   const [searchValue, setSearchValue] = useState('');
@@ -403,6 +407,9 @@ export const MessageInput = ({
         ...(isDiscord && !isInternalNote && discordReplyTo
           ? { replyToMessageId: discordReplyTo.messageId }
           : {}),
+        ...(isWhatsapp && !isInternalNote && whatsappReplyTo
+          ? { replyToMessageId: whatsappReplyTo.mid }
+          : {}),
       },
       onCompleted: () => {
         toast({ title: t('message-sent'), variant: 'default' });
@@ -416,6 +423,7 @@ export const MessageInput = ({
         setShowSuggestions(false);
         setResponseTemplateId(null);
         setDiscordReplyTo(null);
+        setWhatsappReplyTo(null);
       },
       refetchQueries: ['Conversations'],
       onError: (err) =>
@@ -432,6 +440,9 @@ export const MessageInput = ({
     isDiscord,
     discordReplyTo,
     setDiscordReplyTo,
+    isWhatsapp,
+    whatsappReplyTo,
+    setWhatsappReplyTo,
     messageExtraInfo,
     attachments,
     editor,
@@ -500,6 +511,27 @@ export const MessageInput = ({
               type="button"
               aria-label="Cancel reply"
               onClick={() => setDiscordReplyTo(null)}
+              className="flex-none text-muted-foreground hover:text-foreground"
+            >
+              <IconX size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
+        {isWhatsapp && !isInternalNote && whatsappReplyTo && (
+          <div className="mx-6 mb-1 flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-1.5 text-sm">
+            <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+              <IconArrowBackUp className="size-4 flex-none" />
+              <span className="truncate">
+                {t('whatsapp-replying-to', {
+                  preview: whatsappReplyTo.preview,
+                })}
+              </span>
+            </div>
+            <button
+              type="button"
+              aria-label={t('whatsapp-cancel-reply')}
+              onClick={() => setWhatsappReplyTo(null)}
               className="flex-none text-muted-foreground hover:text-foreground"
             >
               <IconX size={14} aria-hidden="true" />
