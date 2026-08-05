@@ -1268,6 +1268,7 @@
   "plivo-invalid-number": "Энэ дугаар руу залгах боломжгүй",
   "plivo-invalid-number-description": "Дугаараа шалгаад улсын кодыг оруулна уу.",
   "whatsapp-new-conversation": "Шинэ WhatsApp мессеж",
+  "whatsapp-message-contact": "WhatsApp-аар бичих",
   "whatsapp-new-conversation-description": "Танд хараахан бичээгүй хүн рүү мессеж илгээх. WhatsApp зөвхөн батлагдсан загвараар харилцан яриа эхлүүлэхийг зөвшөөрдөг.",
   "whatsapp-new-conversation-number": "Илгээх дугаар",
   "whatsapp-new-conversation-number-placeholder": "Дугаар сонгох",

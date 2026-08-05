@@ -58,13 +58,15 @@ const buildSchema = (
   });
 };
 
-const EMPTY_VALUES: WhatsappNewConversationValues = {
+const buildEmptyValues = (
+  customerId?: string,
+): WhatsappNewConversationValues => ({
   integrationId: '',
-  customerId: '',
+  customerId: customerId || '',
   templateId: '',
   headerValues: [],
   bodyValues: [],
-};
+});
 
 /**
  * Starts a WhatsApp conversation with someone who has never messaged in.
@@ -78,8 +80,20 @@ const EMPTY_VALUES: WhatsappNewConversationValues = {
  * The template machinery is shared verbatim with the in-thread picker, so a
  * template renders and validates identically whether it opens a thread or
  * continues one.
+ *
+ * Reused as the contact detail page's "Message on WhatsApp" action —
+ * `customerId` pre-fills and hides the contact picker rather than the two
+ * surfaces building separate mutation logic, and `trigger` lets the caller
+ * supply a different opener (the header uses an icon button, a contact page
+ * a labelled one) around the identical dialog.
  */
-export const WhatsappNewConversation = () => {
+export const WhatsappNewConversation = ({
+  customerId: fixedCustomerId,
+  trigger,
+}: {
+  customerId?: string;
+  trigger?: React.ReactNode;
+} = {}) => {
   const { t } = useTranslation('frontline');
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -90,7 +104,7 @@ export const WhatsappNewConversation = () => {
     useStartWhatsappConversation();
 
   const form = useForm<WhatsappNewConversationValues>({
-    defaultValues: EMPTY_VALUES,
+    defaultValues: buildEmptyValues(fixedCustomerId),
     resolver: (values, context, options) => {
       const selected = templates.find((item) => item.id === values.templateId);
 
@@ -126,6 +140,16 @@ export const WhatsappNewConversation = () => {
 
   const headerPlaceholders = getHeaderPlaceholders(selectedTemplate);
   const bodyPlaceholders = getBodyPlaceholders(selectedTemplate);
+
+  // The contact-page trigger mounts this dialog once and reopens it across
+  // several visits rather than remounting per-open, so react-hook-form's
+  // mount-time defaultValues alone would only pin the first customer ever
+  // opened against. Reapplied on every open instead.
+  useEffect(() => {
+    if (open && fixedCustomerId) {
+      form.setValue('customerId', fixedCustomerId);
+    }
+  }, [open, fixedCustomerId, form]);
 
   // With exactly one connected number there is nothing to choose, so it is
   // filled in rather than presented as a decision.
@@ -190,7 +214,7 @@ export const WhatsappNewConversation = () => {
       },
       onCompleted: (data) => {
         toast({ title: t('whatsapp-new-conversation-sent') });
-        form.reset(EMPTY_VALUES);
+        form.reset(buildEmptyValues(fixedCustomerId));
         setOpen(false);
 
         // Drop the agent straight into the thread they just opened; otherwise
@@ -214,13 +238,15 @@ export const WhatsappNewConversation = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={t('whatsapp-new-conversation')}
-        >
-          <IconMessagePlus className="text-accent-foreground" />
-        </Button>
+        {trigger || (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('whatsapp-new-conversation')}
+          >
+            <IconMessagePlus className="text-accent-foreground" />
+          </Button>
+        )}
       </Dialog.Trigger>
       <Dialog.Content className="flex max-h-[90vh] flex-col overflow-hidden">
         <Dialog.Header>
@@ -295,30 +321,35 @@ export const WhatsappNewConversation = () => {
                   />
                 )}
 
-                <Form.Field
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>
-                        {t('whatsapp-new-conversation-contact')}
-                      </Form.Label>
-                      <SelectCustomer.FormItem
-                        mode="single"
-                        value={field.value}
-                        onValueChange={(value) =>
-                          field.onChange(
-                            Array.isArray(value) ? value[0] : value,
-                          )
-                        }
-                      />
-                      <Form.Description>
-                        {t('whatsapp-new-conversation-contact-description')}
-                      </Form.Description>
-                      <Form.Message />
-                    </Form.Item>
-                  )}
-                />
+                {/* The contact page opens this dialog already knowing who —
+                    re-asking would let the agent pick someone other than the
+                    record they were looking at. */}
+                {!fixedCustomerId && (
+                  <Form.Field
+                    control={form.control}
+                    name="customerId"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>
+                          {t('whatsapp-new-conversation-contact')}
+                        </Form.Label>
+                        <SelectCustomer.FormItem
+                          mode="single"
+                          value={field.value}
+                          onValueChange={(value) =>
+                            field.onChange(
+                              Array.isArray(value) ? value[0] : value,
+                            )
+                          }
+                        />
+                        <Form.Description>
+                          {t('whatsapp-new-conversation-contact-description')}
+                        </Form.Description>
+                        <Form.Message />
+                      </Form.Item>
+                    )}
+                  />
+                )}
 
                 {templatesLoading && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">

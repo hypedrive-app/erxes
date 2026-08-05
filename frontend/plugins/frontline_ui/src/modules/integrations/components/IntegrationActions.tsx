@@ -25,12 +25,24 @@ const PlivoConversationCallButton = lazy(() =>
   ),
 );
 
+/**
+ * Same reasoning as PlivoConversationCallButton above: offered on every
+ * channel's thread, not gated on the open conversation itself being
+ * WhatsApp — see that component's own file for why.
+ */
+const WhatsappConversationButton = lazy(() =>
+  import('@/integrations/whatsapp/components/WhatsappConversationButton').then(
+    (module) => ({ default: module.WhatsappConversationButton }),
+  ),
+);
+
 export const IntegrationActions = () => {
   const { integration, _id } = useConversationContext();
 
   return (
     <Suspense fallback={<div />}>
       <PlivoConversationCallButton />
+      <WhatsappConversationButton />
       {integration?.kind === IntegrationType.FACEBOOK_POST && (
         <FacebookPostTrigger erxesApiId={_id} />
       )}

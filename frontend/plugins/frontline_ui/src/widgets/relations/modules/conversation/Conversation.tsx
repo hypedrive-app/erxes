@@ -3,6 +3,7 @@ import { IRelationWidgetProps, useRelations } from 'ui-modules';
 import { ConversationRelationDetails } from './ConversationDetails';
 import { ConversationReportContent } from '@/inbox/conversations/conversation-detail/components/ConversationReportContent';
 import { PlivoContactCallButton } from '@/integrations/plivo/components/PlivoContactCallButton';
+import { WhatsappContactButton } from '@/integrations/whatsapp/components/WhatsappContactButton';
 
 export const ConversationRelationWidget = ({
   contentId,
@@ -34,7 +35,8 @@ export const ConversationRelationWidget = ({
     return (
       <div className="flex flex-col flex-1 overflow-y-auto h-full gap-2 w-full p-2">
         {contentType === 'core:customer' && (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <WhatsappContactButton customerId={customerId || contentId} />
             <PlivoContactCallButton customerId={customerId || contentId} />
           </div>
         )}

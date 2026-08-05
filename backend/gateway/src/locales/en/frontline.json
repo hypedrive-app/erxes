@@ -1268,6 +1268,7 @@
   "plivo-invalid-number": "Can't call this number",
   "plivo-invalid-number-description": "Check the number and include a country code.",
   "whatsapp-new-conversation": "New WhatsApp message",
+  "whatsapp-message-contact": "Message on WhatsApp",
   "whatsapp-new-conversation-description": "Message someone who has not written to you yet. WhatsApp only allows an approved message template to open a conversation.",
   "whatsapp-new-conversation-number": "Send from",
   "whatsapp-new-conversation-number-placeholder": "Select a number",
