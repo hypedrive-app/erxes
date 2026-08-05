@@ -51,6 +51,11 @@ export const linkBookingConformities = async (
         // silently failed to link to its customer.
         module: 'conformity',
         action: 'addConformity',
+        // sendTRPCMessage defaults to 'query', which issues a GET. addConformity
+        // is a TRPCMutationProcedure, and tRPC refuses a GET to one --
+        // "Unsupported GET-request to mutation procedure" -- so the default
+        // could never have worked here.
+        method: 'mutation',
         input: {
           mainType: CALCOM_BOOKING_CONFORMITY_TYPE,
           mainTypeId: uid,
