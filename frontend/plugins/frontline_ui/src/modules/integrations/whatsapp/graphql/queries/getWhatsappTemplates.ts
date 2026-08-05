@@ -22,6 +22,12 @@ export const GET_WHATSAPP_INTEGRATION_TEMPLATES = gql`
         type
         format
         text
+        buttons {
+          type
+          text
+          url
+          phone_number
+        }
       }
     }
   }
@@ -39,6 +45,12 @@ export const GET_WHATSAPP_TEMPLATES = gql`
         type
         format
         text
+        buttons {
+          type
+          text
+          url
+          phone_number
+        }
       }
     }
   }

@@ -15,6 +15,7 @@ import {
   buildTemplateDispatch,
   buildTemplatePreview,
   getBodyPlaceholders,
+  getDynamicButtons,
   getHeaderPlaceholders,
 } from '../utils/whatsappTemplateUtils';
 
@@ -28,6 +29,7 @@ const NEW_CONVERSATION_SCHEMA = z.object({
   templateId: z.string(),
   headerValues: z.array(z.string()),
   bodyValues: z.array(z.string()),
+  buttonValues: z.array(z.string()),
 });
 
 type WhatsappNewConversationValues = z.infer<typeof NEW_CONVERSATION_SCHEMA>;
@@ -42,10 +44,12 @@ const buildSchema = (
     required: string;
     header: string;
     body: string;
+    button: string;
   },
 ) => {
   const headerCount = getHeaderPlaceholders(template).length;
   const bodyCount = getBodyPlaceholders(template).length;
+  const buttonCount = getDynamicButtons(template).length;
 
   const required = z.string().trim().min(1, messages.required);
 
@@ -55,6 +59,7 @@ const buildSchema = (
     templateId: z.string().min(1, messages.template),
     headerValues: z.array(required).length(headerCount, messages.header),
     bodyValues: z.array(required).length(bodyCount, messages.body),
+    buttonValues: z.array(required).length(buttonCount, messages.button),
   });
 };
 
@@ -66,6 +71,7 @@ const buildEmptyValues = (
   templateId: '',
   headerValues: [],
   bodyValues: [],
+  buttonValues: [],
 });
 
 /**
@@ -116,6 +122,7 @@ export const WhatsappNewConversation = ({
           required: t('whatsapp-template-variable-required'),
           header: t('whatsapp-template-header-incomplete'),
           body: t('whatsapp-template-body-incomplete'),
+          button: t('whatsapp-template-button-incomplete'),
         }),
       )(values, context, options);
     },
@@ -125,6 +132,7 @@ export const WhatsappNewConversation = ({
   const templateId = form.watch('templateId');
   const headerValues = form.watch('headerValues');
   const bodyValues = form.watch('bodyValues');
+  const buttonValues = form.watch('buttonValues');
 
   const {
     templates,
@@ -140,6 +148,7 @@ export const WhatsappNewConversation = ({
 
   const headerPlaceholders = getHeaderPlaceholders(selectedTemplate);
   const bodyPlaceholders = getBodyPlaceholders(selectedTemplate);
+  const dynamicButtons = getDynamicButtons(selectedTemplate);
 
   // The contact-page trigger mounts this dialog once and reopens it across
   // several visits rather than remounting per-open, so react-hook-form's
@@ -170,7 +179,17 @@ export const WhatsappNewConversation = ({
       'bodyValues',
       Array.from({ length: bodyPlaceholders.length }, () => ''),
     );
-  }, [templateId, headerPlaceholders.length, bodyPlaceholders.length, form]);
+    form.setValue(
+      'buttonValues',
+      Array.from({ length: dynamicButtons.length }, () => ''),
+    );
+  }, [
+    templateId,
+    headerPlaceholders.length,
+    bodyPlaceholders.length,
+    dynamicButtons.length,
+    form,
+  ]);
 
   // A template belongs to the number it was approved on, so switching numbers
   // must not carry the previous number's template across.
@@ -183,6 +202,7 @@ export const WhatsappNewConversation = ({
         selectedTemplate,
         headerValues || [],
         bodyValues || [],
+        buttonValues || [],
       )
     : '';
 
@@ -195,6 +215,7 @@ export const WhatsappNewConversation = ({
       selectedTemplate,
       values.headerValues,
       values.bodyValues,
+      values.buttonValues,
     );
 
     startWhatsappConversation({
@@ -207,6 +228,7 @@ export const WhatsappNewConversation = ({
           selectedTemplate,
           values.headerValues,
           values.bodyValues,
+          values.buttonValues,
         ).components,
         // The resolved copy is stored as the message body so the new thread
         // shows what the customer actually received rather than an empty bubble.
@@ -458,6 +480,29 @@ export const WhatsappNewConversation = ({
                           {t('whatsapp-template-body-variable', {
                             index: placeholder,
                           })}
+                        </Form.Label>
+                        <Form.Control>
+                          <Input {...field} autoComplete="off" />
+                        </Form.Control>
+                        <Form.Message />
+                      </Form.Item>
+                    )}
+                  />
+                ))}
+
+                {dynamicButtons.map(({ button }, index) => (
+                  <Form.Field
+                    key={`button-${index}`}
+                    control={form.control}
+                    name={`buttonValues.${index}` as const}
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>
+                          {button.text
+                            ? t('whatsapp-template-button-variable-named', {
+                                label: button.text,
+                              })
+                            : t('whatsapp-template-button-variable')}
                         </Form.Label>
                         <Form.Control>
                           <Input {...field} autoComplete="off" />
