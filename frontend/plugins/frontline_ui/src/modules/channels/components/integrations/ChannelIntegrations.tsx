@@ -41,7 +41,7 @@ export function ChannelIntegrations() {
                       key={integration._id}
                       className="hover:cursor-pointer shadow-xs"
                     >
-                      <Table.Cell className="font-medium border-none pl-2 w-auto flex-1">
+                      <Table.Cell className="font-medium border-none w-auto flex-1">
                         {integration.name}
                       </Table.Cell>
                       <Table.Cell className="w-52 border-none"></Table.Cell>
@@ -64,7 +64,7 @@ export function ChannelIntegrations() {
 const IntegrationRowSkeleton = () => {
   return (
     <Table.Row className="shadow-xs">
-      <Table.Cell className="font-medium border-none pl-2 w-auto">
+      <Table.Cell className="font-medium border-none w-auto">
         <Skeleton className="h-4 w-full rounded-full" />
       </Table.Cell>
       <Table.Cell className="w-52 border-none">

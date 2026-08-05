@@ -106,7 +106,7 @@ export const PipelinesList = ({ channelId }: { channelId: string }) => {
                       onClick={() => onClick(pipeline._id)}
                       className="hover:cursor-pointer shadow-xs group/row"
                     >
-                      <Table.Cell className="font-medium border-none pl-2">
+                      <Table.Cell className="font-medium border-none">
                         <span className="w-full flex gap-2 text-base font-medium">
                           <IconComponent
                             name={pipeline.icon}
@@ -116,7 +116,7 @@ export const PipelinesList = ({ channelId }: { channelId: string }) => {
                         </span>
                       </Table.Cell>
 
-                      <Table.Cell className="font-medium border-none pl-2 w-32">
+                      <Table.Cell className="font-medium border-none w-32">
                         {pipeline.createdUser ? (
                           <MembersInline.Provider
                             memberIds={[pipeline.createdUser._id]}
@@ -133,13 +133,13 @@ export const PipelinesList = ({ channelId }: { channelId: string }) => {
                         )}
                       </Table.Cell>
 
-                      <Table.Cell className="border-none px-2 w-32 text-muted-foreground">
+                      <Table.Cell className="border-none w-32 text-muted-foreground">
                         <DateDisplay date={pipeline.createdAt} />
                       </Table.Cell>
-                      <Table.Cell className="border-none px-2 w-32 text-muted-foreground">
+                      <Table.Cell className="border-none w-32 text-muted-foreground">
                         <DateDisplay date={pipeline.updatedAt} />
                       </Table.Cell>
-                      <Table.Cell className="border-none px-2 w-10">
+                      <Table.Cell className="border-none w-10">
                         <DeletePipeline pipelineId={pipeline._id} />
                       </Table.Cell>
                     </Table.Row>

@@ -550,7 +550,7 @@ const TourTypesView = ({
                     {type.isActive === false ? t('inactive') : t('active')}
                   </Badge>
                 </Table.Cell>
-                <Table.Cell className="px-2 py-2">
+                <Table.Cell className="py-2">
                   <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"
@@ -666,7 +666,7 @@ const FieldGroupsView = ({
                     )}
                   </div>
                 </Table.Cell>
-                <Table.Cell className="px-2 py-2">
+                <Table.Cell className="py-2">
                   <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"
@@ -781,7 +781,7 @@ const FieldList = ({
                   <Table.Cell className="px-4 py-3">
                     {field.isRequired ? t('yes') : t('no')}
                   </Table.Cell>
-                  <Table.Cell className="px-2 py-2">
+                  <Table.Cell className="py-2">
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"

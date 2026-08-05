@@ -15,7 +15,7 @@ const SafeRemainderInitialSkeleton = ({ rows = 20 }: { rows?: number }) => {
           {safeRemainderColumns.map((col, colIndex) => (
             <Table.Cell
               key={`${rowKey}-${col.id ?? colIndex}`}
-              className="border-r-0 px-2"
+              className="border-r-0"
             >
               <Skeleton className="h-4 w-full min-w-4" />
             </Table.Cell>

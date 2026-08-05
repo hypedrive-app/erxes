@@ -77,7 +77,7 @@ export function Members() {
                 ))
               : members?.map((member) => (
                   <Table.Row key={member._id} className="shadow-xs group ">
-                    <Table.Cell className="font-medium border-none pl-2 w-auto">
+                    <Table.Cell className="font-medium border-none w-auto">
                       <MembersInline.Provider memberIds={[member.memberId]}>
                         <span className="w-full flex gap-2 items-center">
                           <span className="[1lh] flex items-center">
@@ -87,7 +87,7 @@ export function Members() {
                         </span>
                       </MembersInline.Provider>
                     </Table.Cell>
-                    {/* <Table.Cell className="border-none px-2 w-52 ">
+                    {/* <Table.Cell className="border-none w-52 ">
                       <Select
                         value={member.role}
                         onValueChange={(value) =>
@@ -125,13 +125,13 @@ export function Members() {
 const MemberRowSkeleton = () => {
   return (
     <Table.Row className="shadow-xs">
-      <Table.Cell className="font-medium border-none pl-2 w-auto">
+      <Table.Cell className="font-medium border-none w-auto">
         <div className="flex gap-2 items-center">
           <Skeleton className="h-6 w-8 rounded-full" />
           <Skeleton className="h-4 w-24" />
         </div>
       </Table.Cell>
-      <Table.Cell className="border-none px-2 w-52">
+      <Table.Cell className="border-none w-52">
         <Skeleton className="h-7 w-full" />
       </Table.Cell>
       <Table.Cell className="border-none w-8">

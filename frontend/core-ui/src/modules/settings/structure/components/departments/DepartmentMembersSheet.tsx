@@ -8,7 +8,7 @@ import { IUser, MembersInline } from 'ui-modules';
 const MemberRow = ({ member }: { member: IUser }) => {
   return (
     <Table.Row className="shadow-xs group">
-      <Table.Cell className="font-medium border-none pl-2 w-auto">
+      <Table.Cell className="font-medium border-none w-auto">
         <MembersInline.Provider members={[member]} memberIds={[member._id]}>
           <span className="w-full flex gap-2 items-center">
             <span className="[1lh] flex items-center">

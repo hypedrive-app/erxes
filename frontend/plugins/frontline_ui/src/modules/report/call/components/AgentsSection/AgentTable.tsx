@@ -66,7 +66,7 @@ export function AgentTable({ stats }: AgentTableProps) {
                   )}
                   onClick={() => toggle(stat.agent)}
                 >
-                  <Table.Cell className="px-2">
+                  <Table.Cell>
                     {isOpen ? (
                       <IconChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                     ) : (

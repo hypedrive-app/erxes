@@ -38,7 +38,7 @@ export function Teams() {
                     onClick={() => onClick(team._id)}
                     className="hover:cursor-pointer shadow-xs "
                   >
-                    <Table.Cell className="font-medium border-none pl-2 w-auto ">
+                    <Table.Cell className="font-medium border-none w-auto ">
                       <span className="w-full flex gap-2 text-base font-medium">
                         <span className="[1lh] flex items-center">
                           <IconComponent name={team.icon} className="size-4" />
@@ -46,13 +46,13 @@ export function Teams() {
                         <TextOverflowTooltip value={team.name} />
                       </span>
                     </Table.Cell>
-                    <Table.Cell className="border-none px-2 w-20">
+                    <Table.Cell className="border-none w-20">
                       {team.memberCount}
                     </Table.Cell>
-                    <Table.Cell className="border-none px-2 w-20">
+                    <Table.Cell className="border-none w-20">
                       {team.taskCount}
                     </Table.Cell>
-                    <Table.Cell className="border-none px-2 w-32 text-muted-foreground">
+                    <Table.Cell className="border-none w-32 text-muted-foreground">
                       {format(team.createdAt, 'MMM d, yyyy')}
                     </Table.Cell>
                   </Table.Row>
