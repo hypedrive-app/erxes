@@ -1,5 +1,5 @@
-import * as crypto from 'crypto';
 import { getConfig } from '@/integrations/instagram/commonUtils';
+import { verifyMetaWebhookSignature } from '@/integrations/meta/webhookSignature';
 import { receiveComment } from '@/integrations/instagram/controller/receiveComment';
 import { receiveMessage } from '@/integrations/instagram/controller/receiveMessage';
 import { debugError, debugInstagram } from '@/integrations/instagram/debuggers';
@@ -55,46 +55,6 @@ export const instagramGetStatus = async (req, res, next) => {
   }
 };
 
-/**
- * Verifies the `X-Hub-Signature-256` header Meta sends with every webhook.
- *
- * Same algorithm as Facebook's `verifyFacebookSignature`/WhatsApp's
- * `verifyWebhookSignature` (Meta uses one HMAC-SHA256-over-the-raw-body
- * scheme across every Graph API product), not reused directly because it is
- * keyed to a different app secret. Instagram has its own app secret —
- * `getConfig(models, 'INSTAGRAM_APP_SECRET')`, the same value
- * `loginMiddleware.ts` already uses for the OAuth exchange — so verification
- * can run before any page/integration is resolved from the payload.
- *
- * Returns false rather than throwing so the caller decides the response;
- * comparison is constant-time so a mismatch cannot be probed by timing.
- */
-const verifyInstagramSignature = (
-  rawBody: Buffer | string | undefined,
-  signatureHeader: string | undefined,
-  appSecret: string | undefined,
-): boolean => {
-  if (!appSecret || !rawBody || !signatureHeader?.startsWith('sha256=')) {
-    return false;
-  }
-
-  const expected = crypto
-    .createHmac('sha256', appSecret)
-    .update(rawBody)
-    .digest('hex');
-
-  const received = signatureHeader.slice('sha256='.length);
-
-  const expectedBuffer = Buffer.from(expected, 'utf8');
-  const receivedBuffer = Buffer.from(received, 'utf8');
-
-  if (expectedBuffer.length !== receivedBuffer.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
-};
-
 export const instagramSubscription = async (req, res, next) => {
   try {
     const subdomain = getSubdomain(req);
@@ -136,7 +96,7 @@ export const instagramWebhook = async (req, res) => {
   const INSTAGRAM_APP_SECRET = await getConfig(models, 'INSTAGRAM_APP_SECRET');
 
   if (
-    !verifyInstagramSignature(
+    !verifyMetaWebhookSignature(
       (req as any).rawBody,
       req.headers['x-hub-signature-256'] as string | undefined,
       INSTAGRAM_APP_SECRET,

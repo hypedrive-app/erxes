@@ -5,7 +5,7 @@ import {
   debugError,
   debugWhatsapp,
 } from '@/integrations/whatsapp/debuggers';
-import { verifyWebhookSignature } from '@/integrations/whatsapp/utils';
+import { verifyMetaWebhookSignature } from '@/integrations/meta/webhookSignature';
 import { IWhatsappWebhookBody } from '@/integrations/whatsapp/@types';
 
 /**
@@ -77,7 +77,7 @@ export const whatsappWebhook = async (req, res, next) => {
       return res.sendStatus(200);
     }
 
-    const isValid = verifyWebhookSignature(
+    const isValid = verifyMetaWebhookSignature(
       req.rawBody,
       req.headers['x-hub-signature-256'],
       integration.appSecret,

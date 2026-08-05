@@ -1,5 +1,5 @@
-import * as crypto from 'crypto';
 import { IFacebookIntegrationDocument } from '@/integrations/facebook/@types/integrations';
+import { verifyMetaWebhookSignature } from '@/integrations/meta/webhookSignature';
 import { getConfig } from '@/integrations/facebook/commonUtils';
 import {
   FACEBOOK_POST_TYPES,
@@ -63,46 +63,6 @@ export const facebookGetStatus = async (req, res, next) => {
   }
 };
 
-/**
- * Verifies the `X-Hub-Signature-256` header Meta sends with every webhook.
- *
- * Same algorithm as WhatsApp's `verifyWebhookSignature` (Meta uses one
- * HMAC-SHA256-over-the-raw-body scheme across every Graph API product), not
- * reused directly because it is keyed to the WhatsApp integration's own
- * per-number `appSecret`. Facebook has one app secret for the whole
- * deployment — `getConfig(models, 'FACEBOOK_APP_SECRET')`, the same value
- * `loginMiddleware.ts` already uses for the OAuth exchange — so verification
- * can run before any page/integration is resolved from the payload.
- *
- * Returns false rather than throwing so the caller decides the response;
- * comparison is constant-time so a mismatch cannot be probed by timing.
- */
-const verifyFacebookSignature = (
-  rawBody: Buffer | string | undefined,
-  signatureHeader: string | undefined,
-  appSecret: string | undefined,
-): boolean => {
-  if (!appSecret || !rawBody || !signatureHeader?.startsWith('sha256=')) {
-    return false;
-  }
-
-  const expected = crypto
-    .createHmac('sha256', appSecret)
-    .update(rawBody)
-    .digest('hex');
-
-  const received = signatureHeader.slice('sha256='.length);
-
-  const expectedBuffer = Buffer.from(expected, 'utf8');
-  const receivedBuffer = Buffer.from(received, 'utf8');
-
-  if (expectedBuffer.length !== receivedBuffer.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
-};
-
 const accessTokensByPageId = {};
 export const facebookSubscription = async (req, res, next) => {
   try {
@@ -148,7 +108,7 @@ export const facebookWebhook = async (req, res, next) => {
   const FACEBOOK_APP_SECRET = await getConfig(models, 'FACEBOOK_APP_SECRET');
 
   if (
-    !verifyFacebookSignature(
+    !verifyMetaWebhookSignature(
       (req as any).rawBody,
       req.headers['x-hub-signature-256'] as string | undefined,
       FACEBOOK_APP_SECRET,
