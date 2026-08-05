@@ -37,6 +37,13 @@ export const ConversationMessages = ({
 
   return (
     <InboxMessagesContainer
+      /* Keyed so switching conversations remounts it: the container tracks
+         whether the agent is scrolled to the bottom, and that is a fact about
+         one thread, not about the pane. Without this, scrolling up in one
+         conversation and opening another carried the "not at bottom" state
+         over — the new thread would open without scrolling to its latest
+         message, and could show a stale "New messages" pill. */
+      key={conversationId}
       fetchMore={handleFetchMore}
       messagesLength={messages?.length || 0}
       totalCount={totalCount}

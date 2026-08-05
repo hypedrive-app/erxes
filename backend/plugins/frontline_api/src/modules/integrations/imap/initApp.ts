@@ -129,7 +129,18 @@ const onServerInitImap = async (app) => {
         // read that header themselves, which is what this does. A request
         // that did not come through the gateway carries no such header and is
         // rejected here.
-        const user = extractUserFromHeader(req.headers);
+        // Wrapped because extractUserFromHeader base64-decodes and JSON.parses
+        // the header without guarding either step — a malformed or truncated
+        // value throws, which routeErrorHandling would turn into a 500. A
+        // header we cannot read is an unauthenticated request, not a server
+        // fault.
+        let user: { _id?: string } | null = null;
+
+        try {
+          user = extractUserFromHeader(req.headers);
+        } catch {
+          user = null;
+        }
 
         if (!user?._id) {
           return res.sendStatus(401);
