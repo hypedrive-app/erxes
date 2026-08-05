@@ -11,6 +11,11 @@ import { redlock } from './redlock';
 import express from 'express';
 import { createImap } from './imapClient';
 import * as fs from 'fs';
+import { promises as fsPromises } from 'fs';
+import { finished } from 'stream/promises';
+import { tmpdir } from 'os';
+import { basename, join } from 'path';
+import { randomUUID } from 'crypto';
 import { Base64Decode } from 'base64-stream';
 import * as dotenv from 'dotenv';
 
@@ -175,14 +180,33 @@ const onServerInitImap = async (app) => {
                         });
 
                         f.on('message', (msg) => {
-                          const filename = attachment.params.name;
+                          // The MIME filename is attacker-controlled: it comes
+                          // straight from the Content-Disposition header of a
+                          // raw email sent to the monitored mailbox. Never use
+                          // it to build a disk path directly — basename()
+                          // strips any directory components (including `../`
+                          // traversal and absolute paths) so only the leaf
+                          // name is ever used, and only for the download
+                          // filename we hand back to the client.
+                          const downloadName = basename(
+                            attachment.params.name,
+                          ).replace(/[\x00-\x1f\x7f]/g, '');
                           const encoding = attachment.encoding;
 
-                          msg.on('body', function (stream) {
-                            const writeStream = fs.createWriteStream(
-                              `${__dirname}/${filename}`,
-                            );
+                          // Write to a per-request-unique temp path instead of
+                          // a fixed name derived from user input. A fixed,
+                          // predictable path let two concurrent requests for
+                          // same-named attachments interleave writes and serve
+                          // back each other's content; a UUID-suffixed temp
+                          // file removes both the path-traversal target and
+                          // the cross-request race.
+                          const tmpPath = join(
+                            tmpdir(),
+                            `imap-attachment-${randomUUID()}`,
+                          );
+                          const writeStream = fs.createWriteStream(tmpPath);
 
+                          msg.on('body', function (stream) {
                             if (toUpper(encoding) === 'BASE64') {
                               stream.pipe(new Base64Decode()).pipe(writeStream);
                             } else {
@@ -190,9 +214,45 @@ const onServerInitImap = async (app) => {
                             }
                           });
 
+                          const cleanup = () =>
+                            fsPromises
+                              .rm(tmpPath, { force: true })
+                              .catch(() => undefined);
+
+                          // `finished()` rather than a `writeStream.once('close')`
+                          // registered inside the `msg.once('end')` callback:
+                          // 'close' may already have been emitted by the time
+                          // that callback runs, and Node does not replay events
+                          // for late listeners, so the response would hang
+                          // forever and leak the temp file. `finished()` is
+                          // documented to handle exactly this late-registration
+                          // case, and resolves only once the file is fully
+                          // flushed to disk — which is what makes it safe to
+                          // serve.
                           msg.once('end', function () {
                             imap.end();
-                            return res.download(`${__dirname}/${filename}`);
+
+                            finished(writeStream)
+                              .then(
+                                () =>
+                                  new Promise<void>((resolve, reject) => {
+                                    res.download(
+                                      tmpPath,
+                                      downloadName,
+                                      (err) => (err ? reject(err) : resolve()),
+                                    );
+                                  }),
+                              )
+                              .catch((err) => {
+                                // Headers are already on the wire once the
+                                // download starts streaming, so a failure past
+                                // that point can only be logged, not turned
+                                // into an error response.
+                                if (!res.headersSent) {
+                                  next(err);
+                                }
+                              })
+                              .finally(cleanup);
                           });
                         });
                       }
