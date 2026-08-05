@@ -1,5 +1,5 @@
-import { IconCalendarOff } from '@tabler/icons-react';
-import { RecordTable } from 'erxes-ui';
+import { IconAlertTriangle, IconCalendarOff } from '@tabler/icons-react';
+import { Alert, RecordTable } from 'erxes-ui';
 import { useMemo, useState } from 'react';
 
 import { BookingDetailSheet } from '~/modules/bookings/components/BookingDetailSheet';
@@ -10,7 +10,8 @@ import { useCalcomBookings } from '~/modules/bookings/hooks/useCalcomBookings';
 import { ICalcomBooking } from '~/modules/bookings/types/booking';
 
 export const BookingsRecordTable = () => {
-  const { bookings, loading, hasMore, handleFetchMore } = useCalcomBookings();
+  const { bookings, loading, error, hasMore, handleFetchMore } =
+    useCalcomBookings();
   const [openBookingId, setOpenBookingId] = useState<string>();
 
   // The whole booking is held, not just the uid: the dialogs show its title and
@@ -88,7 +89,23 @@ export const BookingsRecordTable = () => {
             />
           </RecordTable.Body>
         </RecordTable>
-        {!loading && !bookings.length && (
+        {/* Checked ahead of the empty state, matching EventTypesTable,
+            SchedulesTable and TeamsTable: a failed query also leaves zero
+            rows, and "no bookings yet — they appear once Cal.com delivers a
+            webhook" would tell someone to wait for something that is never
+            coming, when the real problem is a call that failed. */}
+        {!loading && error && !bookings.length && (
+          <div className="absolute inset-0 flex items-start justify-center p-3">
+            <Alert variant="destructive">
+              <IconAlertTriangle />
+              <Alert.Title>Could not load bookings</Alert.Title>
+              <Alert.Description>
+                {error.message} — check the Cal.com connection in settings.
+              </Alert.Description>
+            </Alert>
+          </div>
+        )}
+        {!loading && !error && !bookings.length && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center justify-center text-center">
               <IconCalendarOff size={48} className="text-muted-foreground" />

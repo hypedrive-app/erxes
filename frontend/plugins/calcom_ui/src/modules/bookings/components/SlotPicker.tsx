@@ -1,4 +1,8 @@
-import { IconCalendarOff, IconRefresh } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconCalendarOff,
+  IconRefresh,
+} from '@tabler/icons-react';
 import { Button, Skeleton, cn } from 'erxes-ui';
 import { endOfDay, format, startOfDay } from 'date-fns';
 import { useMemo } from 'react';
@@ -45,7 +49,7 @@ export const SlotPicker = ({
     [day],
   );
 
-  const { slots, loading, refetch } = useCalcomSlots({
+  const { slots, loading, error, refetch } = useCalcomSlots({
     eventTypeId,
     start,
     end,
@@ -67,6 +71,30 @@ export const SlotPicker = ({
         {Array.from({ length: 6 }).map((_, index) => (
           <Skeleton key={index} className="h-9 w-full" />
         ))}
+      </div>
+    );
+  }
+
+  // Separated from the empty state on purpose. A failed slots call also
+  // yields zero slots, and "no free times" plus a Refresh button reads as a
+  // real, full calendar — sending someone to try another day when nothing
+  // they pick will work until the Cal.com connection is fixed.
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-md border border-dashed py-6 text-center">
+        <IconAlertTriangle size={24} className="text-destructive" />
+        <p className="text-sm text-muted-foreground">
+          Could not load times — {error.message}
+        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => refetch()}
+        >
+          <IconRefresh className="w-4 h-4" />
+          Try again
+        </Button>
       </div>
     );
   }
