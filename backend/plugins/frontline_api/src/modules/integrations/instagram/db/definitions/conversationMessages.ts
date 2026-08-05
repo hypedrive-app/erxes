@@ -6,7 +6,21 @@ import { schemaWrapper } from 'erxes-api-shared/utils';
 export const conversationMessageSchema = schemaWrapper(
   new Schema({
     _id: mongooseStringRandomId,
-    mid: { type: String, label: 'Instagram message id' },
+    // `unique` stops a redelivered webhook (Meta gives no dedup or ordering
+    // guarantee) from being inserted twice — receiveMessage.ts's own
+    // findOne-then-create is a check-then-act race, not an atomic guard, and
+    // the unique index is what actually closes it. `sparse` rather than a
+    // plain unique index: this same model stores INTERNAL notes too (the
+    // `internal` field below), which have no mid at all — a plain unique
+    // index would collide every message document whose mid is unset against
+    // every other one, since MongoDB treats multiple missing values as
+    // identical for a non-sparse unique index.
+    mid: {
+      type: String,
+      unique: true,
+      sparse: true,
+      label: 'Instagram message id',
+    },
     content: { type: String },
     attachments: [attachmentSchema],
     conversationId: { type: String, index: true },

@@ -11,9 +11,14 @@ export const receivePost = async (
   params: IPostParams,
   pageId: string,
 ) => {
+  // `$in` requires an array operand — MongoDB has rejected a bare scalar here
+  // with "BadValue $in needs an array" since server version 2.6, so this
+  // query threw on every single webhook delivery rather than matching
+  // anything. `store.ts`'s `getOrCreatePostConversation` had the identical
+  // bug.
   const integration = await models.InstagramIntegrations.findOne({
     $and: [
-      { facebookPageIds: { $in: pageId } },
+      { facebookPageIds: { $in: [pageId] } },
       { kind: INTEGRATION_KINDS.POST },
     ],
   });

@@ -136,11 +136,12 @@ export const receiveMessage = async (
   });
 
   if (!existingMessage) {
+    let created;
     try {
       const content =
         text || (formattedAttachments.length > 0 ? HAS_ATTACHMENT : '');
 
-      const created = await models.InstagramConversationMessages.create({
+      created = await models.InstagramConversationMessages.create({
         conversationId: conversation._id,
         mid,
         createdAt: timestamp,
@@ -149,38 +150,47 @@ export const receiveMessage = async (
         attachments: formattedAttachments,
         botId,
       });
-
-      const doc = {
-        ...created.toObject(),
-        conversationId: conversation.erxesApiId,
-      };
-
-      await pConversationClientMessageInserted(subdomain, doc);
-
-      try {
-        await graphqlPubsub.publish(
-          `conversationMessageInserted:${conversation.erxesApiId}`,
-          {
-            conversationMessageInserted: {
-              ...created.toObject(),
-              conversationId: conversation.erxesApiId,
-            },
-          },
-        );
-      } catch (err) {
-        debugError(`Error publishing conversationMessageInserted: ${err.message}`);
+    } catch (e: any) {
+      // `code === 11000` is the reliable duplicate-key signal — the message
+      // string is not a stable contract across mongoose/driver versions.
+      // This branch could not fire before `mid` had a unique index; the
+      // `findOne` above is a check-then-act race, not an atomic guard, so
+      // two concurrent deliveries of the same webhook (Meta gives no dedup
+      // or ordering guarantee) could both pass it. The request that lost
+      // the race is a no-op, the same as a redelivered webhook should be —
+      // not a thrown, logged failure for something that already succeeded
+      // once.
+      if (e.code === 11000 || e.message?.includes('duplicate')) {
+        return;
       }
 
-      await triggerInstagramAutomation(subdomain, {
-        conversationMessage: created.toObject(),
-        payload: message?.payload,
-      });
-    } catch (e) {
-      throw new Error(
-        e.message.includes('duplicate')
-          ? 'Concurrent request: conversation message duplication'
-          : e.message,
-      );
+      throw e;
     }
+
+    const doc = {
+      ...created.toObject(),
+      conversationId: conversation.erxesApiId,
+    };
+
+    await pConversationClientMessageInserted(subdomain, doc);
+
+    try {
+      await graphqlPubsub.publish(
+        `conversationMessageInserted:${conversation.erxesApiId}`,
+        {
+          conversationMessageInserted: {
+            ...created.toObject(),
+            conversationId: conversation.erxesApiId,
+          },
+        },
+      );
+    } catch (err) {
+      debugError(`Error publishing conversationMessageInserted: ${err.message}`);
+    }
+
+    await triggerInstagramAutomation(subdomain, {
+      conversationMessage: created.toObject(),
+      payload: message?.payload,
+    });
   }
 };

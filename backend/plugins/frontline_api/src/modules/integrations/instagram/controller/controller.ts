@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { getConfig } from '@/integrations/instagram/commonUtils';
 import { receiveComment } from '@/integrations/instagram/controller/receiveComment';
 import { receiveMessage } from '@/integrations/instagram/controller/receiveMessage';
@@ -54,6 +55,46 @@ export const instagramGetStatus = async (req, res, next) => {
   }
 };
 
+/**
+ * Verifies the `X-Hub-Signature-256` header Meta sends with every webhook.
+ *
+ * Same algorithm as Facebook's `verifyFacebookSignature`/WhatsApp's
+ * `verifyWebhookSignature` (Meta uses one HMAC-SHA256-over-the-raw-body
+ * scheme across every Graph API product), not reused directly because it is
+ * keyed to a different app secret. Instagram has its own app secret —
+ * `getConfig(models, 'INSTAGRAM_APP_SECRET')`, the same value
+ * `loginMiddleware.ts` already uses for the OAuth exchange — so verification
+ * can run before any page/integration is resolved from the payload.
+ *
+ * Returns false rather than throwing so the caller decides the response;
+ * comparison is constant-time so a mismatch cannot be probed by timing.
+ */
+const verifyInstagramSignature = (
+  rawBody: Buffer | string | undefined,
+  signatureHeader: string | undefined,
+  appSecret: string | undefined,
+): boolean => {
+  if (!appSecret || !rawBody || !signatureHeader?.startsWith('sha256=')) {
+    return false;
+  }
+
+  const expected = crypto
+    .createHmac('sha256', appSecret)
+    .update(rawBody)
+    .digest('hex');
+
+  const received = signatureHeader.slice('sha256='.length);
+
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const receivedBuffer = Buffer.from(received, 'utf8');
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+};
+
 export const instagramSubscription = async (req, res, next) => {
   try {
     const subdomain = getSubdomain(req);
@@ -67,24 +108,65 @@ export const instagramSubscription = async (req, res, next) => {
       if (req.query['hub.verify_token'] === INSTAGRAM_VERIFY_TOKEN) {
         res.send(req.query['hub.challenge']);
       } else {
-        res.send('OK');
+        // A mismatched token means this request is not the verification
+        // handshake Meta's dashboard is running — replying 200 "OK" hid a
+        // misconfigured or forged verify attempt behind a response that
+        // looked successful. Facebook's/WhatsApp's equivalent already
+        // rejects with 403.
+        res.sendStatus(403);
       }
     }
   } catch (e) {
     next(e);
   }
 };
+
 export const instagramWebhook = async (req, res) => {
   const subdomain = isDev ? 'localhost' : getSubdomain(req);
 
   debugInstagram(`Received webhook request for subdomain: ${subdomain}`);
   const models = await generateModels(subdomain);
+
+  // Nothing downstream of this point checked whether the request actually
+  // came from Meta. Any caller who knew (or guessed) a tenant's subdomain
+  // could POST forged messenger/comment/post events straight into a
+  // customer's inbox — verified missing before this fix by grepping the
+  // whole plugin for any signature/HMAC check and finding none. Rejected
+  // before the payload is even read, matching Facebook's/WhatsApp's webhook.
+  const INSTAGRAM_APP_SECRET = await getConfig(models, 'INSTAGRAM_APP_SECRET');
+
+  if (
+    !verifyInstagramSignature(
+      (req as any).rawBody,
+      req.headers['x-hub-signature-256'] as string | undefined,
+      INSTAGRAM_APP_SECRET,
+    )
+  ) {
+    debugError(
+      `Rejected Instagram webhook with invalid signature for subdomain ${subdomain}`,
+    );
+    return res.sendStatus(403);
+  }
+
   const data = req.body;
   debugInstagram('Received webhook data:' + JSON.stringify(data));
 
   if (data.object !== 'instagram') {
-    return res.send('OK');
+    return res.sendStatus(200);
   }
+
+  // Acknowledged BEFORE processing, then never written to again below —
+  // Meta's own docs say a failed delivery is retried "immediately, then a
+  // few more times with decreasing frequency over the next 36 hours", the
+  // same guarantee-less redelivery Facebook's/WhatsApp's webhook already
+  // acks-first for. This used to send a single `res.send('success')` only
+  // after synchronously awaiting every entry/messaging/changes loop below,
+  // so slow or failed processing anywhere left Meta waiting past its own
+  // timeout and retrying the whole batch. The `mid` unique index added
+  // alongside this fix is what makes a resulting redelivery safe to receive
+  // now — Meta's own guidance is "your server should handle deduplication
+  // in these cases", not that redelivery itself can be prevented.
+  res.sendStatus(200);
 
   for (const entry of data.entry) {
     if (entry.messaging) {
@@ -118,6 +200,26 @@ export const instagramWebhook = async (req, res) => {
 
     if (entry.changes) {
       for (const event of entry.changes) {
+        // Meta's `verb` on a feed change is `add` for a new comment/post,
+        // but also `edit`/`edited` and `delete`/`remove` for the SAME
+        // comment or post being changed or taken down — this was read
+        // nowhere in this handler, so a deletion or edit flowed into
+        // getOrCreateComment exactly like a brand new one and created a
+        // ghost record for content that no longer exists. Correctly
+        // handling an edit or delete (updating or removing the existing
+        // record) is real feature work this fix does not attempt; the
+        // safe, correct-today behaviour is to not fabricate a NEW record
+        // for content Meta is reporting as gone or changed.
+        // https://developers.facebook.com/docs/graph-api/webhooks/reference/instagram/
+        const verb = (event.value as { verb?: string })?.verb;
+
+        if (verb && verb !== 'add') {
+          debugInstagram(
+            `Ignoring feed change with verb "${verb}" (not a new comment/post)`,
+          );
+          continue;
+        }
+
         if (event.field === 'comments') {
           debugInstagram(
             `Received comment data ${JSON.stringify(event.value)}`,
@@ -129,9 +231,14 @@ export const instagramWebhook = async (req, res) => {
             debugError(`Error processing comment: ${e.message}`);
           }
         }
+        // NOTE: `field === 'feed'` (post) events are not handled here.
+        // `receivePost.ts` exists and is exercised by the dead
+        // `instagramController.ts`/`instagramWebhookHandler`, which is never
+        // imported by `routes.ts` — so post/feed webhook events are not
+        // processed by any code path real Instagram traffic reaches today.
+        // This is a functional gap, not part of this fix; wiring it up is
+        // separate follow-up work.
       }
     }
   }
-
-  return res.send('success');
 };

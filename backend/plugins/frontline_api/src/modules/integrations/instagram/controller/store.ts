@@ -250,8 +250,9 @@ export const getOrCreatePostConversation = async (
     postId
   });
   if (!postConversation) {
+    // `$in` requires an array — see receivePost.ts for the full story.
     const integration = await models.InstagramIntegrations.findOne({
-      instagramPageId: { $in: pageId }
+      instagramPageId: { $in: [pageId] }
     });
 
     if (!integration) {
