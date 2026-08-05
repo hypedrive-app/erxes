@@ -156,10 +156,17 @@ export const PlivoWidget = () => {
   const [contentHeight, setContentHeight] = useState<number | undefined>();
   const open = useAtomValue(plivoWidgetOpenAtom);
   const setOpen = useSetAtom(plivoWidgetOpenAtom);
-  const { callStatus, callDirection } = useAtomValue(plivoStateAtom);
+  const { callStatus, callDirection, callId } = useAtomValue(plivoStateAtom);
 
   const [startedAt, setStartedAt] = useAtom(plivoCallStartedAtAtom);
   const duration = useCallDurationFromDate(startedAt);
+
+  // Which call (by Plivo's own CallUUID) this widget auto-opened ITSELF for,
+  // so ending it can auto-close the panel again without also closing one an
+  // agent opened by hand. Without this, any transition to IDLE — including
+  // the agent hanging up a call they placed after manually opening the
+  // widget to browse history — force-closed the panel out from under them.
+  const autoOpenedForCallId = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     if (popoverContentRef.current) {
@@ -167,20 +174,26 @@ export const PlivoWidget = () => {
     }
   }, []);
 
-  // An inbound call must present itself; returning to idle collapses the panel
-  // again so the widget does not sit open over the page after a call.
+  // An inbound call must present itself; returning to idle collapses the
+  // panel again, but ONLY the call this effect opened it for — a manually
+  // opened panel stays open through an unrelated call ending inside it.
   useEffect(() => {
     if (
       callDirection === PlivoCallDirectionEnum.INCOMING &&
       callStatus === PlivoCallStatusEnum.STARTING
     ) {
+      autoOpenedForCallId.current = callId;
       setOpen(true);
     }
 
-    if (callStatus === PlivoCallStatusEnum.IDLE) {
+    if (
+      callStatus === PlivoCallStatusEnum.IDLE &&
+      autoOpenedForCallId.current !== null
+    ) {
+      autoOpenedForCallId.current = null;
       setOpen(false);
     }
-  }, [callDirection, callStatus, setOpen]);
+  }, [callDirection, callStatus, callId, setOpen]);
 
   // The timer starts when the call is answered, not when it is dialled.
   useEffect(() => {

@@ -776,8 +776,23 @@ export const PlivoProvider = ({
     const callId = plivoStateRef.current.callId;
     if (!clientRef.current || !callId) return;
 
-    clientRef.current.answer(callId, 'reject');
-  }, []);
+    // Same reasoning as `startCall`'s own check on `call()`: the SDK's own
+    // type declares `answer()` as returning boolean, not void, and a bare
+    // call would leave the widget showing the ringing screen forever — the
+    // caller has already hung up in the race between `onIncomingCall` and the
+    // agent's tap on Answer, `onIncomingCallCanceled` may not have landed yet,
+    // and there is no other event left to bring the UI back from here.
+    const answered = clientRef.current.answer(callId, 'reject');
+
+    if (answered === false) {
+      resetCallState();
+
+      toast({
+        title: tRef.current('plivo-missed-call'),
+        variant: 'destructive',
+      });
+    }
+  }, [resetCallState]);
 
   const rejectCall = useCallback(() => {
     const callId = plivoStateRef.current.callId;

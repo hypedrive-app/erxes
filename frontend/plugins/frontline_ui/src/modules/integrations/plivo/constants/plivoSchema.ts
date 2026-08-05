@@ -11,7 +11,17 @@ export const PLIVO_INTEGRATION_SCHEMA = z.object({
   brandId: z.string().min(1, 'Brand is required'),
   authId: z.string().min(1, 'Auth ID is required'),
   authToken: z.string().min(1, 'Auth token is required'),
-  plivoPhoneNumber: z.string().min(1, 'Plivo phone number is required'),
+  // Same pattern PLIVO_CONFIG_SCHEMA already enforces on forwardToNumber —
+  // this field only ever had a non-empty check, so a locally-formatted or
+  // malformed number reached the backend and came back as an opaque error
+  // instead of being caught here with guidance.
+  plivoPhoneNumber: z
+    .string()
+    .trim()
+    .regex(
+      /^\+?\d{6,15}$/,
+      'Use a phone number in international format, such as +919000000000',
+    ),
   appId: z.string().optional(),
   defaultCountryCode: z
     .string()

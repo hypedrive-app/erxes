@@ -456,6 +456,9 @@ importers:
       validator:
         specifier: ^13.15.0
         version: 13.15.0
+      wavesurfer.js:
+        specifier: ^7.12.11
+        version: 7.12.11
       ws:
         specifier: ^8.18.2
         version: 8.18.2
@@ -18069,6 +18072,9 @@ packages:
   watchpack@2.4.2:
     resolution: {integrity: sha512-TnbFSbcOCcDgjZ4piURLCbJ3nJhznVh9kw6F6iokjiFPl8ONxe9A6nMDVXDiNbrSfLILs6vB07F7wLBrwPYzJw==}
     engines: {node: '>=10.13.0'}
+
+  wavesurfer.js@7.12.11:
+    resolution: {integrity: sha512-Sx0yZIz7jRJ9J9p7UL+pl9y0UQBB6UN/XNo+R7Gy4tCR5xZI9jMyA0dnt1R8TMVSQ4LZ10SeB2HJYQ+dV2dPSA==}
 
   wbuf@1.7.3:
     resolution: {integrity: sha512-O84QOnr0icsbFGLS0O3bI5FswxzRr8/gHwWkDlQFskhSPryQXvrTMxjxGP4+iWYoauLoBvfDpkrOauZ+0iZpDA==}
@@ -40887,6 +40893,8 @@ snapshots:
     dependencies:
       glob-to-regexp: 0.4.1
       graceful-fs: 4.2.11
+
+  wavesurfer.js@7.12.11: {}
 
   wbuf@1.7.3:
     dependencies:
