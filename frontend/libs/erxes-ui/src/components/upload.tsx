@@ -34,12 +34,10 @@ type UploadPreviewProps = {
   value: string;
   onChange: (value: { url: string; fileInfo: any }) => void;
   multiple?: boolean;
-} & React.ComponentPropsWithoutRef<'div'>;
+} & Omit<React.ComponentPropsWithoutRef<'div'>, 'onChange'>;
 
 const UploadRoot = React.forwardRef<HTMLDivElement, UploadPreviewProps>(
-  ({ className, ...props }, ref) => {
-    const { value, onChange, multiple } = props;
-
+  ({ className, value, onChange, multiple, ...divProps }, ref) => {
     const previewRef = useRef<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +82,11 @@ const UploadRoot = React.forwardRef<HTMLDivElement, UploadPreviewProps>(
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog>
-        <div ref={ref} className={cn('flex gap-4', className)} {...props} />
+        <div
+          ref={ref}
+          className={cn('flex gap-4', className)}
+          {...divProps}
+        />
       </UploadContext.Provider>
     );
   },
