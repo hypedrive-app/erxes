@@ -274,11 +274,17 @@ export const dealToDynamic = async (
     const conformities = await sendTRPCMessage({
       subdomain,
       pluginName: 'core',
-      module: 'conformities',
+      // Singular — core registers the router as `conformity`. The plural
+      // spelling resolved to no procedure at all, and tRPC answers that with
+      // the caller's defaultValue rather than an error, so this always came
+      // back as [] and the deal's conformities were silently never found.
+      module: 'conformity',
       action: 'findConformities',
       input: {
         mainType: 'deal',
-        mainTypeId: { $in: deal._id },
+        // $in takes an array; a bare string is rejected by MongoDB with
+        // "BadValue $in needs an array" rather than matched.
+        mainTypeId: { $in: [deal._id] },
       },
       defaultValue: [],
     });

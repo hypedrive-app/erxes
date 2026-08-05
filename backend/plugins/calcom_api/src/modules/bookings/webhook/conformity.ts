@@ -42,7 +42,14 @@ export const linkBookingConformities = async (
       await sendTRPCMessage({
         subdomain,
         pluginName: 'core',
-        module: 'conformities',
+        // Singular: core registers this router as `conformity`
+        // (core-api/src/modules/conformities/trpc/conformity.ts), which is
+        // what resolveRecordRelationIds and frontline's widget already send.
+        // The plural spelling here matched the directory name rather than the
+        // route and resolved to nothing — tRPC answers a missing path with
+        // "No procedure found" and the caller's default, so every booking
+        // silently failed to link to its customer.
+        module: 'conformity',
         action: 'addConformity',
         input: {
           mainType: CALCOM_BOOKING_CONFORMITY_TYPE,
