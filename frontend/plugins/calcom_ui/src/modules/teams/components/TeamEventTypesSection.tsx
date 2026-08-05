@@ -17,7 +17,7 @@ import {
   IconCalendarPlus,
   IconDots,
 } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -37,26 +37,62 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-const CreateTeamEventTypeDialog = ({
+const EMPTY_VALUES: FormValues = {
+  title: '',
+  slug: '',
+  lengthInMinutes: 30,
+  description: '',
+};
+
+/**
+ * One dialog for both create and edit rather than two near-identical ones:
+ * the fields, validation and Cal.com's own constraints are the same either
+ * way, and a second copy is a second place for them to drift.
+ *
+ * `eventType` decides which it is — absent means create.
+ */
+const TeamEventTypeDialog = ({
+  eventType,
   open,
   onOpenChange,
-  onCreate,
+  onSubmitValues,
   pending,
 }: {
+  eventType?: ICalcomTeamEventType;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (values: FormValues) => Promise<boolean>;
+  onSubmitValues: (values: FormValues) => Promise<boolean>;
   pending: boolean;
 }) => {
+  const isEdit = !!eventType;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { title: '', slug: '', lengthInMinutes: 30, description: '' },
+    defaultValues: EMPTY_VALUES,
   });
 
+  // Reset on open rather than only at mount: the dialog stays mounted across
+  // successive edits of different rows, so without this the second row opened
+  // would still show the first one's values.
+  useEffect(() => {
+    if (!open) return;
+
+    form.reset(
+      eventType
+        ? {
+            title: eventType.title ?? '',
+            slug: eventType.slug ?? '',
+            lengthInMinutes: eventType.lengthInMinutes ?? 30,
+            description: eventType.description ?? '',
+          }
+        : EMPTY_VALUES,
+    );
+  }, [open, eventType, form]);
+
   const onSubmit = async (values: FormValues) => {
-    const ok = await onCreate(values);
+    const ok = await onSubmitValues(values);
     if (ok) {
-      form.reset();
+      form.reset(EMPTY_VALUES);
       onOpenChange(false);
     }
   };
@@ -65,9 +101,13 @@ const CreateTeamEventTypeDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <Dialog.Content className="sm:max-w-lg">
         <Dialog.Header>
-          <Dialog.Title>New team event type</Dialog.Title>
+          <Dialog.Title>
+            {isEdit ? 'Edit team event type' : 'New team event type'}
+          </Dialog.Title>
           <Dialog.Description>
-            Round-robin among the team's members by default in Cal.com.
+            {isEdit
+              ? 'Changes are written straight to Cal.com.'
+              : "Round-robin among the team's members by default in Cal.com."}
           </Dialog.Description>
         </Dialog.Header>
 
@@ -138,7 +178,13 @@ const CreateTeamEventTypeDialog = ({
                 </Button>
               </Dialog.Close>
               <Button type="submit" disabled={pending}>
-                {pending ? 'Creating…' : 'Create'}
+                {pending
+                  ? isEdit
+                    ? 'Saving…'
+                    : 'Creating…'
+                  : isEdit
+                    ? 'Save'
+                    : 'Create'}
               </Button>
             </Dialog.Footer>
           </form>
@@ -155,9 +201,11 @@ export const TeamEventTypesSection = ({ teamId }: { teamId: number }) => {
     error,
     pending,
     createTeamEventType,
+    updateTeamEventType,
     deleteTeamEventType,
   } = useCalcomTeamEventTypes(teamId);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<ICalcomTeamEventType>();
   const [deleteTarget, setDeleteTarget] = useState<ICalcomTeamEventType>();
 
   if (loading && !teamEventTypes.length) {
@@ -176,10 +224,22 @@ export const TeamEventTypesSection = ({ teamId }: { teamId: number }) => {
 
   return (
     <div>
-      <CreateTeamEventTypeDialog
+      <TeamEventTypeDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreate={createTeamEventType}
+        onSubmitValues={createTeamEventType}
+        pending={pending}
+      />
+
+      <TeamEventTypeDialog
+        eventType={editTarget}
+        open={!!editTarget}
+        onOpenChange={(next) => !next && setEditTarget(undefined)}
+        onSubmitValues={(values) =>
+          editTarget
+            ? updateTeamEventType(editTarget.id, values)
+            : Promise.resolve(false)
+        }
         pending={pending}
       />
 
@@ -264,6 +324,11 @@ export const TeamEventTypesSection = ({ teamId }: { teamId: number }) => {
                       </Button>
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Content align="end">
+                      <DropdownMenu.Item
+                        onClick={() => setEditTarget(eventType)}
+                      >
+                        Edit
+                      </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className="text-destructive"
                         onClick={() => setDeleteTarget(eventType)}

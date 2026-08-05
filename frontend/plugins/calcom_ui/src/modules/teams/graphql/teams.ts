@@ -144,6 +144,36 @@ export const CALCOM_CREATE_TEAM_EVENT_TYPE = gql`
   }
 `;
 
+export const CALCOM_UPDATE_TEAM_EVENT_TYPE = gql`
+  mutation CalcomUpdateTeamEventType(
+    $teamId: Int!
+    $eventTypeId: Int!
+    $title: String
+    $slug: String
+    $lengthInMinutes: Int
+    $description: String
+    $hidden: Boolean
+  ) {
+    calcomUpdateTeamEventType(
+      teamId: $teamId
+      eventTypeId: $eventTypeId
+      title: $title
+      slug: $slug
+      lengthInMinutes: $lengthInMinutes
+      description: $description
+      hidden: $hidden
+    ) {
+      id
+      teamId
+      title
+      slug
+      lengthInMinutes
+      description
+      hidden
+    }
+  }
+`;
+
 export const CALCOM_DELETE_TEAM_EVENT_TYPE = gql`
   mutation CalcomDeleteTeamEventType($teamId: Int!, $eventTypeId: Int!) {
     calcomDeleteTeamEventType(teamId: $teamId, eventTypeId: $eventTypeId) {

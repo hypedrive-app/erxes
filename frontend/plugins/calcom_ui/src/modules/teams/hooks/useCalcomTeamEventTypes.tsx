@@ -6,6 +6,7 @@ import {
   CALCOM_CREATE_TEAM_EVENT_TYPE,
   CALCOM_DELETE_TEAM_EVENT_TYPE,
   CALCOM_TEAM_EVENT_TYPES_QUERY,
+  CALCOM_UPDATE_TEAM_EVENT_TYPE,
 } from '~/modules/teams/graphql/teams';
 import { ICalcomTeamEventType } from '~/modules/teams/types/team';
 
@@ -29,6 +30,9 @@ export const useCalcomTeamEventTypes = (teamId?: number) => {
   };
 
   const [createMutation] = useMutation(CALCOM_CREATE_TEAM_EVENT_TYPE, {
+    refetchQueries: [refetchQuery],
+  });
+  const [updateMutation] = useMutation(CALCOM_UPDATE_TEAM_EVENT_TYPE, {
     refetchQueries: [refetchQuery],
   });
   const [deleteMutation] = useMutation(CALCOM_DELETE_TEAM_EVENT_TYPE, {
@@ -72,6 +76,24 @@ export const useCalcomTeamEventTypes = (teamId?: number) => {
     [run, createMutation, teamId],
   );
 
+  const updateTeamEventType = useCallback(
+    (
+      eventTypeId: number,
+      input: {
+        title?: string;
+        slug?: string;
+        lengthInMinutes?: number;
+        description?: string;
+        hidden?: boolean;
+      },
+    ) =>
+      run(
+        () => updateMutation({ variables: { teamId, eventTypeId, ...input } }),
+        'Team event type updated',
+      ),
+    [run, updateMutation, teamId],
+  );
+
   const deleteTeamEventType = useCallback(
     (eventTypeId: number) =>
       run(
@@ -87,6 +109,7 @@ export const useCalcomTeamEventTypes = (teamId?: number) => {
     error,
     pending,
     createTeamEventType,
+    updateTeamEventType,
     deleteTeamEventType,
   };
 };
