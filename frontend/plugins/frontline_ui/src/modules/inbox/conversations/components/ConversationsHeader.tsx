@@ -40,7 +40,7 @@ export const ConversationCount = ({ className }: { className?: string }) => {
         className,
       )}
     >
-      {loading ? <Skeleton className="w-4 h-4" /> : totalCount} {t('conversations')}
+      {loading ? <Skeleton className="w-6 h-4" /> : totalCount} {t('conversations')}
     </span>
   );
 };

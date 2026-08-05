@@ -19,6 +19,7 @@ import {
   IconArrowUp,
   IconCommand,
   IconCornerDownLeft,
+  IconFile,
   IconMessage2,
   IconPaperclip,
   IconX,
@@ -570,13 +571,20 @@ export const MessageInput = ({
 
         {attachmentPreview && (
           <div className="px-6 mb-2">
-            <p className="text-sm">{attachmentPreview.name}</p>
-            {attachmentPreview.type.startsWith('image/') && (
-              <img
-                src={attachmentPreview.data}
-                alt="preview"
-                className="max-w-[400px] max-h-[300px] rounded-lg shadow-sm mt-1"
-              />
+            {attachmentPreview.type.startsWith('image/') ? (
+              <>
+                <p className="text-sm">{attachmentPreview.name}</p>
+                <img
+                  src={attachmentPreview.data}
+                  alt="preview"
+                  className="max-w-[400px] max-h-[300px] rounded-lg shadow-sm mt-1"
+                />
+              </>
+            ) : (
+              <p className="text-sm flex items-center gap-1.5">
+                <IconFile className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {attachmentPreview.name}
+              </p>
             )}
           </div>
         )}
@@ -588,8 +596,9 @@ export const MessageInput = ({
                 key={i}
                 className="flex items-center justify-between bg-muted px-3 py-1 rounded-md"
               >
-                <span role="img" aria-label="file">
-                  📁 {file.name} ({Math.round(file.size / 1024)} KB)
+                <span className="flex items-center gap-1.5">
+                  <IconFile className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {file.name} ({Math.round(file.size / 1024)} KB)
                 </span>
                 <button
                   onClick={() => handleDeleteAttachment(file.name)}

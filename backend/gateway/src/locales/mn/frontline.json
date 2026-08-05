@@ -235,6 +235,8 @@
   "reset-filters": "Шүүлтүүрийг цэвэрлэх",
   "assigned-to-me": "Надад хариуцуулсан",
   "no-conversations-selected": "Харилцаа сонгоогүй байна",
+  "no-conversations-found": "Харилцаа алга",
+  "no-conversations-found-description": "Одоогийн шүүлтүүрт тохирох зүйл алга байна.",
   "select-conversation-to-view": "Дэлгэрэнгүй мэдээллийг харахын тулд харилцаа сонгоно уу.",
   "updated": "Шинэчлэгдлээ",
   "press": "Дарах",

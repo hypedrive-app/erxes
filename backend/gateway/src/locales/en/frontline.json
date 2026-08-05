@@ -235,6 +235,8 @@
   "reset-filters": "Reset filters",
   "assigned-to-me": "Assigned to me",
   "no-conversations-selected": "No conversations selected",
+  "no-conversations-found": "No conversations",
+  "no-conversations-found-description": "Nothing matches the current filters yet.",
   "select-conversation-to-view": "Please select a conversation to view its details.",
   "updated": "Updated",
   "press": "Press",

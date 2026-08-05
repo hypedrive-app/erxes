@@ -54,7 +54,10 @@ export const ConversationHeader = () => {
           // skipcq: JS-0357
           <ConversationHeaderProfile />
         ) : (
-          <Skeleton className="w-32 h-4 ml-2" />
+          <div className="flex items-center gap-2 flex-none">
+            <Skeleton className="size-6 rounded-full" />
+            <Skeleton className="w-32 h-4" />
+          </div>
         )}
         <Separator.Inline />
         <AssignConversation />

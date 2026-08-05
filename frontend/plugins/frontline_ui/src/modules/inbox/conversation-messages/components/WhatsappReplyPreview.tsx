@@ -39,7 +39,7 @@ export const WhatsappReplyPreview = ({
     <button
       type="button"
       onClick={scrollToQuoted}
-      className="flex items-start gap-1.5 rounded-md bg-black/5 px-2 py-1.5 mb-1.5 text-left text-xs text-muted-foreground border-l-2 border-primary/50 w-full hover:bg-black/10 transition-colors"
+      className="flex items-start gap-1.5 rounded-md bg-muted px-2 py-1.5 mb-1.5 text-left text-xs text-muted-foreground border-l-2 border-primary/50 w-full hover:bg-accent transition-colors"
     >
       <IconCornerUpLeft className="size-3 mt-0.5 shrink-0" />
       <span className="truncate">

@@ -20,7 +20,7 @@ export const FormDetailMessages = () => {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto w-[648px] p-6 flex flex-col gap-6">
+      <div className="mx-auto max-w-[648px] p-6 flex flex-col gap-6">
         {conversationMessages.map((message: IMessage) => (
           <React.Fragment key={message._id}>
             {message.formWidgetData ? (
