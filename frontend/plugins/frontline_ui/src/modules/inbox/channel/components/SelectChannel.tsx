@@ -122,7 +122,7 @@ export const SelectChannelsContent = ({
         value={search}
         onValueChange={setSearch}
       />
-      <Command.List className="max-h-[300px] overflow-y-auto">
+      <Command.List className="max-h-[300px] overflow-y-auto hide-scroll">
         {channels.length > 0 && (
           <>
             {channels.map((channel) => (

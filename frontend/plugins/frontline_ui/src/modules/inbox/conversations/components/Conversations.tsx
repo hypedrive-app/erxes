@@ -164,7 +164,10 @@ export const Conversations = () => {
           </ConversationsHeader>
         </Filter>
         <Separator />
-        <div className="h-full w-full overflow-y-auto" ref={containerRef}>
+        <div
+          className="h-full w-full overflow-y-auto styled-scroll"
+          ref={containerRef}
+        >
           <ConversationThreadList
             conversations={conversations || []}
             threadMap={channelMap}

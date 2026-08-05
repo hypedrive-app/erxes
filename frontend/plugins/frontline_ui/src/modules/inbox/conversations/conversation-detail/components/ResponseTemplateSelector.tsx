@@ -181,7 +181,7 @@ export const ResponseTemplateSelector: React.FC<
             />
             <Command.List
               className={cn(
-                'mt-2 max-h-72 overflow-y-auto pr-1',
+                'mt-2 max-h-72 overflow-y-auto hide-scroll pr-1',
                 viewMode === 'grid'
                   ? '[&_div[cmdk-list-sizer]]:grid [&_div[cmdk-list-sizer]]:grid-cols-2 [&_div[cmdk-list-sizer]]:gap-2'
                   : 'space-y-1.5',
