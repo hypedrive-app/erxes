@@ -34,11 +34,17 @@ export const CONFIG: IUIConfig = {
     ),
   },
 
+  // Each `path` carries the plugin prefix, matching sales ("sales/deals"),
+  // frontline ("frontline/channels") and operation ("operation/team"). It is
+  // not decorative: useNavigationActivities derives a group's landing route as
+  // `modules[0].path` verbatim, so a bare "bookings" sent the sidebar's Calcom
+  // button to /bookings — a route that does not exist — instead of
+  // /calcom/bookings.
   modules: [
     {
       name: 'bookings',
       icon: IconCalendarEvent,
-      path: 'bookings',
+      path: 'calcom/bookings',
       // The backend registers booking triggers and a cancel action via
       // startPlugin's meta.automations; without this flag the automation
       // builder never offers them.
@@ -47,15 +53,15 @@ export const CONFIG: IUIConfig = {
     },
     {
       name: 'eventTypes',
-      path: 'event-types',
+      path: 'calcom/event-types',
     },
     {
       name: 'schedules',
-      path: 'schedules',
+      path: 'calcom/schedules',
     },
     {
       name: 'teams',
-      path: 'teams',
+      path: 'calcom/teams',
     },
   ],
 
