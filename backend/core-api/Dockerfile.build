@@ -80,7 +80,7 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 # Full dev install: the build needs typescript, tsc-alias, preconstruct and the
 # Nx toolchain, none of which survive a --prod install. This whole stage is
@@ -131,7 +131,7 @@ RUN test -f backend/core-api/dist/src/main.js \
 # store in the runtime image.
 FROM node:22-alpine3.22 AS installer
 WORKDIR /app
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
 COPY backend/core-api/package.json backend/core-api/

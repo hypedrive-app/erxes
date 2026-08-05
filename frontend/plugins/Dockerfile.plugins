@@ -128,7 +128,7 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 # Whole tree, not a curated subset: nx.json's inference plugins load
 # eslint.config.js / jest.config.ts / jest.preset.js from the ROOT while

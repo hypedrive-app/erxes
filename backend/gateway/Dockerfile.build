@@ -124,7 +124,7 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 # Full dev install: the build needs typescript, tsc-alias, preconstruct and the
 # Nx toolchain, none of which survive a --prod install. This whole stage is
@@ -185,7 +185,7 @@ console.log('gateway build OK — frontline.json ' + count + ' keys'); \
 # walk a real flat node_modules with no pnpm symlink store in the runtime image.
 FROM --platform=linux/amd64 node:22-bookworm AS installer
 WORKDIR /app
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
 COPY backend/gateway/package.json backend/gateway/
@@ -274,7 +274,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 # Router version is pinned to v1.59.2 to match what the published image ships;
 # `curl | sh` unpacks ./router into the cwd, which is why the cd is into the
 # temp dir paths.ts will later resolve.
-RUN npm install -g pnpm@9 \
+RUN npm install -g pnpm@9.12.3 \
     && pnpm add -g @apollo/rover@0.22.0 \
     && pnpm cache clean \
     && rover supergraph compose \

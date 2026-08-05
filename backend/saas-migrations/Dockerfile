@@ -10,7 +10,7 @@
 FROM node:22-alpine3.22
 WORKDIR /app
 
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 # Runtime deps for the migration scripts. Versions pinned to the repo root
 # package.json (mongodb / dotenv / tsx).

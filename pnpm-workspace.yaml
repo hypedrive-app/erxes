@@ -16,23 +16,15 @@ packages:
   - '!**/dist/**'
   - '!**/dist'
 
-# Moved here from package.json's `pnpm.overrides`, which pnpm 9 no longer
-# reads — it says so out loud on every command:
+# NOTE: `overrides` deliberately lives in package.json's `pnpm` field, not
+# here, even though pnpm 9.12.3 prints a warning saying that field is ignored.
 #
-#   [WARN] The "pnpm" field in package.json is no longer read by pnpm.
-#   The following keys were ignored: "pnpm.overrides".
+# Moving them here broke every deploy with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+# The two pnpm versions in play disagree about which file is authoritative:
+# 9.12.3 (the pinned one) does not read overrides from this file — regenerating
+# the lockfile with it strips the block entirely — while 9.15.x does read it.
+# The lockfile can only satisfy one of them, and the pinned version is the one
+# that has to win.
 #
-# The current lockfile still carries them, because it was generated when that
-# field was still honoured. So nothing is broken today, but the next
-# regeneration would have silently dropped all five — and the deploy installs
-# with --frozen-lockfile, so the drop would land as a resolution change nobody
-# asked for rather than an error.
-overrides:
-  '@types/ws': ^8.18.1
-  ioredis: ^5.6.1
-  # Mastra's packages ask for zod 4; the rest of this repo is on zod 3, and
-  # the two are not interchangeable at the type level. Pinning their zod to 3
-  # is what keeps a single copy resolved across the tree.
-  '@mastra/core>zod': ^3.25.0
-  '@mastra/memory>zod': ^3.25.0
-  '@mastra/libsql>zod': ^3.25.0
+# Revisit when the repo moves to pnpm 10, where package.json's `pnpm` field is
+# genuinely gone and this file becomes the only home.

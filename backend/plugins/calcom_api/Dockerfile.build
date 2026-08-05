@@ -24,7 +24,7 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 COPY . .
 
@@ -41,7 +41,7 @@ RUN test -f backend/plugins/calcom_api/dist/src/main.js \
 # ── Stage 2: production dependency tree, flattened ───────────────────────────
 FROM node:22-alpine3.22 AS installer
 WORKDIR /app
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
 COPY backend/plugins/calcom_api/package.json backend/plugins/calcom_api/

@@ -2,7 +2,7 @@
 FROM node:22-alpine3.22 AS installer
 WORKDIR /app
 RUN apk add --no-cache git ca-certificates curl \
-    && npm install -g pnpm@9
+    && npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
 COPY backend/plugins/content_api/package.json backend/plugins/content_api/
