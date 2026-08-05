@@ -365,12 +365,25 @@ export const receiveMessage = async (
           payload: message?.payload,
           adData,
         });
-      } catch (e) {
-        throw new Error(
-          e.message.includes('duplicate')
-            ? 'Concurrent request: conversation message duplication'
-            : e,
-        );
+      } catch (e: any) {
+        // `code === 11000` is the reliable duplicate-key signal — the
+        // message string is not a stable contract across mongoose/driver
+        // versions. This branch could not fire before `mid` had a unique
+        // index; the `findOne` above is a check-then-act race, not an
+        // atomic guard, so two concurrent deliveries of the same webhook
+        // (Meta gives no dedup or ordering guarantee) could both pass it.
+        // The request that lost the race is a no-op, the same as a
+        // redelivered webhook should be — not a thrown, logged failure for
+        // something that already succeeded once.
+        if (e.code === 11000 || e.message?.includes('duplicate')) {
+          conversationMessage =
+            await models.FacebookConversationMessages.findOne({
+              mid: { $eq: mid },
+            });
+          return;
+        }
+
+        throw e;
       }
     }
   } catch (error) {

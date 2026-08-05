@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { IFacebookIntegrationDocument } from '@/integrations/facebook/@types/integrations';
 import { getConfig } from '@/integrations/facebook/commonUtils';
 import {
@@ -13,7 +14,6 @@ import {
   getPageAccessTokenFromMap,
 } from '@/integrations/facebook/utils';
 import { getSubdomain, isDev } from 'erxes-api-shared/utils';
-import { NextFunction, Response } from 'express';
 import { generateModels, IModels } from '~/connectionResolvers';
 
 export const facebookGetPost = async (req, res, next) => {
@@ -63,6 +63,46 @@ export const facebookGetStatus = async (req, res, next) => {
   }
 };
 
+/**
+ * Verifies the `X-Hub-Signature-256` header Meta sends with every webhook.
+ *
+ * Same algorithm as WhatsApp's `verifyWebhookSignature` (Meta uses one
+ * HMAC-SHA256-over-the-raw-body scheme across every Graph API product), not
+ * reused directly because it is keyed to the WhatsApp integration's own
+ * per-number `appSecret`. Facebook has one app secret for the whole
+ * deployment — `getConfig(models, 'FACEBOOK_APP_SECRET')`, the same value
+ * `loginMiddleware.ts` already uses for the OAuth exchange — so verification
+ * can run before any page/integration is resolved from the payload.
+ *
+ * Returns false rather than throwing so the caller decides the response;
+ * comparison is constant-time so a mismatch cannot be probed by timing.
+ */
+const verifyFacebookSignature = (
+  rawBody: Buffer | string | undefined,
+  signatureHeader: string | undefined,
+  appSecret: string | undefined,
+): boolean => {
+  if (!appSecret || !rawBody || !signatureHeader?.startsWith('sha256=')) {
+    return false;
+  }
+
+  const expected = crypto
+    .createHmac('sha256', appSecret)
+    .update(rawBody)
+    .digest('hex');
+
+  const received = signatureHeader.slice('sha256='.length);
+
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const receivedBuffer = Buffer.from(received, 'utf8');
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+};
+
 const accessTokensByPageId = {};
 export const facebookSubscription = async (req, res, next) => {
   try {
@@ -80,7 +120,11 @@ export const facebookSubscription = async (req, res, next) => {
       if (req.query['hub.verify_token'] === FACEBOOK_VERIFY_TOKEN) {
         res.send(req.query['hub.challenge']);
       } else {
-        res.send('OK');
+        // A mismatched token means this request is not the verification
+        // handshake Meta's dashboard is running — replying 200 "OK" hid a
+        // misconfigured or forged verify attempt behind a response that
+        // looked successful. WhatsApp's equivalent already rejects with 403.
+        res.sendStatus(403);
       }
     }
   } catch (e) {
@@ -93,10 +137,50 @@ export const facebookWebhook = async (req, res, next) => {
   debugFacebook(`Received webhook request for subdomain: ${subdomain}`);
 
   const models = await generateModels(subdomain);
+
+  // Nothing downstream of this point checked whether the request actually
+  // came from Meta. Any caller who knew (or guessed) a tenant's subdomain
+  // could POST forged messenger/comment/post events straight into a
+  // customer's inbox — verified missing before this fix by grepping the
+  // whole plugin for any signature/HMAC check and finding none. Rejected
+  // before the payload is even parsed for entries, matching how WhatsApp's
+  // webhook rejects an unverified request before touching its body.
+  const FACEBOOK_APP_SECRET = await getConfig(models, 'FACEBOOK_APP_SECRET');
+
+  if (
+    !verifyFacebookSignature(
+      (req as any).rawBody,
+      req.headers['x-hub-signature-256'] as string | undefined,
+      FACEBOOK_APP_SECRET,
+    )
+  ) {
+    debugError(
+      `Rejected Facebook webhook with invalid signature for subdomain ${subdomain}`,
+    );
+    return res.sendStatus(403);
+  }
+
   const data = req.body;
   if (data.object !== 'page' && !checkIsAdsOpenThread(data?.entry)) {
-    return;
+    return res.sendStatus(200);
   }
+
+  // Acknowledged BEFORE processing, then never written to again below —
+  // Meta's own docs say a failed delivery is retried "immediately, then a
+  // few more times with decreasing frequency over the next 36 hours", the
+  // same guarantee-less redelivery WhatsApp's webhook already acks-first
+  // for. This used to respond from up to four different places nested
+  // inside the entry/changes loops (a `res.end('success')` per branch, a
+  // `res.status(200)` inside `processMessagingEvent`), which meant slow or
+  // failed processing anywhere left Meta waiting past its own timeout and
+  // retrying the whole batch — and a payload with more than one entry could
+  // even attempt a SECOND res.send after the first had already gone out,
+  // which throws (`ERR_HTTP_HEADERS_SENT`). The `mid` unique index added
+  // alongside this fix is what makes a resulting redelivery safe to receive
+  // now — Meta's own guidance is "your server should handle deduplication
+  // in these cases", not that redelivery itself can be prevented.
+  res.sendStatus(200);
+
   for (const entry of data.entry) {
     // receive chat
     try {
@@ -104,8 +188,6 @@ export const facebookWebhook = async (req, res, next) => {
         await processMessagingEvent(
           entry,
           models,
-          res,
-          next,
           subdomain,
           accessTokensByPageId,
         );
@@ -118,23 +200,40 @@ export const facebookWebhook = async (req, res, next) => {
       }
     } catch (error) {
       debugFacebook(`Error processing entry: ${error.message}`);
-      // Optionally, send a response or log the error
-      res.status(500).send('Internal Server Error');
     }
 
     // receive post and comment
     if (entry.changes) {
       for (const event of entry.changes) {
+        // Meta's `verb` on a feed change is `add` for a new comment/post,
+        // but also `edit`/`edited` and `delete`/`remove` for the SAME
+        // comment or post being changed or taken down — this was read
+        // nowhere in this handler, so a deletion or edit flowed into
+        // getOrCreateComment/getOrCreatePost exactly like a brand new one
+        // and created a ghost record for content that no longer exists.
+        // Correctly handling an edit or delete (updating or removing the
+        // existing record) is real feature work this fix does not attempt;
+        // the safe, correct-today behaviour is to not fabricate a NEW
+        // record for content Meta is reporting as gone or changed.
+        // https://developers.facebook.com/docs/graph-api/webhooks/reference/page/
+        const verb = (event.value as { verb?: string }).verb;
+
+        if (verb && verb !== 'add') {
+          debugFacebook(
+            `Ignoring feed change with verb "${verb}" (not a new comment/post)`,
+          );
+          continue;
+        }
+
         if (event.value.item === 'comment') {
           debugFacebook(`Received comment data ${JSON.stringify(event.value)}`);
           try {
             await receiveComment(models, subdomain, event.value, entry.id);
             debugFacebook(`Successfully saved  ${JSON.stringify(event.value)}`);
-            return res.end('success');
           } catch (e) {
             debugError(`Error processing comment: ${e.message}`);
-            return res.end('success');
           }
+          continue;
         }
 
         if (FACEBOOK_POST_TYPES.includes(event.value.item)) {
@@ -144,13 +243,9 @@ export const facebookWebhook = async (req, res, next) => {
             debugFacebook(
               `Successfully saved post ${JSON.stringify(event.value)}`,
             );
-            return res.end('success');
           } catch (e) {
             debugError(`Error processing post: ${e.message}`);
-            return res.end('success');
           }
-        } else {
-          return res.end('success');
         }
       }
     }
@@ -160,8 +255,6 @@ export const facebookWebhook = async (req, res, next) => {
 export async function processMessagingEvent(
   entry: any,
   models: IModels,
-  res: Response,
-  next: NextFunction,
   subdomain: string,
   accessTokensByPageId: Record<string, string>,
 ) {
@@ -174,7 +267,7 @@ export async function processMessagingEvent(
 
     if (messagingEvents.length === 0) {
       debugFacebook('No messaging events found in entry.');
-      return; // Just return, do not call next here — next only for middleware chains
+      return;
     }
 
     for (const activity of messagingEvents) {
@@ -242,7 +335,6 @@ export async function processMessagingEvent(
 
       await receiveMessage(models, subdomain, integration, activityData);
     }
-    res.status(200).send('EVENT_RECEIVED');
   } catch (e) {
     debugFacebook(`Failed to process messaging event: ${(e as Error).message}`);
   }

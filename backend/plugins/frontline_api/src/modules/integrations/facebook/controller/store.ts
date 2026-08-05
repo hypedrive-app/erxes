@@ -26,8 +26,10 @@ export const getOrCreateCustomer = async (
   userId: string,
   kind: string,
 ) => {
+  // `$in` requires an array — see receivePost.ts/receiveComment.ts for the
+  // full story on this bug, present identically at every call site here.
   const integration = await models.FacebookIntegrations.getIntegration({
-    $and: [{ facebookPageIds: { $in: pageId } }, { kind }],
+    $and: [{ facebookPageIds: { $in: [pageId] } }, { kind }],
   });
 
   const { facebookPageTokensMap = {} } = integration;
@@ -405,9 +407,10 @@ export default async function fetchFacebookPostDetails(
   params: ICommentParams,
 ) {
   try {
+    // `$in` requires an array — see receivePost.ts for the full story.
     const integration = await models.FacebookIntegrations.findOne({
       $and: [
-        { facebookPageIds: { $in: pageId } },
+        { facebookPageIds: { $in: [pageId] } },
         { kind: INTEGRATION_KINDS.POST },
       ],
     });

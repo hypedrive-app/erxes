@@ -15,9 +15,15 @@ export const receiveComment = async (
 ) => {
   const userId = params.from.id;
   const postId = params.post_id;
+  // `$in` requires an array operand — MongoDB has rejected a bare scalar here
+  // with "BadValue $in needs an array" since server version 2.6, so this
+  // query threw on every single webhook delivery rather than matching
+  // anything. `receivePost.ts`/`store.ts` had the identical bug;
+  // `controller.ts`'s own `processMessagingEvent` already uses the correct
+  // `$in: [pageId]` form.
   const integration = await models.FacebookIntegrations.findOne({
     $and: [
-      { facebookPageIds: { $in: pageId } },
+      { facebookPageIds: { $in: [pageId] } },
       { kind: INTEGRATION_KINDS.POST },
     ],
   });

@@ -4,6 +4,7 @@ import { IModels } from '~/connectionResolvers';
 import {
   sendReply,
   generateAttachmentMessages,
+  withMessagingType,
 } from '@/integrations/facebook/utils';
 import { sendNotifications } from '@/inbox/graphql/resolvers/mutations/conversations';
 
@@ -186,11 +187,13 @@ export const handleFacebookMessage = async (
         const resp = await sendReply(
           models,
           'me/messages',
-          {
-            recipient: { id: senderId },
-            message: { text: strippedContent },
+          withMessagingType(
+            {
+              recipient: { id: senderId },
+              message: { text: strippedContent },
+            },
             tag,
-          },
+          ),
           conversation.recipientId,
           integrationId,
         );
@@ -215,11 +218,7 @@ export const handleFacebookMessage = async (
         const resp = await sendReply(
           models,
           'me/messages',
-          {
-            recipient: { id: senderId },
-            message,
-            tag,
-          },
+          withMessagingType({ recipient: { id: senderId }, message }, tag),
           conversation.recipientId,
           integrationId,
         );
