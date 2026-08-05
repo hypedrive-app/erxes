@@ -46,22 +46,39 @@ export const SipContainer = ({ children }: { children: React.ReactNode }) => {
 
   const operator = operators?.[0];
 
+  // Only send servers that were actually configured. Interpolating an unset
+  // value produced the literal string "turn:undefined", which is not a valid
+  // ICE URL -- Chrome rejects the whole entry, so a deployment that never
+  // filled in these settings was shipping a broken TURN server rather than
+  // none at all. Omitting it lets ICE fall back to host/srflx candidates,
+  // which is the honest representation of "no TURN configured".
+  //
+  // Note this only changes what the browser is asked to do; it cannot make
+  // media flow where a relay is genuinely required. A caller behind symmetric
+  // NAT still needs a real TURN server -- without one the call completes at
+  // the SIP layer (and gets a duration in the CDR, which is derived purely
+  // from signalling) while no RTP ever flows in either direction.
+  const iceServers: RTCIceServer[] = [];
+
+  if (callConfigs.TURN_SERVER_URL) {
+    iceServers.push({
+      urls: `turn:${callConfigs.TURN_SERVER_URL}`,
+      username: callConfigs.TURN_SERVER_USERNAME,
+      credential: callConfigs.TURN_SERVER_CREDENTIAL,
+    });
+  }
+
+  if (callConfigs.STUN_SERVER_URL) {
+    iceServers.push({ urls: `stun:${callConfigs.STUN_SERVER_URL}` });
+  }
+
   const sipConfig = {
     host,
     pathname: '/ws',
     user: operator?.gsUsername,
     password: operator?.gsPassword,
     port: Number.parseInt(port?.toString() || '8089', 10),
-    iceServers: [
-      {
-        urls: `turn:${callConfigs.TURN_SERVER_URL}`,
-        username: callConfigs.TURN_SERVER_USERNAME,
-        credential: callConfigs.TURN_SERVER_CREDENTIAL,
-      },
-      {
-        urls: `stun:${callConfigs.STUN_SERVER_URL}`,
-      },
-    ],
+    iceServers,
   };
 
   return (
