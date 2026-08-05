@@ -5,22 +5,21 @@ import { attachmentSchema } from 'erxes-api-shared/core-modules';
 export const commentConversationSchema = schemaWrapper(
   new Schema({
     _id: mongooseStringRandomId,
-    // `unique` stops a redelivered webhook (Meta gives no dedup or ordering
-    // guarantee) from being inserted twice — store.ts's `getOrCreateComment`
-    // findOne-then-create (keyed on `comment_id`) is a check-then-act race,
-    // not an atomic guard. `sparse` rather than a plain unique index: `mid`
-    // is not currently populated on every comment document, so a plain
-    // unique index would collide every document whose mid is unset against
-    // every other one, since MongoDB treats multiple missing values as
-    // identical for a non-sparse unique index.
-    mid: {
-      type: String,
-      unique: true,
-      sparse: true,
-      label: 'comment message id',
-    },
+    mid: { type: String, label: 'comment message id' },
     postId: { type: String },
-    comment_id: { type: String },
+    // `unique` closes the check-then-act race in store.ts's
+    // `getOrCreateComment`, which findOne's on `comment_id` and then creates —
+    // Meta gives no dedup or ordering guarantee, so two deliveries of the same
+    // comment webhook can both pass that findOne and both insert. This is the
+    // field the dedup actually keys on; it is also Meta's own id for the
+    // comment, so it is genuinely unique per document.
+    //
+    // `sparse` because a document is only ever written here with a
+    // `comment_id` from a webhook payload, but nothing enforces its presence
+    // at the schema level, and a non-sparse unique index treats every missing
+    // value as the same value — one malformed payload without a comment_id
+    // would then block every subsequent one.
+    comment_id: { type: String, unique: true, sparse: true },
     parentId: { type: String, default: '' },
     recipientId: { type: String },
     senderId: { type: String },

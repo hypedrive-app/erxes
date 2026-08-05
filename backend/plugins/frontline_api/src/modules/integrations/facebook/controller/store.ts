@@ -173,8 +173,23 @@ export const getOrCreateComment = async (
       erxesApiId: parentConversation.erxesApiId,
     };
   } else {
-    conversation = await models.FacebookCommentConversation.create(doc);
-    automationTarget = conversation.toObject();
+    try {
+      conversation = await models.FacebookCommentConversation.create(doc);
+      automationTarget = conversation.toObject();
+    } catch (e: any) {
+      // The findOne at the top of this function is a check-then-act guard, not
+      // an atomic one: a redelivered webhook (Meta gives no dedup guarantee)
+      // can pass it concurrently and reach this create, where `comment_id`'s
+      // unique index rejects the second insert. Losing that race means the
+      // comment already exists and has already been forwarded to the API and
+      // its automation triggered by the winner — so this delivery is a no-op,
+      // not a failure.
+      if (e.code === 11000) {
+        return;
+      }
+
+      throw e;
+    }
   }
 
   if (!conversation) {

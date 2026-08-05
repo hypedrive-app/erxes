@@ -150,14 +150,26 @@ export const getOrCreateComment = async (
     customerId: customer.erxesApiId,
     parentId: commentParams.parent_id,
   };
-  if (parentConversation) {
-    await models.InstagramCommentConversationReply.create({
-      ...doc,
-    });
-  } else {
-    await models.InstagramCommentConversation.create({
-      ...doc,
-    });
+  try {
+    if (parentConversation) {
+      await models.InstagramCommentConversationReply.create({
+        ...doc,
+      });
+    } else {
+      await models.InstagramCommentConversation.create({
+        ...doc,
+      });
+    }
+  } catch (e: any) {
+    // The findOne above is a check-then-act guard, not an atomic one: a
+    // redelivered webhook (Meta gives no dedup guarantee) can pass it
+    // concurrently and reach this create. `comment_id`'s unique index is what
+    // actually rejects the second insert. Losing that race is a no-op, not a
+    // failure — the row the winner wrote is what the findOne below picks up,
+    // so the rest of this function proceeds identically.
+    if (e.code !== 11000) {
+      throw e;
+    }
   }
   const conversation =
     (await models.InstagramCommentConversation.findOne({
