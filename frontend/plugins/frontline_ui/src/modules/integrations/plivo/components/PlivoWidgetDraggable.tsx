@@ -26,14 +26,14 @@ import { useCallUserIntegration } from '@/integrations/call/hooks/useCallUserInt
 /**
  * Keeps the launcher inside the viewport, with its resting inset intact.
  *
- * The button is laid out at `bottom-10 right-10` — a 40px inset — and this
- * offset is added on top of that. A positive offset therefore eats into the
- * inset, and the previous `Math.min(40, …)` upper bound allowed exactly enough
- * to cancel it: a stored `{x:40, y:40}` put the button flush into the corner
- * with zero margin on every viewport, which at 375px reads as clipped rather
- * than placed. Clamping at 0 keeps the inset as the closest the launcher can
- * sit to the corner, while dragging away from it stays free down to the
- * opposite edge.
+ * The button is laid out at `bottom-8` and (absent the Grandstream widget)
+ * `right-8` — a 32px inset — and this offset is added on top of that. A
+ * positive offset therefore eats into the inset, and the previous
+ * `Math.min(32, …)` upper bound allowed exactly enough to cancel it: a stored
+ * `{x:32, y:32}` put the button flush into the corner with zero margin on
+ * every viewport, which at 375px reads as clipped rather than placed.
+ * Clamping at 0 keeps the inset as the closest the launcher can sit to the
+ * corner, while dragging away from it stays free down to the opposite edge.
  */
 const LAUNCHER_INSET = 32;
 const LAUNCHER_SIZE = 56;
