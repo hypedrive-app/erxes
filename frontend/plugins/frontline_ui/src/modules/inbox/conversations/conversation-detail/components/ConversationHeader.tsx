@@ -176,7 +176,7 @@ const AutomatedReplyStatusBadge = () => {
           disabled={loading}
         >
           <Icon className="size-3.5 flex-none" />
-          <span className="max-w-[280px] truncate">{label}</span>
+          <span className="max-w-xs truncate">{label}</span>
         </Button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="start" className="min-w-[220px]">
@@ -290,7 +290,12 @@ const ConversationActionsDropdown = () => {
   return (
     <DropdownMenu>
       <DropdownMenu.Trigger asChild>
-        <Button variant="ghost" size="icon" className="[&>svg]:size-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="[&>svg]:size-4"
+          aria-label={t('more-actions')}
+        >
           <IconDots />
         </Button>
       </DropdownMenu.Trigger>

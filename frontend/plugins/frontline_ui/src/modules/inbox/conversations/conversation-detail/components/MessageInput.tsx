@@ -174,6 +174,7 @@ export const MessageInput = ({
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [attachmentPreview, setAttachmentPreview] = useState<any>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const editor = useBlockEditor();
   const { addConversationMessage, loading } = useConversationMessageAdd();
@@ -249,11 +250,25 @@ export const MessageInput = ({
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    setIsDragging(false);
     handleFileUpload(e.dataTransfer.files);
   };
 
-  const handleDeleteAttachment = (name: string) => {
-    setAttachments((prev) => prev.filter((f) => f.name !== name));
+  // dragover fires continuously while hovering, so it alone cannot signal
+  // "the drag ended without dropping" — dragleave is what actually does, and
+  // without clearing isDragging there the highlighted border would stay lit
+  // after a file is dragged over the composer and then away again.
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  // Keyed on the uploaded url, not the filename: two attachments can share a
+  // name (e.g. two screenshots both called "image.png"), and each upload's
+  // url is what is actually unique — filtering by name would delete both
+  // when the agent only meant to remove one.
+  const handleDeleteAttachment = (url: string) => {
+    setAttachments((prev) => prev.filter((f) => f.url !== url));
     toast({ title: t('attachment-removed'), variant: 'default' });
   };
 
@@ -484,10 +499,15 @@ export const MessageInput = ({
       <div
         onDrop={handleDrop}
         onKeyDown={handleKeyDown}
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={handleDragLeave}
         className={cn(
-          'flex flex-col h-full py-4 gap-1 max-w-2xl mx-auto bg-sidebar shadow-xs rounded-lg transition-colors duration-150',
+          'flex flex-col h-full py-4 gap-1 max-w-2xl mx-auto bg-sidebar shadow-xs rounded-lg border border-transparent transition-colors duration-150',
           isInternalNote && 'bg-warning/20',
+          isDragging && 'border-dashed border-primary bg-primary/5',
         )}
       >
         {showSuggestions && !isInternalNote && (
@@ -602,9 +622,9 @@ export const MessageInput = ({
 
         {attachments.length > 0 && (
           <div className="px-6 mt-2 space-y-1.5">
-            {attachments.map((file, i) => (
+            {attachments.map((file) => (
               <div
-                key={i}
+                key={file.url}
                 className="group flex items-center gap-3 rounded-md border bg-background px-3 py-2"
               >
                 {file.type?.startsWith('image/') ? (
@@ -633,7 +653,7 @@ export const MessageInput = ({
                   variant="ghost"
                   size="icon"
                   aria-label={t('remove-attachment')}
-                  onClick={() => handleDeleteAttachment(file.name)}
+                  onClick={() => handleDeleteAttachment(file.url)}
                   className="size-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                 >
                   <IconX size={14} />

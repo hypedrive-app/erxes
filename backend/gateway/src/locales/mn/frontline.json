@@ -1,4 +1,6 @@
 {
+  "more-actions": "Нэмэлт үйлдлүүд",
+  "no-messages-yet": "Мессеж алга байна",
   "changed-assignee": "хариуцагч өөрчлөгдсөн",
   "from": "аас",
   "to": "руу",
@@ -618,6 +620,7 @@
   "whatsapp-delivery-played": "Сонссон",
   "whatsapp-delivery-failed": "WhatsApp энэ зурвасыг хүргэж чадсангүй",
   "whatsapp-replying-to": "Хариулж байна: {{preview}}",
+  "whatsapp-reply-preview-no-text": "Медиа мессеж",
   "whatsapp-cancel-reply": "Хариултыг цуцлах",
   "whatsapp-template": "Зурвасын загвар",
   "whatsapp-template-placeholder": "Баталгаажсан загвар сонгох",

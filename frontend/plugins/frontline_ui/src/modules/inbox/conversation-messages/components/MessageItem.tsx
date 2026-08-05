@@ -23,7 +23,7 @@ import { WhatsappMessageActions } from '@/integrations/whatsapp/components/Whats
 import { PlivoRecordingPlayer } from '@/integrations/plivo/components/PlivoRecordingPlayer';
 import { WhatsappDeliveryTicks } from '@/inbox/conversation-messages/components/WhatsappDeliveryTicks';
 import { WhatsappReplyPreview } from '@/inbox/conversation-messages/components/WhatsappReplyPreview';
-import { IconBrain, IconFile, IconSparkles } from '@tabler/icons-react';
+import { IconBrain, IconFile, IconSparkles, IconX } from '@tabler/icons-react';
 
 const Img = (props: JSX.IntrinsicElements['img']) => (
   // skipcq: JS-W1015
@@ -408,7 +408,7 @@ const Attachment = ({
           </span>
           {Boolean(attachment.size) && (
             <span className="text-xs text-muted-foreground">
-              {formatBytes(attachment.size)}
+              {formatBytes(attachment.size, 2)}
             </span>
           )}
         </div>
@@ -437,7 +437,19 @@ const Attachment = ({
           />
         </button>
       </Dialog.Trigger>
-      <Dialog.Content className="max-w-fit border-0 bg-transparent p-0 shadow-none">
+      <Dialog.Content className="relative max-w-fit border-0 bg-transparent p-0 shadow-none">
+        {/* No header bar on a transparent image dialog, so — same as the
+            in-message lightbox — Esc/backdrop click were the only way out. */}
+        <Dialog.Close asChild>
+          <Button
+            variant="secondary"
+            size="icon"
+            aria-label="Close"
+            className="absolute right-3 top-3 z-10 rounded-full opacity-90 hover:opacity-100"
+          >
+            <IconX />
+          </Button>
+        </Dialog.Close>
         <Img
           src={readImage(attachment.url)}
           alt={attachment.name}

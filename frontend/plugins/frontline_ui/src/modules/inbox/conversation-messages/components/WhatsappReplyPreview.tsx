@@ -1,4 +1,5 @@
 import { IconCornerUpLeft } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import { IMessage } from '@/inbox/types/Conversation';
 
 /**
@@ -15,6 +16,8 @@ export const WhatsappReplyPreview = ({
 }: {
   whatsappReplyTo: IMessage['whatsappReplyTo'];
 }) => {
+  const { t } = useTranslation('frontline');
+
   if (!whatsappReplyTo?._id) {
     return null;
   }
@@ -43,7 +46,7 @@ export const WhatsappReplyPreview = ({
     >
       <IconCornerUpLeft className="size-3 mt-0.5 shrink-0" />
       <span className="truncate">
-        {whatsappReplyTo.content || ' '}
+        {whatsappReplyTo.content || t('whatsapp-reply-preview-no-text')}
       </span>
     </button>
   );

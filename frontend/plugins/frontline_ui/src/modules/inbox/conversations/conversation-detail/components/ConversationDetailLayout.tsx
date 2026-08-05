@@ -9,13 +9,18 @@ export const ConversationDetailLayout = ({
 }) => {
   return (
     <Resizable.PanelGroup direction="vertical">
-      <Resizable.Panel defaultSize={input ? 70 : 100}>
+      {/* Without a minSize, dragging the handle can collapse either pane to
+          ~0 height with no way back short of a page reload — nothing here
+          snaps back or refuses to go further. */}
+      <Resizable.Panel defaultSize={input ? 70 : 100} minSize={20}>
         <div className="relative h-full overflow-hidden">{children}</div>
       </Resizable.Panel>
       {input && (
         <>
           <Resizable.Handle className="bg-transparent hover:bg-border" />
-          <Resizable.Panel defaultSize={30}>{input}</Resizable.Panel>
+          <Resizable.Panel defaultSize={30} minSize={15}>
+            {input}
+          </Resizable.Panel>
         </>
       )}
     </Resizable.PanelGroup>

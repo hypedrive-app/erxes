@@ -1,4 +1,6 @@
 {
+  "more-actions": "More actions",
+  "no-messages-yet": "No messages yet",
   "changed-assignee": "changed assignee",
   "from": "from",
   "to": "to",
@@ -618,6 +620,7 @@
   "whatsapp-delivery-played": "Played",
   "whatsapp-delivery-failed": "WhatsApp could not deliver this message",
   "whatsapp-replying-to": "Replying to: {{preview}}",
+  "whatsapp-reply-preview-no-text": "Media message",
   "whatsapp-cancel-reply": "Cancel reply",
   "whatsapp-template": "Message template",
   "whatsapp-template-placeholder": "Select an approved template",
