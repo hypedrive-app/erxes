@@ -274,6 +274,7 @@
   "uploading-file": "Uploading file...",
   "file-uploaded-successfully": "File uploaded successfully!",
   "attachment-removed": "Attachment removed",
+  "remove-attachment": "Remove attachment",
   "editor-not-ready": "Editor not ready",
   "failed-to-insert-template": "Failed to insert template",
   "message-sent": "Message sent!",

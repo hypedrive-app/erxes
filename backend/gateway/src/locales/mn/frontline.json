@@ -274,6 +274,7 @@
   "uploading-file": "Файл байршуулж байна...",
   "file-uploaded-successfully": "Файл амжилттай байршуулагдлаа!",
   "attachment-removed": "Хавсралт хасагдлаа",
+  "remove-attachment": "Хавсралт хасах",
   "editor-not-ready": "Редактор бэлэн биш байна",
   "failed-to-insert-template": "Загвар оруулахад алдаа гарлаа",
   "message-sent": "Мессеж илгээгдлээ!",

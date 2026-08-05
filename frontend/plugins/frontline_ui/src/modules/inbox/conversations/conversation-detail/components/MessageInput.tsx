@@ -6,8 +6,11 @@ import {
   Spinner,
   Toggle,
   cn,
+  formatBytes,
   getBlockAttachments,
+  getFileIcon,
   getMentionedUserIds,
+  readImage,
   toast,
   useBlockEditor,
   usePreviousHotkeyScope,
@@ -19,7 +22,6 @@ import {
   IconArrowUp,
   IconCommand,
   IconCornerDownLeft,
-  IconFile,
   IconMessage2,
   IconPaperclip,
   IconX,
@@ -571,41 +573,71 @@ export const MessageInput = ({
 
         {attachmentPreview && (
           <div className="px-6 mb-2">
-            {attachmentPreview.type.startsWith('image/') ? (
-              <>
-                <p className="text-sm">{attachmentPreview.name}</p>
-                <img
-                  src={attachmentPreview.data}
-                  alt="preview"
-                  className="max-w-[400px] max-h-[300px] rounded-lg shadow-sm mt-1"
-                />
-              </>
-            ) : (
-              <p className="text-sm flex items-center gap-1.5">
-                <IconFile className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {attachmentPreview.name}
-              </p>
-            )}
+            <div className="flex items-center gap-3 rounded-md border bg-background px-3 py-2">
+              {attachmentPreview.type.startsWith('image/') ? (
+                <div className="size-10 shrink-0 overflow-hidden rounded border bg-muted">
+                  <img
+                    src={attachmentPreview.data}
+                    alt={attachmentPreview.name}
+                    className="size-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="flex size-10 shrink-0 items-center justify-center rounded border bg-muted">
+                  {getFileIcon(attachmentPreview.type, attachmentPreview.name)}
+                </div>
+              )}
+              <div className="flex min-w-0 grow flex-col">
+                <span className="truncate text-sm" title={attachmentPreview.name}>
+                  {attachmentPreview.name}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Spinner className="size-3" />
+                  {t('uploading-file')}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
         {attachments.length > 0 && (
-          <div className="px-6 mt-2 text-sm text-muted-foreground space-y-1">
+          <div className="px-6 mt-2 space-y-1.5">
             {attachments.map((file, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between bg-muted px-3 py-1 rounded-md"
+                className="group flex items-center gap-3 rounded-md border bg-background px-3 py-2"
               >
-                <span className="flex items-center gap-1.5">
-                  <IconFile className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  {file.name} ({Math.round(file.size / 1024)} KB)
-                </span>
-                <button
+                {file.type?.startsWith('image/') ? (
+                  <div className="size-10 shrink-0 overflow-hidden rounded border bg-muted">
+                    <img
+                      src={readImage(file.url)}
+                      alt={file.name}
+                      className="size-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded border bg-muted">
+                    {getFileIcon(file.type || '', file.name)}
+                  </div>
+                )}
+                <div className="flex min-w-0 grow flex-col">
+                  <span className="truncate text-sm" title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatBytes(file.size, 2)}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('remove-attachment')}
                   onClick={() => handleDeleteAttachment(file.name)}
-                  className="text-destructive hover:text-red-700"
+                  className="size-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                 >
                   <IconX size={14} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>
