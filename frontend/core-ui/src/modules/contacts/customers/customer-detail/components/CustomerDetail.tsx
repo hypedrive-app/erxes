@@ -101,6 +101,11 @@ export const CustomerDetail = () => {
           <RelationWidgetSideTabs
             contentId={open || ''}
             contentType="core:customer"
+            // Passed explicitly even though it equals contentId here: widgets
+            // that hang off a person read this prop, and leaving them to
+            // special-case "core:customer" themselves is how the Cal.com tab
+            // came to render nothing on the very page it was written for.
+            customerId={customerDetail?._id}
             hookOptions={{
               hiddenModules: ['customer'],
             }}
