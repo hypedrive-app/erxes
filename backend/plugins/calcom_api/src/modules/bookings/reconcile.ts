@@ -52,12 +52,22 @@ export const reconcileBookings = async (
       // event, so the trigger is reported as BOOKING_CREATED — the handler's
       // staleness guard then keeps it from overwriting a row that a real, later
       // webhook has already advanced past.
+      //
+      // `createdAt` here is the envelope's event time, which the handler stores
+      // as lastPayloadAt and compares against on the next delivery. It must
+      // therefore be when this booking last CHANGED, not when it was first
+      // made: a cancelled booking's creation time is always older than the
+      // cancellation the mirror is missing, so passing booking.createdAt made
+      // the reconciler lose its own staleness check on exactly the rows it
+      // exists to repair. Observed as {seen: 7, stored: 0, ignored: 7} against
+      // three rows that were genuinely stale.
       const result = await handleCalcomWebhook(
         models,
         subdomain,
         {
           triggerEvent: 'BOOKING_CREATED',
-          createdAt: booking.createdAt || booking.startTime,
+          createdAt:
+            booking.updatedAt || booking.createdAt || booking.startTime,
           payload: booking,
         },
         // Automations stay off: this is a read of existing state, and firing
