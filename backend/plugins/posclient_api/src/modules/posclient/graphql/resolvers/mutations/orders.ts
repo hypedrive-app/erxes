@@ -1183,6 +1183,9 @@ const orderMutations: Record<string, Resolver> = {
       pluginName: 'sales',
       module: 'deal',
       action: 'create',
+      // Mutation procedure: the default 'query' issues a GET, which tRPC
+      // refuses to route to a mutation, so this write silently no-opped.
+      method: 'mutation',
       input: dealData,
       defaultValue: null,
     });

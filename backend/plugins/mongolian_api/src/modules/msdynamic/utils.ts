@@ -108,6 +108,9 @@ export const consumeInventory = async (
         pluginName: 'core',
         module: 'products',
         action: 'updateProduct',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { _id: product._id, doc: document },
         defaultValue: {},
       });
@@ -117,6 +120,9 @@ export const consumeInventory = async (
         pluginName: 'core',
         module: 'products',
         action: 'createProduct',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { doc: document },
         defaultValue: {},
       });
@@ -134,6 +140,9 @@ export const consumeInventory = async (
         pluginName: 'core',
         module: 'products',
         action: 'updateProduct',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: {
           _id: product._id,
           doc: { scopeBrandIds: remainingBrands },
@@ -146,6 +155,9 @@ export const consumeInventory = async (
         pluginName: 'core',
         module: 'products',
         action: 'removeProducts',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { _ids: [product._id] },
         defaultValue: {},
       });
@@ -206,6 +218,9 @@ export const consumeCategory = async (
         pluginName: 'core',
         module: 'productCategories',
         action: 'updateProductCategory',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { _id: productCategory._id, doc: { ...document } },
         defaultValue: {},
       });
@@ -215,6 +230,9 @@ export const consumeCategory = async (
         pluginName: 'core',
         module: 'productCategories',
         action: 'createProductCategory',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { doc: { ...document } },
         defaultValue: {},
       });
@@ -225,6 +243,9 @@ export const consumeCategory = async (
       pluginName: 'core',
       module: 'productCategories',
       action: 'removeProductCategory',
+      // Mutation procedure: the default 'query' issues a GET, which tRPC
+      // refuses to route to a mutation, so this write silently no-opped.
+      method: 'mutation',
       input: { _id: productCategory._id },
       defaultValue: null,
     });
@@ -545,6 +566,9 @@ export const dealToDynamic = async (
       pluginName: 'sales',
       module: 'deal',
       action: 'updateOne',
+      // Mutation procedure: the default 'query' issues a GET, which tRPC
+      // refuses to route to a mutation, so this write silently no-opped.
+      method: 'mutation',
       input: {
         selector: { _id: deal._id },
         modifier: {
@@ -845,6 +869,9 @@ export const orderToDynamic = async (
       pluginName: 'pos',
       module: 'orders',
       action: 'updateOne',
+      // Mutation procedure: the default 'query' issues a GET, which tRPC
+      // refuses to route to a mutation, so this write silently no-opped.
+      method: 'mutation',
       input: {
         selector: { _id: order._id },
         modifier: {

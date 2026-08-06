@@ -340,6 +340,9 @@ export const msdynamicCheckMutations = {
         pluginName: 'core',
         module: 'products',
         action: 'updateProduct',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: {
           _id: price._id,
           doc: {

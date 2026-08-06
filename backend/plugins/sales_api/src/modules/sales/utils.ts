@@ -1217,6 +1217,9 @@ export const itemsAdd = async (
       pluginName: 'core',
       module: 'fields',
       action: 'validateFieldValues',
+      // Mutation procedure: the default 'query' issues a GET, which tRPC
+      // refuses to route to a mutation, so this write silently no-opped.
+      method: 'mutation',
       input: { data: extendedDoc.propertiesData },
       defaultValue: {},
     });

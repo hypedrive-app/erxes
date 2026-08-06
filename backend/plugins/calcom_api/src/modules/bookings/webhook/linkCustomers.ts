@@ -50,6 +50,9 @@ const createCustomerFromAttendee = async (
     pluginName: 'core',
     module: 'customers',
     action: 'createOrUpdate',
+    // createOrUpdate is a mutation; sendTRPCMessage defaults to 'query', which
+    // tRPC refuses to route to one.
+    method: 'mutation',
     input: {
       doc: {
         primaryEmail: attendee.email,

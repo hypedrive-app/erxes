@@ -219,6 +219,9 @@ export const getMsdCustomerInfo = async (
         pluginName: 'core',
         module: 'companies',
         action: 'updateCompany',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { _id: customer._id, doc: { scopeBrandIds: brandIds } },
         defaultValue: {},
       });
@@ -228,6 +231,9 @@ export const getMsdCustomerInfo = async (
         pluginName: 'core',
         module: 'customers',
         action: 'updateCustomer',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { _id: customer._id, doc: { scopeBrandIds: brandIds } },
       });
     }
@@ -391,6 +397,9 @@ const companyRequest = async (subdomain, config, action, updateCode, doc) => {
         pluginName: 'core',
         module: 'fields',
         action: 'prepareCustomFieldsData',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: customFieldData,
         defaultValue: {},
       });
@@ -413,6 +422,9 @@ const companyRequest = async (subdomain, config, action, updateCode, doc) => {
         pluginName: 'core',
         module: 'companies',
         action: 'updateCompany',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { _id: company._id, doc: { ...document } },
         defaultValue: {},
       });
@@ -613,6 +625,9 @@ export const consumeCustomers = async (subdomain, config, doc, action) => {
         pluginName: 'core',
         module: 'companies',
         action: 'removeCompanies',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { _ids: [company._id] },
         defaultValue: {},
       });
@@ -624,6 +639,9 @@ export const consumeCustomers = async (subdomain, config, doc, action) => {
         pluginName: 'core',
         module: 'customers',
         action: 'removeCustomers',
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write silently no-opped.
+        method: 'mutation',
         input: { customerIds: [customer._id] },
         defaultValue: {},
       });

@@ -405,7 +405,11 @@ export const widgetMutations: Record<string, Resolver> = {
         company = await sendTRPCMessage({
           subdomain,
           pluginName: 'core',
-          method: 'query',
+          // createCompany is a mutation. 'query' issues a GET, which tRPC
+          // refuses to route to a mutation procedure, so this branch never
+          // created the company -- a widget visitor supplying a new company
+          // name silently got nothing.
+          method: 'mutation',
           module: 'companies',
           action: 'createCompany',
           input: {
