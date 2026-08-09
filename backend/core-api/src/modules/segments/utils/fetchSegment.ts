@@ -85,7 +85,9 @@ export const fetchSegment = async (
       body: {
         query: selector,
       },
-      defaultValue: { count: -1 },
+      // Shape must match what the client returns (`{ body: { count } }`), or
+      // the read below silently yields `undefined` instead of the sentinel.
+      defaultValue: { body: { count: -1 } },
     });
 
     return countResponse?.body?.count;

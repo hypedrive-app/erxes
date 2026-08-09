@@ -11,6 +11,29 @@ export const client = new Client({
   node: ELASTICSEARCH_URL,
 });
 
+/**
+ * Raised when Elasticsearch cannot be reached at all.
+ *
+ * Distinct from a query error on purpose: callers pass `defaultValue` to model
+ * "this query found nothing", which is a valid answer. An unreachable cluster
+ * is not an answer, so it must never collapse into that default — segments,
+ * engage targeting and inbox search would otherwise report confident, wrong
+ * results on a deployment where Elasticsearch was simply never provisioned.
+ */
+export class ElasticsearchUnavailableError extends Error {
+  readonly url: string;
+
+  constructor(url: string) {
+    super(
+      `Elasticsearch is not reachable at ${url}. Features that depend on it ` +
+        `(segments, engage targeting, inbox and form search) cannot be ` +
+        `evaluated. Set ELASTICSEARCH_URL and ensure the cluster is running.`,
+    );
+    this.name = 'ElasticsearchUnavailableError';
+    this.url = url;
+  }
+}
+
 export const isElasticsearchUp = async () => {
   try {
     const status = await fetch(ELASTICSEARCH_URL).then((res) => res.status);
@@ -175,13 +198,23 @@ export const fetchEs = async ({
     const isUp = await isElasticsearchUp();
 
     if (!isUp) {
-      throw new Error('Elasticsearch is not running');
+      // Elasticsearch being absent is an infrastructure fault, not an empty
+      // result. Swallowing it into `defaultValue` makes a segment that cannot
+      // be evaluated look like a segment that legitimately matched nothing
+      // (or, for counts, everything) — a silently wrong answer the caller has
+      // no way to detect. Fail loudly instead; only genuine query errors below
+      // are eligible for `defaultValue`.
+      throw new ElasticsearchUnavailableError(ELASTICSEARCH_URL);
     }
 
     return await elasticMethodMap[action](params);
   } catch (e) {
+    if (e instanceof ElasticsearchUnavailableError) {
+      throw e;
+    }
+
     if (!ignoreError) {
-      console.log(
+      console.error(
         `Error during es query: ${JSON.stringify(body)}: ${e.message}`,
       );
     }
@@ -294,9 +327,27 @@ export async function getEsIndexTotalCount(contentType: string) {
   const { mongoConnectionString } = await getPluginSegmentConfig(contentType);
   const esIndex = await getEsIndexByContentType(contentType);
   const index = `${getIndexPrefix(mongoConnectionString)}${esIndex}`;
-  const response = await client.count({ index });
-  const totalDocs = response.body.count;
-  return totalDocs;
+
+  // Called straight from the segment preview resolver. Without this check an
+  // unreachable cluster surfaces as an opaque connection error on the whole
+  // query; with it the caller gets a named, actionable failure. A missing
+  // index (nothing indexed yet) is reported as 0 rather than throwing, since
+  // that is a legitimate "no documents" state.
+  const isUp = await isElasticsearchUp();
+
+  if (!isUp) {
+    throw new ElasticsearchUnavailableError(ELASTICSEARCH_URL);
+  }
+
+  try {
+    const response = await client.count({ index });
+    return response.body.count;
+  } catch (e) {
+    if (e?.meta?.statusCode === 404) {
+      return 0;
+    }
+    throw e;
+  }
 }
 
 export const getPluginSegmentConfig = async (contentType: string) => {

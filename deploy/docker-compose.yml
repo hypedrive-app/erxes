@@ -60,19 +60,64 @@
 
 services:
   # ── Datastores ────────────────────────────────────────────────────────────
+  # Runs as a SINGLE-MEMBER replica set, not standalone. Monstache (below) syncs
+  # via MongoDB change streams, and change streams / the oplog are replica-set
+  # features — a standalone mongod cannot feed Elasticsearch at all. A one-member
+  # set is the supported minimum and behaves like standalone for every other
+  # purpose. Every MONGO_URL already carries `directConnection=true`, which is
+  # what lets clients address this member directly without SRV/seed discovery.
+  #
+  # The keyfile gives the set an internal auth credential; with auth enabled
+  # mongod refuses to form a replica set without one.
   mongo:
     image: mongo:7.0
-    command: ["--wiredTigerCacheSizeGB", "1"]
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        if [ ! -f /data/configdb/replica.key ]; then
+          openssl rand -base64 756 > /data/configdb/replica.key
+        fi
+        chmod 400 /data/configdb/replica.key
+        chown mongodb:mongodb /data/configdb/replica.key
+        exec docker-entrypoint.sh mongod \
+          --replSet rs0 \
+          --keyFile /data/configdb/replica.key \
+          --bind_ip_all \
+          --wiredTigerCacheSizeGB 1
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     volumes:
       - mongo-data:/data/db
+      - mongo-config:/data/configdb
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      # Healthy only once the set is initiated and this member is PRIMARY;
+      # a plain ping would go green while the set is still uninitialised and
+      # let dependents start against a mongod that cannot accept writes.
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - -u
+        - ${MONGO_USER}
+        - -p
+        - ${MONGO_PASSWORD}
+        - --authenticationDatabase
+        - admin
+        - --eval
+        - |
+          try { rs.status().ok === 1 && (db.hello().isWritablePrimary ? quit(0) : quit(1)) }
+          catch (e) {
+            if (e.codeName === 'NotYetInitialized') {
+              rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]});
+            }
+            quit(1)
+          }
       interval: 10s
-      timeout: 5s
-      retries: 12
+      timeout: 10s
+      retries: 30
       start_period: 40s
     restart: unless-stopped
     networks: [erxes]
@@ -80,6 +125,81 @@ services:
       resources:
         limits:
           memory: 1G
+
+  # ── Elasticsearch: the ONLY read path for segments ────────────────────────
+  # erxes v3 evaluates every segment through Elasticsearch (fetchSegment.ts has
+  # no Mongo fallback), and engage targeting, inbox and form search go through
+  # it too. Pinned to 7.17 to match the client: erxes depends on
+  # @elastic/elasticsearch@7.17.14, and a 7.x client against an 8.x server needs
+  # compatibility headers that erxes does not send.
+  #
+  # Single node, security off: this listens only on the internal `erxes`
+  # network and is never published to a host port.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.14
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      # Snapshots/replicas are pointless on one node, and an index that expects
+      # a replica stays yellow forever.
+      cluster.routing.allocation.disk.threshold_enabled: "true"
+      cluster.routing.allocation.disk.watermark.low: "85%"
+      cluster.routing.allocation.disk.watermark.high: "90%"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      # `yellow` is the correct target for a single node: with one node every
+      # index with a replica sits at yellow by design, and waiting for green
+      # would never succeed.
+      test:
+        ["CMD-SHELL",
+         "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+    networks: [erxes]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ── Monstache: the Mongo → Elasticsearch syncer erxes does NOT ship ───────
+  # v3 removed the in-process pipeline; erxes-api-shared/utils/elasticsearch/
+  # saveEs.ts states it outright: "entity indices are filled by the external
+  # elkSyncer … there is NO in-process Mongo->ES pipeline". Nothing upstream
+  # provides that syncer any more, so without this service the ES indices stay
+  # empty and every segment silently matches nothing.
+  #
+  # rel6 is the Elasticsearch 7+ line. `direct-read-namespaces` backfills the
+  # existing documents once; the change stream keeps them current after that.
+  monstache:
+    image: rwynn/monstache:rel6
+    depends_on:
+      mongo:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    command: ["-f", "/app/monstache.config.toml"]
+    volumes:
+      - ./monstache.config.toml:/app/monstache.config.toml:ro
+    environment:
+      MONSTACHE_MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin&directConnection=true
+      MONSTACHE_ES_URLS: http://elasticsearch:9200
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    networks: [erxes]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   redis:
     image: redis:7.4-alpine
@@ -192,6 +312,9 @@ services:
       # Written to redis as 'hostname' and used to build links back to the app.
       DOMAIN: https://${ERXES_UI_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -357,6 +480,9 @@ services:
       # `/pl:frontline` mount, and that prefix is part of what Plivo signs.
       PLIVO_CALLBACK_PUBLIC_URL: https://${ERXES_API_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -450,6 +576,9 @@ services:
       PORT: "3305"
       DOMAIN: https://${ERXES_UI_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -520,6 +649,9 @@ services:
       PORT: "3307"
       DOMAIN: https://${ERXES_UI_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -573,6 +705,9 @@ services:
       PORT: "3314"
       DOMAIN: https://${ERXES_UI_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -712,6 +847,9 @@ services:
       DOMAIN: https://${ERXES_UI_DOMAIN}
       ALLOWED_DOMAINS: https://${ERXES_UI_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -1027,6 +1165,9 @@ services:
       DOMAIN: https://${ERXES_UI_DOMAIN}
       ALLOWED_DOMAINS: https://${ERXES_UI_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       # Redis is this service's transport, not a cache. erxes-api-shared reads
       # these three names specifically — there is no REDIS_URL support.
       REDIS_HOST: redis
@@ -1115,6 +1256,9 @@ services:
       DOMAIN: https://${ERXES_UI_DOMAIN}
       ALLOWED_DOMAINS: https://${ERXES_UI_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      # Segments, engage targeting, inbox and form search all read through
+      # Elasticsearch; without this they fail closed (see the elasticsearch service).
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -1142,8 +1286,12 @@ services:
 
 volumes:
   mongo-data:
+  # Replica-set keyfile lives here, outside /data/db, so it survives restarts
+  # without being mixed into the data files.
+  mongo-config:
   redis-data:
   minio-data:
+  elasticsearch-data:
 
 networks:
   erxes:

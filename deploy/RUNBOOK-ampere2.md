@@ -256,7 +256,7 @@ variable unset in Dokploy is safe. Setting it means it must match section 5.
 | `CALCOM_ADMIN_TOKEN` | `POST /calcom/reconcile` answers **503** rather than running unauthenticated. |
 | `CALCOM_API_URL` | Defaults to `https://api.cal.com/v2`. |
 | `OPENAI_API_KEY` | AI agent actions are unavailable; nothing else degrades. |
-| `ELASTICSEARCH_URL` | Deliberately omitted — no Elasticsearch in this stack. Full-text search and segments degrade; core CRUD is unaffected. |
+| `ELASTICSEARCH_URL` | Set by compose to `http://elasticsearch:9200`. Required for segments, engage targeting, inbox and form search. If Elasticsearch is unreachable these now fail with a named `ElasticsearchUnavailableError` instead of silently returning empty/whole-table results. |
 
 ---
 
@@ -702,8 +702,40 @@ values and point `CALCOM_API_URL` at the right instance (it defaults to
 
 ### Other
 
-- **No Elasticsearch.** Omitted deliberately for RAM. Full-text search and
-  segments degrade or error; core CRUD is unaffected.
+- **Elasticsearch + Monstache are required for segments.** Earlier revisions of
+  this runbook said Elasticsearch was omitted for RAM and that segments merely
+  "degrade". Both statements were wrong in an important way, so they are
+  corrected here:
+
+  1. erxes v3 did **not** drop Elasticsearch. `fetchSegment.ts` routes every
+     segment branch — list, count, scroll, association — through `fetchEs`.
+     There is no Mongo fallback, so with no cluster a segment cannot be
+     evaluated at all.
+  2. What v3 dropped is the **syncer**. `erxes-api-shared/.../saveEs.ts` states
+     it plainly: *"entity indices are filled by the external elkSyncer … there
+     is NO in-process Mongo->ES pipeline."* Nothing upstream ships that syncer
+     any more, so adding Elasticsearch on its own yields empty indices and
+     segments that match nothing.
+  3. The failure was **silent**, which is why this looked like a segments bug.
+     `fetchEs` caught the connection error and returned the caller's
+     `defaultValue` — `{ hits: { hits: [] } }` for lists (indistinguishable from
+     a real "no matches") and a mis-shaped `{ count: -1 }` for counts (read as
+     `body.count`, so actually `undefined`).
+
+  The stack therefore runs `elasticsearch` (7.17, pinned to the
+  `@elastic/elasticsearch@7.17.14` client) and `monstache` (rel6), and `mongo`
+  starts with `--replSet rs0` because change streams require a replica set. A
+  single-member set is the supported minimum. Our fork additionally makes an
+  unreachable cluster raise `ElasticsearchUnavailableError` rather than
+  degrading into a wrong answer.
+
+  RAM cost is roughly 2 GB (Elasticsearch) + 0.5 GB (Monstache). Verify the
+  indices are actually populated after deploy:
+
+  ```bash
+  curl -s 'http://elasticsearch:9200/_cat/indices?v' | grep erxes__
+  # expect erxes__companies / erxes__customers with a non-zero docs.count
+  ```
 - **`plugins-ui` serves only `latest/`.** Setting a per-plugin `releaseVersion`
   in the org config silently breaks that plugin's remote — see 7.5 step 3.
 - **`main` is pushed to many times a day** and autoDeploy is on. A deploy fired

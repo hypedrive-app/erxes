@@ -1,0 +1,93 @@
+# Monstache — MongoDB → Elasticsearch sync for erxes v3 segments.
+#
+# WHY THIS FILE EXISTS
+# erxes v3 evaluates segments exclusively through Elasticsearch
+# (backend/core-api/src/modules/segments/utils/fetchSegment.ts — every branch
+# calls fetchEs, there is no Mongo fallback), but v3 removed the component that
+# populates those indices. erxes-api-shared/src/utils/elasticsearch/saveEs.ts
+# says so directly:
+#
+#   "Normally entity indices are filled by the external elkSyncer (an oplog
+#    tailer): there is NO in-process Mongo->ES pipeline."
+#
+# That elkSyncer is not in the v3 tree and erxes/monstache has not been
+# published since 2023, so a self-hosted v3 has nothing feeding Elasticsearch.
+# Segments then match against empty indices and return zero results with no
+# error surfaced. This config is that missing syncer.
+#
+# INDEX NAMING IS LOAD-BEARING
+# erxes reads `${getIndexPrefix(connectionString)}${esIndex}` where the prefix
+# is the Mongo database name plus a double underscore, i.e. `erxes__companies`,
+# `erxes__customers`, `erxes__users`, `erxes__products`. Monstache's default
+# naming is `db.collection`, which erxes would never look at, so the mapping
+# below rewrites each namespace to the exact index erxes expects. Get this
+# wrong and the sync silently fills indices nobody reads.
+
+mongo-url = "mongodb://mongo:27017"
+elasticsearch-urls = ["http://elasticsearch:9200"]
+
+# Change streams (the rel6 default) rather than oplog tailing. Both require a
+# replica set; the compose file runs mongo as a single-member set for exactly
+# this reason.
+change-stream-namespaces = [
+  "erxes.companies",
+  "erxes.customers",
+  "erxes.users",
+  "erxes.products",
+]
+
+# One-time backfill of documents that already exist. Without this only
+# documents changed *after* Monstache starts would be indexed, leaving the
+# 1,000+ companies and customers already imported invisible to segments.
+direct-read-namespaces = [
+  "erxes.companies",
+  "erxes.customers",
+  "erxes.users",
+  "erxes.products",
+]
+
+# Resume from the last processed change on restart instead of replaying or
+# skipping. State is kept in the `monstache` database in Mongo.
+resume = true
+resume-name = "erxes-segments"
+resume-strategy = 0
+
+# Deletes in Mongo must remove the ES document too, otherwise segments keep
+# matching records the CRM no longer has. Note erxes SOFT-deletes contacts
+# (status: "deleted") — those stay in Mongo and therefore in ES by design, and
+# are filtered by the segment conditions themselves, not here.
+delete-strategy = 0
+
+# Index health/perf
+elasticsearch-max-conns = 4
+elasticsearch-max-bytes = 8000000
+elasticsearch-max-seconds = 5
+dropped-collections = true
+dropped-databases = false
+
+# Expose /healthz for the compose healthcheck.
+enable-http-server = true
+http-server-addr = ":8080"
+
+stats = false
+index-stats = false
+verbose = false
+
+# ── Namespace → index mapping ────────────────────────────────────────────────
+# Must match getIndexPrefix() + the esIndex registered in
+# backend/core-api/src/meta/segments.ts.
+[[mapping]]
+namespace = "erxes.companies"
+index = "erxes__companies"
+
+[[mapping]]
+namespace = "erxes.customers"
+index = "erxes__customers"
+
+[[mapping]]
+namespace = "erxes.users"
+index = "erxes__users"
+
+[[mapping]]
+namespace = "erxes.products"
+index = "erxes__products"
