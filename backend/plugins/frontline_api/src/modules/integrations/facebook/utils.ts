@@ -531,33 +531,6 @@ export const restorePost = async (
   }
 };
 
-/**
- * Adds the fields Meta's Send API documents as required on every Messenger
- * send: `messaging_type`, and — only when a tag is actually present —
- * `tag`, since `messaging_type: 'MESSAGE_TAG'` with no `tag` is itself an
- * invalid combination.
- *
- * `receiveMessage.ts`'s own `buildMessengerTextPayload` (used for the bot
- * handoff message) already builds this correctly; this is the same logic
- * pulled out so the agent-reply send path — which was sending `tag`
- * unconditionally, even as `''`, and never setting `messaging_type` at
- * all — uses the identical, already-correct rule rather than a second,
- * divergent copy of it.
- * https://developers.facebook.com/docs/messenger-platform/reference/send-api/
- */
-export const withMessagingType = <T extends Record<string, unknown>>(
-  payload: T,
-  tag?: string,
-): T & { messaging_type: string; tag?: string } => {
-  const trimmedTag = tag?.trim();
-
-  return {
-    ...payload,
-    messaging_type: trimmedTag ? 'MESSAGE_TAG' : 'RESPONSE',
-    ...(trimmedTag ? { tag: trimmedTag } : {}),
-  };
-};
-
 export const sendReply = async (
   models: IModels,
   url: string,
