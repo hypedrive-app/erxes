@@ -100,3 +100,17 @@ replacement (`settings/`, `configs/graphql/`) supersedes them and nothing
 references the old paths, so the merge takes upstream's deletion.
 
 Kept here only as a reference copy; safe to delete.
+
+## accounting plugin (disabled 2026-08-09)
+
+Enabled, then turned off after seeing the live UI: accounting_ui has hardcoded
+Mongolian strings in 175 source files — not a locale gap. Verified
+en/accounting.json and mn/accounting.json both carry all 269 keys with none
+missing, so translation is not the problem; the navigation renders
+`name="Журнал бичилт"` and friends as literals in MainNavigation.tsx, bypassing
+t() entirely. erxes is a Mongolian company and this is their most
+Mongolia-specific plugin, so it was likely never internationalised.
+
+Kept here so re-enabling is a copy back plus the usual three edits (compose
+service + ENABLED_PLUGINS, Dockerfile.build, plugins-ui build/assert/COPY).
+Safe to delete.

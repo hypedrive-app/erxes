@@ -253,7 +253,7 @@ services:
       # ENABLED_PLUGINS occurrence in this file (core-api, each plugin api, and
       # the gateway) must stay identical — the gateway compares its list
       # against what the plugins actually registered.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # ENABLED_PLUGINS_ONLY_API stays ABSENT — same empty-string trap.
       # ── PLUGIN_CDN_URL: where the BROWSER fetches plugin remotes ─────────
       # routes.ts builds `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
@@ -365,7 +365,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. frontline itself
       # calls isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Frontline needs these in its own right, not just for parity: inbound
       # WhatsApp media and email (imap) attachments are streamed straight to
@@ -458,7 +458,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. sales itself calls
       # isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Deal attachments and import/export artifacts are streamed to object
       # storage by this process. Same readConfigValue fallback chain as
@@ -481,88 +481,6 @@ services:
     # between "gateway waits" and "gateway exits having served nothing".
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3305)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 180s
-    restart: unless-stopped
-    # `erxes` ONLY — deliberately NOT on dokploy-network. This plugin is never
-    # addressed from the internet: the browser talks to the gateway, which
-    # proxies /pl:sales to it over the internal network.
-    networks: [erxes]
-    # NO traefik.* labels — Dokploy owns routing. See the gateway service.
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-
-  # ── accounting plugin api (ledger, invoices, transactions) ────────────────
-  # MUST be named plugin-accounting-api. joinErxesGateway() publishes
-  #   http://plugin-${name}-api:${port}  ->  http://plugin-accounting-api:3308
-  # into Redis under `erxes-service-accounting` when NODE_ENV=production and
-  # LOAD_BALANCER_ADDRESS is unset. The gateway proxies to that string
-  # verbatim, so the compose service name IS the DNS name it dials. Renaming
-  # this service silently breaks the gateway with no error at build time.
-  plugin-accounting-api:
-    # Built from source. An `erxes/erxes-next-accounting_api` image DOES exist
-    # upstream (note the UNDERSCORE — the hyphenated spelling has no repo), but
-    # it is built from erxes/erxes main, not this fork, so its GraphQL schema
-    # need not match our sales_ui. Same reasoning as frontline — see the header.
-    #
-    # Dockerfile.build, NOT the sibling Dockerfile: the latter only COPYs a
-    # pre-existing dist/ (gitignored) and cannot build from a clean checkout.
-    # See the header of backend/plugins/accounting_api/Dockerfile.build.
-    build:
-      context: ..
-      dockerfile: backend/plugins/accounting_api/Dockerfile.build
-    depends_on:
-      mongo: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      # core-api owns the shared collections (users, orgs, permissions) and
-      # seeds them on first boot; sales reads them immediately.
-      plugin-core-api: {condition: service_healthy}
-    environment:
-      NODE_ENV: production
-      VERSION: os
-      # Must equal the port in startPlugin({name:'sales', port:3308})
-      # (backend/plugins/accounting_api/src/main.ts). The value published to Redis
-      # comes from that literal, NOT from this env var — they are wired
-      # independently, so a mismatch here yields a registered address that
-      # nothing is listening on. Keep them in lockstep.
-      PORT: "3308"
-      DOMAIN: https://${ERXES_UI_DOMAIN}
-      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      # Same secret as core-api and the gateway — sales validates the same user
-      # JWTs, so a divergent value rejects every authenticated request.
-      JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      # Same non-empty rule as everywhere else in this file. sales itself calls
-      # isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
-      # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
-      # Deal attachments and import/export artifacts are streamed to object
-      # storage by this process. Same readConfigValue fallback chain as
-      # core-api — see the note on plugin-core-api.
-      UPLOAD_SERVICE_TYPE: ${UPLOAD_SERVICE_TYPE:-}
-      AWS_BUCKET: ${AWS_BUCKET:-}
-      AWS_PREFIX: ${AWS_PREFIX:-}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_COMPATIBLE_SERVICE_ENDPOINT: ${AWS_COMPATIBLE_SERVICE_ENDPOINT:-}
-      AWS_REGION: ${AWS_REGION:-}
-      AWS_FORCE_PATH_STYLE: ${AWS_FORCE_PATH_STYLE:-}
-      # R2 rejects ACL headers outright — without this every upload 400s.
-      AWS_DISABLE_ACL: ${AWS_DISABLE_ACL:-}
-      FILE_SYSTEM_PUBLIC: ${FILE_SYSTEM_PUBLIC:-}
-      NODE_OPTIONS: --max-old-space-size=1536
-    # Defined in Dockerfile.build; restated here so it is visible at the level
-    # the `gateway` depends_on condition below actually reads. Same role as
-    # frontline's — see that service for why this gate is the difference
-    # between "gateway waits" and "gateway exits having served nothing".
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3308)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -622,7 +540,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. sales itself calls
       # isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Deal attachments and import/export artifacts are streamed to object
       # storage by this process. Same readConfigValue fallback chain as
@@ -688,7 +606,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Task attachments and import/export artifacts are streamed to object
       # storage by this process. Same readConfigValue fallback chain as
@@ -741,7 +659,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
 
       # ── Cal.com integration ──────────────────────────────────────────────
       # Shared secret configured on the Cal.com webhook subscription. The
@@ -889,7 +807,7 @@ services:
       # true of sales and operation: each name added here is one more subgraph
       # the gateway REQUIRES before it will serve anything.
       # Still never "" — see the long note on plugin-core-api.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # Bound the service-discovery retry loop. Unset => MAX_SAFE_INTEGER, i.e.
       # the gateway waits forever instead of failing visibly (targets.ts).
       #
@@ -1208,7 +1126,7 @@ services:
       # marks all 13 published articles "skipped — the source is unavailable or
       # not published" while the BullMQ job still reports success. Confirmed on
       # this instance: frontline logged nothing at all during a reindex.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # LOAD_BALANCER_ADDRESS is intentionally unset: it would override the
       # container-DNS address the service registers for itself.
       #
@@ -1269,7 +1187,7 @@ services:
       # defaultValue unless isEnabled(pluginName) is true — which is decided
       # solely by this env var. Without it every afterProcess hook is a no-op,
       # and because sendProducer swallows errors it fails silently.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,accounting,loyalty}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,loyalty}
       # Lighter than automations: two Mongo-writing queue workers, no AI path.
       NODE_OPTIONS: --max-old-space-size=192
     healthcheck:
