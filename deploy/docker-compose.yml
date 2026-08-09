@@ -773,14 +773,24 @@ services:
     # pointing at a file that does not exist -- a blank white SPA. Do not
     # reintroduce it.
     #
-    # The two logo files are still mounted: they keep their upstream
-    # `erxes-logo.*` filenames on purpose, because index.html and the built
-    # bundles reference those exact paths, so overriding them by name is stable
-    # across rebuilds in a way an index.html override is not.
+    # The two logo files USED to be bind-mounted from /opt/sharks-branding on
+    # the host. That is gone, because a host bind-mount of a FILE is a deploy
+    # blocker on any machine that does not already have it:
+    #
+    #   error mounting "/opt/sharks-branding/erxes/erxes-logo.ico" ... :
+    #   not a directory: Are you trying to mount a directory onto a file?
+    #
+    # Docker does not create a missing bind source as a file — it creates it as
+    # a DIRECTORY and then fails to mount it over the container's file. So the
+    # whole stack builds, every API turns healthy, and then core-ui alone fails
+    # to start. It made the compose non-portable: it only ran on the one host
+    # those files had been copied to by hand.
+    #
+    # Branding belongs in the image now that core-ui is built from source (see
+    # the `build:` above) — put the logos in frontend/core-ui/src/assets/ and
+    # the <title> in frontend/core-ui/src/index.html, where they are versioned
+    # with the code and travel to every host.
     # ---------------------------------------------------------------------
-    volumes:
-      - /opt/sharks-branding/erxes/erxes-logo.svg:/usr/share/nginx/html/assets/erxes-logo.svg:ro
-      - /opt/sharks-branding/erxes/erxes-logo.ico:/usr/share/nginx/html/assets/erxes-logo.ico:ro
     restart: unless-stopped
     networks: [erxes, dokploy-network]
     # No traefik.* labels here either — Dokploy owns routing. See the note on
