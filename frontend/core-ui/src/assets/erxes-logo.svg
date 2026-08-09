@@ -1,6 +1,1 @@
-<svg viewBox="0 0 23 33" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path
-    d="M12.6796 16.7509C16.1909 11.598 19.4964 6.1423 22.4233 0.5C19.092 4.26153 15.1649 9.73484 11.5688 15.1003C9.66263 12.3476 7.38208 9.39684 4.76955 6.63271C7.3583 11.4228 8.66767 14.0594 10.459 16.7696C5.01156 25.0008 0.57666 32.5 0.57666 32.5C4.31137 28.1879 8.03367 23.4404 11.5688 18.3714C13.084 20.4647 15.0439 22.8349 18.1756 26.3911C18.1694 26.386 16.2147 22.1278 12.6796 16.7509Z"
-    fill="#fff"
-  />
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" shape-rendering="geometricPrecision"><title>Hypedrive</title><defs><linearGradient id="accent" x1="273.9" y1="194.6" x2="702.5" y2="829.4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ff8a9b"/><stop offset=".35" stop-color="#fb7185"/><stop offset=".7" stop-color="#f43f5e"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><rect x="1" y="1" width="1022" height="1022" rx="179" fill="#09090b"/><g transform="translate(83.5 67.6) scale(7.936)"><path d="M24 16H46L78 56.0L46 96H24L44 56.0Z" fill="url(#accent)"/></g></svg>
