@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # calcom_api — self-contained build from a CLEAN GIT CHECKOUT.
 #
 # Deliberately mirrors backend/plugins/operation_api/Dockerfile.build, which in
@@ -24,11 +25,20 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9.12.3
+# pnpm via corepack rather than `npm install -g`: corepack reads the root
+# package.json's `packageManager: "pnpm@9.12.3"` pin and provisions exactly that
+# version, so the version can never drift from the lockfile's producer.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
+RUN corepack enable
 
 COPY . .
 
-RUN pnpm install --frozen-lockfile
+# The BuildKit cache mount persists pnpm's content-addressable store across
+# builds, so unchanged packages are hard-linked from cache instead of being
+# re-downloaded. `id=pnpm` is shared with every sibling Dockerfile.build and
+# with the installer stage below so they all warm one store.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # erxes-api-shared first, as its own layer — same ordering race as the siblings.
 RUN pnpm nx build erxes-api-shared
@@ -41,12 +51,29 @@ RUN test -f backend/plugins/calcom_api/dist/src/main.js \
 # ── Stage 2: production dependency tree, flattened ───────────────────────────
 FROM node:22-alpine3.22 AS installer
 WORKDIR /app
+# This stage DELIBERATELY keeps `npm install -g pnpm@9.12.3` instead of the
+# corepack enable the build stage uses. Do not "fix" it to match.
+#
+# Corepack resolves its version from the nearest package.json's
+# `packageManager` field, and this stage never copies the root one — it
+# SYNTHESISES its own manifest below, which has no such field. With the field
+# absent corepack does not fail; it falls back to a Known Good Release, i.e.
+# effectively whatever the registry calls latest (pnpm 11.x at time of
+# writing), which would resolve a lockfileVersion 9.0 lockfile with a different
+# pnpm major. Pinning the version explicitly here is the whole point.
+#
+# PNPM_HOME is set because pnpm's default store lives at
+# ~/.local/share/pnpm/store, which the target=/pnpm/store cache mount below
+# would NOT cover; PNPM_HOME=/pnpm relocates it to /pnpm/store so the mount
+# actually caches something.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
 RUN npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
 COPY backend/plugins/calcom_api/package.json backend/plugins/calcom_api/
 COPY backend/erxes-api-shared/package.json backend/erxes-api-shared/
-RUN node -e "\
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store node -e "\
 const fs = require('fs'); \
 const shared = require('./backend/erxes-api-shared/package.json'); \
 const service = require('./backend/plugins/calcom_api/package.json'); \

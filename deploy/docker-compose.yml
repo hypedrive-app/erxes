@@ -225,6 +225,30 @@ services:
       AWS_DISABLE_ACL: ${AWS_DISABLE_ACL:-}
       FILE_SYSTEM_PUBLIC: ${FILE_SYSTEM_PUBLIC:-}
       NODE_OPTIONS: --max-old-space-size=1536
+    # core-api was the ONE service every plugin waits on and the only one with no
+    # readiness signal, so `depends_on` could only say service_STARTED — process
+    # launched, not serving. It owns the shared collections (users, orgs,
+    # permissions) and seeds them on first boot, and every plugin reads them
+    # immediately, so "started" is precisely the wrong gate on a cold box where
+    # that seeding is slowest.
+    #
+    # /health is meaningful rather than a liveness ping: main.ts mounts it (line
+    # ~141) BEFORE httpServer.listen(), so a 200 implies the HTTP server is up
+    # with its routes attached. Port 3300 matches the PORT env above.
+    #
+    # start_period is generous for the same reason as the plugins': first boot
+    # runs migrations/seeding, and a healthcheck that fails during that window
+    # would restart the very service everything else is waiting for.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - require('http').get('http://127.0.0.1:'+(process.env.PORT||3300)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 12
     restart: unless-stopped
     networks: [erxes]
     deploy:
@@ -249,7 +273,7 @@ services:
       redis: {condition: service_healthy}
       # core-api owns the shared collections (users, orgs, permissions) and
       # seeds them on first boot; frontline reads them immediately.
-      plugin-core-api: {condition: service_started}
+      plugin-core-api: {condition: service_healthy}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -352,7 +376,7 @@ services:
       redis: {condition: service_healthy}
       # core-api owns the shared collections (users, orgs, permissions) and
       # seeds them on first boot; sales reads them immediately.
-      plugin-core-api: {condition: service_started}
+      plugin-core-api: {condition: service_healthy}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -424,7 +448,7 @@ services:
     depends_on:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
-      plugin-core-api: {condition: service_started}
+      plugin-core-api: {condition: service_healthy}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -477,7 +501,7 @@ services:
     depends_on:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
-      plugin-core-api: {condition: service_started}
+      plugin-core-api: {condition: service_healthy}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -562,7 +586,7 @@ services:
     depends_on:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
-      plugin-core-api: {condition: service_started}
+      plugin-core-api: {condition: service_healthy}
       # ── THIS IS A CORRECTNESS REQUIREMENT, NOT AN OPTIMISATION ─────────────
       # (An earlier revision of this file called it "not a correctness
       # requirement — the gateway retries either way". That was wrong, and the
@@ -712,7 +736,16 @@ services:
     # image hardcodes exactly two login tabs, so an SSO entry point cannot be
     # added to it -- without this the backend's /auth/oidc/* routes work but no
     # one can reach them from the UI.
-    image: sharksmarketing/erxes-core-ui:latest
+    # `image:` here is only the LOCAL TAG for the image built below — there is no
+    # such repo on Docker Hub (verified: the sharksmarketing org publishes
+    # nothing, and the name 404s). That matters because with both `image:` and
+    # `build:` and no pull_policy, Compose's documented behaviour is pull-first
+    # and build only if the pull fails, so the build we actually want runs via a
+    # 404 fallback rather than by intent. `pull_policy: build` states the intent
+    # outright and also stops Compose from ever silently preferring some stale or
+    # wrong-arch image that happens to exist under this name later.
+    image: erxes-core-ui:local
+    pull_policy: build
     build:
       context: ..
       dockerfile: frontend/core-ui/Dockerfile

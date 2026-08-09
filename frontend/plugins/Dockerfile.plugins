@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # plugin UIs — ALL Module Federation remotes, built from a CLEAN GIT CHECKOUT
 # and served by ONE nginx.
 #
@@ -128,7 +129,14 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9.12.3
+# pnpm comes from corepack, which reads the exact version out of the root
+# package.json `packageManager` field ("pnpm@9.12.3"). That keeps the 9.x pin
+# this repo requires — its lockfile is lockfileVersion 9.0, and pnpm 10+ fails
+# it with "Cannot verify the identity of the @pnpm/exe.linux-x64 native binary"
+# — without restating the version here. See frontend/core-ui/Dockerfile.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
+RUN corepack enable
 
 # Whole tree, not a curated subset: nx.json's inference plugins load
 # eslint.config.js / jest.config.ts / jest.preset.js from the ROOT while
@@ -137,8 +145,11 @@ RUN npm install -g pnpm@9.12.3
 COPY . .
 
 # ONCE for all three plugins — they share this workspace. This is the dominant
-# cost of the image; the compiles below are comparatively cheap.
-RUN pnpm install --frozen-lockfile
+# cost of the image; the compiles below are comparatively cheap. The BuildKit
+# cache mount keeps pnpm's content-addressable store across builds so that cost
+# is paid in full only on a cold builder; `id=pnpm` is shared with the backend
+# Dockerfiles deliberately, so they warm the same store.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # rspack + Module Federation -> dist/frontend/plugins/<plugin>_ui/
 #
