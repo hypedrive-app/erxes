@@ -11,11 +11,11 @@ RUN apk add --no-cache alpine-sdk && \
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-# pnpm@9, PINNED — see frontend/core-ui/Dockerfile for the full reasoning.
+# pnpm@9.12.3, PINNED — see frontend/core-ui/Dockerfile for the full reasoning.
 # Unpinned resolves to pnpm 11, which verifies its own native binary against
 # the lockfile; ours is lockfileVersion 9.0 and has no such entry, so the
 # install fails. This one had not broken yet only because it had not rebuilt.
-RUN npm install -g pnpm@9 && pnpm install
+RUN npm install -g pnpm@9.12.3 && pnpm install
 COPY . .
 RUN pnpm nx build frontline-widgets --configuration=production --verbose
 

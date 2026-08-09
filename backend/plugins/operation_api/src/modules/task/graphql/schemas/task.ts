@@ -23,6 +23,9 @@ export const types = `
     statusChangedDate: Date
     number: Int
     statusType: Int
+    githubIssueNumber: Int
+    githubIssueUrl: String
+    githubRepoName: String
   }
 
   type TaskListResponse {

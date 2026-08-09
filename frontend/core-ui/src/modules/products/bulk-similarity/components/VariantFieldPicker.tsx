@@ -274,6 +274,7 @@ const AddFieldSheet = ({
                         {group.fields.map((field) => {
                           const fieldTypeObject =
                             FIELD_TYPES_OBJECT[field.type || ''];
+                          const FieldTypeIcon = fieldTypeObject?.icon;
 
                           return (
                             <Table.Row
@@ -302,8 +303,8 @@ const AddFieldSheet = ({
                                   asChild
                                 >
                                   <div>
-                                    {fieldTypeObject?.icon && (
-                                      <fieldTypeObject.icon className="size-4" />
+                                    {FieldTypeIcon && (
+                                      <FieldTypeIcon className="size-4" />
                                     )}
                                     {fieldTypeObject?.label}
                                   </div>

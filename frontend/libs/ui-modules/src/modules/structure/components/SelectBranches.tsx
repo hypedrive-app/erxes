@@ -58,7 +58,13 @@ export const SelectBranchesProvider = ({
 }: ISelectBranchesProviderProps) => {
   const [newBranchName, setNewBranchName] = useState<string>('');
   const [selectedBranches, setSelectedBranches] = useState<IBranch[]>([]);
-  const branchIds = !value ? [] : Array.isArray(value) ? value : [value];
+  let branchIds: string[] = [];
+
+  if (Array.isArray(value)) {
+    branchIds = value;
+  } else if (value) {
+    branchIds = [value];
+  }
 
   const handleSelectCallback = (branch: IBranch) => {
     if (!branch) return;
@@ -70,14 +76,14 @@ export const SelectBranchesProvider = ({
     const newSelectedBranchIds = isSingleMode
       ? [branch._id]
       : isSelected
-      ? multipleValue.filter((p) => p !== branch._id)
-      : [...multipleValue, branch._id];
+        ? multipleValue.filter((p) => p !== branch._id)
+        : [...multipleValue, branch._id];
 
     const newSelectedBranches = isSingleMode
       ? [branch]
       : isSelected
-      ? selectedBranches.filter((p) => p._id !== branch._id)
-      : [...selectedBranches, branch];
+        ? selectedBranches.filter((p) => p._id !== branch._id)
+        : [...selectedBranches, branch];
 
     setSelectedBranches(newSelectedBranches);
     onValueChange?.(isSingleMode ? branch._id : newSelectedBranchIds);

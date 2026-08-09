@@ -20,6 +20,7 @@ export const MSDynamicCheckProductsRecordTable = () => {
       data={filteredProducts}
       className="h-full w-full px-2 overflow-y-auto"
       stickyColumns={['checkbox']}
+      tableId="mongolian_msdynamic_check_products_record_table"
     >
       <RecordTable.CursorProvider
         hasPreviousPage={hasPreviousPage}
@@ -28,7 +29,7 @@ export const MSDynamicCheckProductsRecordTable = () => {
         sessionKey={MS_DYNAMIC_SESSION_KEYS.products}
       >
         <RecordTable>
-          <RecordTable.Header />
+          <RecordTable.Header showColumnSelector />
           <RecordTable.Body>
             <RecordTable.CursorBackwardSkeleton
               handleFetchMore={checkProducts}

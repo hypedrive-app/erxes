@@ -7,16 +7,19 @@ import {
   IconEdit,
   IconForms,
   IconLayoutKanban,
+  IconLock,
   IconMail,
   IconMessageFilled,
   IconMessageReply,
   IconPhone,
   IconPhoneCall,
   IconPlugConnected,
+  IconShield,
   IconTrash,
   IconUsers,
 } from '@tabler/icons-react';
 import {
+  Badge,
   Card,
   Combobox,
   Command,
@@ -148,6 +151,7 @@ export const ChannelCard = ({
     integrationCount,
     integrationKinds,
     createdAt,
+    scope,
   } = channel;
 
   const memberUsers = (members ?? [])
@@ -160,6 +164,8 @@ export const ChannelCard = ({
 
   const intCount = integrationCount ?? 0;
   const hasChips = integrationKinds && integrationKinds.length > 0;
+
+  const isPersonal = scope === 'personal';
 
   return (
     <Card
@@ -186,6 +192,14 @@ export const ChannelCard = ({
             {description || 'No description'}
           </Card.Description>
         </div>
+        {isPersonal && (
+          <div>
+            <Badge>
+              <IconShield size={14} />
+              Private
+            </Badge>
+          </div>
+        )}
         <ChannelCardActions channelId={_id} />
       </div>
 
@@ -227,11 +241,17 @@ export const ChannelCard = ({
           <ChannelRow label={t('integrations')}>
             <span
               className="flex items-center gap-1"
-              style={intCount === 0 ? { color: 'oklch(0.8 0.005 286.32)' } : undefined}
+              style={
+                intCount === 0
+                  ? { color: 'oklch(0.8 0.005 286.32)' }
+                  : undefined
+              }
             >
               <IconPlugConnected
                 size={14}
-                className={intCount === 0 ? 'opacity-50' : 'text-muted-foreground'}
+                className={
+                  intCount === 0 ? 'opacity-50' : 'text-muted-foreground'
+                }
               />
               <span style={{ fontFamily: 'Roboto Mono, monospace' }}>
                 {intCount}

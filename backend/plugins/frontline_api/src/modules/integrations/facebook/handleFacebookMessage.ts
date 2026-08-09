@@ -4,7 +4,6 @@ import { IModels } from '~/connectionResolvers';
 import {
   sendReply,
   generateAttachmentMessages,
-  withMessagingType,
 } from '@/integrations/facebook/utils';
 import { sendNotifications } from '@/inbox/graphql/resolvers/mutations/conversations';
 
@@ -20,15 +19,15 @@ export const handleFacebookMessage = async (
   const doc = JSON.parse(payload || '{}');
   if (doc.internal) {
     const conversation = await models.FacebookConversations.getConversation({
-      erxesApiId: doc.conversationId
+      erxesApiId: doc.conversationId,
     });
 
     return models.FacebookConversationMessages.addMessage(
       {
         ...doc,
-        conversationId: conversation._id
+        conversationId: conversation._id,
       },
-      doc.userId
+      doc.userId,
     );
   }
   if (action === 'reply-post') {
@@ -156,6 +155,14 @@ export const handleFacebookMessage = async (
 
     const tag = extraInfo?.tag || '';
 
+    const trimmedTag = tag.trim();
+    const messagingParams: { messaging_type: string; tag?: string } = {
+      messaging_type: trimmedTag ? 'MESSAGE_TAG' : 'RESPONSE',
+    };
+    if (trimmedTag) {
+      messagingParams.tag = trimmedTag;
+    }
+
     // Extract image URLs from the content
     const images = (content.match(/<img[^>]* src="([^"]*)"/g) || []).map(
       (img) => img.match(/src="([^"]*)"/)[1],
@@ -187,13 +194,11 @@ export const handleFacebookMessage = async (
         const resp = await sendReply(
           models,
           'me/messages',
-          withMessagingType(
-            {
-              recipient: { id: senderId },
-              message: { text: strippedContent },
-            },
-            tag,
-          ),
+          {
+            recipient: { id: senderId },
+            message: { text: strippedContent },
+            ...messagingParams,
+          },
           conversation.recipientId,
           integrationId,
         );
@@ -218,7 +223,11 @@ export const handleFacebookMessage = async (
         const resp = await sendReply(
           models,
           'me/messages',
-          withMessagingType({ recipient: { id: senderId }, message }, tag),
+          {
+            recipient: { id: senderId },
+            message,
+            ...messagingParams,
+          },
           conversation.recipientId,
           integrationId,
         );

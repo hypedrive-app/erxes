@@ -51,6 +51,7 @@ export const CONFIG: IUIConfig = {
   ),
   navigationGroup: {
     name: 'frontline',
+    defaultPath: 'frontline/inbox',
     icon: IconStackFront,
     content: () => (
       <Suspense fallback={<div />}>

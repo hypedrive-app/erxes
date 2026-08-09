@@ -206,6 +206,11 @@ export const SETTINGS_PATH_DATA = (
       path: SettingsWorkspacePath.Logs,
     },
     {
+      name: 'Email delivery',
+      icon: IconMail,
+      path: SettingsWorkspacePath.EmailDeliveries,
+    },
+    {
       name: 'Import & Export',
       icon: IconFileImport,
       path: SettingsWorkspacePath.ImportExport,
