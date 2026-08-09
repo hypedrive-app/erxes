@@ -88,3 +88,15 @@ but it is Instagram *post* plumbing that a future `mentions`-based feature
 would plausibly reuse, and it is referenced by comment handling in `store.ts`.
 
 Safe to delete.
+
+## payment_ui corporateGateway (old structure) — archived 2026-08-09
+
+Upstream PR #8893 ("fix: payment corporate gateway", commit c2471522) rewrote
+`frontend/plugins/payment_ui/src/modules/corporateGateway/` and deleted these
+files. Our only changes to them were mechanical build fixes (import-path
+rewrites and a Radix `Select` API migration, plus filling one zero-byte file
+upstream had committed empty) — no business logic of ours. Upstream's
+replacement (`settings/`, `configs/graphql/`) supersedes them and nothing
+references the old paths, so the merge takes upstream's deletion.
+
+Kept here only as a reference copy; safe to delete.
