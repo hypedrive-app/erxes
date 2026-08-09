@@ -26,12 +26,25 @@ const read = (name: string): string =>
   (getEnv({ name, defaultValue: '' }) || '').trim();
 
 /**
- * Whether a provider is configured. The three values below have no sensible
+ * Whether a provider is configured. The four values below have no sensible
  * default, so their presence is what turns the routes on: an unconfigured
  * deployment answers 404 rather than exposing a half-built login path.
+ *
+ * OIDC_REDIRECT_URI is part of the gate even though only the other three are
+ * "identity". It used to be omitted here while getOidcConfig() still required
+ * it, so a deployment that set the first three and forgot the fourth passed
+ * this check, reached getOidcConfig(), and threw — turning a missing-config
+ * mistake into a 500 on the login route instead of the intended 404. Keeping
+ * both functions on the same four keys means "enabled" and "usable" cannot
+ * disagree.
  */
 export const isOidcEnabled = (): boolean =>
-  Boolean(read('OIDC_ISSUER') && read('OIDC_CLIENT_ID') && read('OIDC_CLIENT_SECRET'));
+  Boolean(
+    read('OIDC_ISSUER') &&
+      read('OIDC_CLIENT_ID') &&
+      read('OIDC_CLIENT_SECRET') &&
+      read('OIDC_REDIRECT_URI'),
+  );
 
 export const getOidcConfig = (): OidcConfig => {
   const issuer = read('OIDC_ISSUER').replace(/\/$/, '');
