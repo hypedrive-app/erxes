@@ -1,4 +1,10 @@
+# syntax=docker/dockerfile:1
 # gateway — self-contained build from a CLEAN GIT CHECKOUT.
+#
+# The `syntax` directive above is what makes `RUN --mount=type=cache` below
+# reliable: --mount needs Dockerfile frontend >= 1.2, and pinning the frontend
+# means the build does not depend on whichever version the daemon happens to
+# bundle.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # WHY THIS FILE EXISTS ALONGSIDE ./Dockerfile
@@ -139,7 +145,13 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9.12.3
+# pnpm via corepack rather than `npm install -g pnpm@9.12.3`. Corepack reads
+# the root package.json's `packageManager: "pnpm@9.12.3"` field, so the version
+# stays pinned to exactly what the lockfile was written by — the pin lives in
+# ONE place instead of being restated in every Dockerfile and drifting.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
+RUN corepack enable
 
 # Full dev install: the build needs typescript, tsc-alias, preconstruct and the
 # Nx toolchain, none of which survive a --prod install. This whole stage is
@@ -153,7 +165,13 @@ COPY . .
 # --frozen-lockfile: a deploy must fail loudly on a stale pnpm-lock.yaml rather
 # than silently resolving different versions than were tested. This is the one
 # behavioural difference from the sibling Dockerfile's bare `pnpm install`.
-RUN pnpm install --frozen-lockfile
+#
+# The cache mount persists pnpm's content-addressed store ACROSS builds, so a
+# rebuild re-links packages instead of re-downloading ~3,750 of them. It is a
+# cache, not a layer: it survives even when this layer is invalidated, which is
+# exactly the case that used to cost ~5 minutes per service.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # erxes-api-shared FIRST and as its own layer. The gateway's build only
 # type-checks against it via tsconfig paths, so Nx's `dependsOn: ["^build"]`
@@ -200,6 +218,14 @@ console.log('gateway build OK — frontline.json ' + count + ' keys'); \
 # walk a real flat node_modules with no pnpm symlink store in the runtime image.
 FROM node:22-bookworm AS installer
 WORKDIR /app
+
+# NOT corepack here, unlike the build stage. This stage OVERWRITES /app/package.json
+# with a synthesised single-package manifest (see the node -e below) that has no
+# `packageManager` field. Corepack falls back to a "Known Good Release" — in
+# practice whatever the registry currently calls latest — when that field is
+# absent, so it would silently install a pnpm major that does not match the
+# lockfileVersion this repo was written against. Installing the exact version
+# explicitly keeps this stage pinned to the same pnpm as the build stage.
 RUN npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
