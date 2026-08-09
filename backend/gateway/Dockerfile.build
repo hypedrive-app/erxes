@@ -81,8 +81,13 @@
 # router.apollo.dev publishes no musl build, so on alpine the download succeeds
 # and the spawn then dies at runtime with a bare "no such file or directory"
 # from the missing interpreter — a failure that appears only after deploy.
-# Same reason the platform is pinned linux/amd64: that download URL is
-# arch-specific.
+#
+# The ARCH half of that constraint does NOT apply. The install script sniffs
+# `uname -m` and resolves the matching asset, and Apollo publishes both
+#   router-v1.59.2-x86_64-unknown-linux-gnu.tar.gz
+#   router-v1.59.2-aarch64-unknown-linux-gnu.tar.gz
+# (both verified 200). So glibc is required, a specific architecture is not —
+# which is why the stages below are no longer pinned to linux/amd64.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # BUILD CONTEXT IS THE REPO ROOT
@@ -98,7 +103,17 @@
 # unchanged.
 
 # ── Stage 1: compile the workspace ───────────────────────────────────────────
-FROM --platform=linux/amd64 node:22-bookworm AS build
+# NOT pinned to --platform=linux/amd64. The sibling `Dockerfile` (and upstream's
+# own) pins all three stages to amd64; carrying that here made every stage pull
+# an amd64 image, which dies instantly on an arm64 host with
+#   exec /bin/sh: exec format error
+# The only genuinely platform-bound thing here is the Apollo Router binary, and
+# that constraint is glibc-vs-musl (see above), not architecture — its installer
+# resolves the right asset per `uname -m`. Nothing else needs amd64: the 16
+# runtime dependencies are pure JavaScript, with no native addon. Leaving the
+# platform unset lets Docker resolve the multi-arch node:22-bookworm manifest
+# for the build host, so this stack deploys on arm64 (Ampere) as well as amd64.
+FROM node:22-bookworm AS build
 WORKDIR /app
 
 # Nx's daemon adds no value in a single-shot container build and is a known
@@ -183,7 +198,7 @@ console.log('gateway build OK — frontline.json ' + count + ' keys'); \
 # shared library's deps with the service's own, drop the `workspace:^`
 # self-reference, and --shamefully-hoist so node's plain CommonJS resolver can
 # walk a real flat node_modules with no pnpm symlink store in the runtime image.
-FROM --platform=linux/amd64 node:22-bookworm AS installer
+FROM node:22-bookworm AS installer
 WORKDIR /app
 RUN npm install -g pnpm@9.12.3
 
@@ -223,7 +238,7 @@ fs.writeFileSync( \
        \) -prune -exec rm -rf {} \; 2>/dev/null || true
 
 # ── Stage 3: minimal runtime ─────────────────────────────────────────────────
-FROM --platform=linux/amd64 node:22-bookworm
+FROM node:22-bookworm
 WORKDIR /app
 
 # curl fetches the Apollo Router tarball below; ca-certificates makes that TLS
