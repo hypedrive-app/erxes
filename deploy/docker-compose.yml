@@ -101,6 +101,68 @@ services:
         limits:
           memory: 256M
 
+  # ── MinIO: S3-compatible object storage for uploads ───────────────────────
+  # Self-hosted rather than a managed bucket, so attachments, avatars and
+  # imported files stay on this box with the rest of the stack.
+  #
+  # TWO hostnames matter and they are not interchangeable:
+  #   http://minio:9000            — what the API containers use (docker DNS)
+  #   https://${ERXES_FILES_DOMAIN} — what the BROWSER must use
+  # erxes hands the browser a URL for each file, so anything signed against the
+  # internal name would be unreachable from outside the network. That is what
+  # AWS_COMPATIBLE_SERVICE_ENDPOINT below is for.
+  #
+  # Path-style addressing is mandatory on a single-host MinIO: virtual-host
+  # style (bucket.minio:9000) would need a DNS entry per bucket.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-erxes}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # Presigned URLs are signed against the host the BROWSER will use, so
+      # MinIO has to know its own public origin. Without this it signs for
+      # `minio:9000` and every download 403s with SignatureDoesNotMatch.
+      MINIO_SERVER_URL: https://${ERXES_FILES_DOMAIN}
+      MINIO_BROWSER_REDIRECT_URL: https://${ERXES_FILES_DOMAIN}/minio-console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      # MinIO ships its own liveness endpoint; it needs no credentials and
+      # returns 200 only once the object layer is initialised, so gating
+      # uploads-dependent services on it is meaningful rather than cosmetic.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    networks: [erxes, dokploy-network]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── minio-init: create the bucket once, then exit ─────────────────────────
+  # MinIO does not create buckets on demand — an upload into a missing bucket
+  # fails with NoSuchBucket. This one-shot container makes it idempotently
+  # (`mb --ignore-existing`) so a fresh box needs no manual console step.
+  #
+  # It stays PRIVATE. erxes serves files through its own API, which checks
+  # permissions first; a public bucket would let anyone with a URL bypass that.
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 '${MINIO_ROOT_USER:-erxes}' '${MINIO_ROOT_PASSWORD}' &&
+      mc mb --ignore-existing local/${AWS_BUCKET:-erxes} &&
+      echo 'bucket ${AWS_BUCKET:-erxes} ready'
+      "
+    restart: "no"
+    networks: [erxes]
+
   # ── core-api ──────────────────────────────────────────────────────────────
   # MUST be named plugin-core-api (see header).
   plugin-core-api:
@@ -1144,6 +1206,7 @@ services:
 volumes:
   mongo-data:
   redis-data:
+  minio-data:
 
 networks:
   erxes:
