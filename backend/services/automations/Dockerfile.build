@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # automations-service — self-contained build from a CLEAN GIT CHECKOUT.
 #
 # ─────────────────────────────────────────────────────────────────────────────
@@ -56,7 +57,12 @@ ENV NX_DAEMON=false \
     NX_REJECT_UNKNOWN_LOCAL_CACHE=0 \
     CI=true
 
-RUN npm install -g pnpm@9.12.3
+# pnpm via corepack rather than `npm install -g`: corepack reads the root
+# package.json's `packageManager: "pnpm@9.12.3"` pin and provisions exactly that
+# version, so the version can never drift from the lockfile's producer.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
+RUN corepack enable
 
 # Full dev install: the build needs typescript, tsc-alias, preconstruct and the
 # Nx toolchain, none of which survive a --prod install. This stage is discarded;
@@ -69,7 +75,12 @@ COPY . .
 
 # --frozen-lockfile: a deploy must fail loudly on a stale pnpm-lock.yaml rather
 # than silently resolving different versions than were tested.
-RUN pnpm install --frozen-lockfile
+#
+# The BuildKit cache mount persists pnpm's content-addressable store across
+# builds, so unchanged packages are hard-linked from cache instead of being
+# re-downloaded. `id=pnpm` is shared with every sibling Dockerfile.build and
+# with the installer stage below so they all warm one store.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # erxes-api-shared FIRST and as its own layer. This service only type-checks
 # against it via tsconfig paths, so Nx's `dependsOn: ["^build"]` has been able to
@@ -93,12 +104,29 @@ RUN test -f backend/services/automations/dist/src/main.js \
 # resolver can walk a real flat node_modules with no pnpm symlink store.
 FROM node:22-alpine3.22 AS installer
 WORKDIR /app
+# This stage DELIBERATELY keeps `npm install -g pnpm@9.12.3` instead of the
+# corepack enable the build stage uses. Do not "fix" it to match.
+#
+# Corepack resolves its version from the nearest package.json's
+# `packageManager` field, and this stage never copies the root one — it
+# SYNTHESISES its own manifest below, which has no such field. With the field
+# absent corepack does not fail; it falls back to a Known Good Release, i.e.
+# effectively whatever the registry calls latest (pnpm 11.x at time of
+# writing), which would resolve a lockfileVersion 9.0 lockfile with a different
+# pnpm major. Pinning the version explicitly here is the whole point.
+#
+# PNPM_HOME is set because pnpm's default store lives at
+# ~/.local/share/pnpm/store, which the target=/pnpm/store cache mount below
+# would NOT cover; PNPM_HOME=/pnpm relocates it to /pnpm/store so the mount
+# actually caches something.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
 RUN npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
 COPY backend/services/automations/package.json backend/services/automations/
 COPY backend/erxes-api-shared/package.json backend/erxes-api-shared/
-RUN node -e "\
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store node -e "\
 const fs = require('fs'); \
 const shared = require('./backend/erxes-api-shared/package.json'); \
 const service = require('./backend/services/automations/package.json'); \

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM alpine:3.11 AS jo-builder
 RUN apk add --no-cache alpine-sdk && \
     cd /tmp && curl -s -LO https://github.com/jpmens/jo/releases/download/1.3/jo-1.3.tar.gz && \
@@ -11,7 +12,10 @@ RUN apk add --no-cache alpine-sdk && \
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-# pnpm@9.12.3, PINNED. Unpinned `npm install -g pnpm` resolves to whatever is
+# pnpm@9.12.3, PINNED — now via corepack rather than `npm install -g`. Corepack
+# reads the exact version out of the root package.json `packageManager` field
+# ("pnpm@9.12.3"), so the pin lives in ONE place instead of being restated in
+# every Dockerfile. Unpinned `npm install -g pnpm` resolved to whatever was
 # current — pnpm 11 at the time of writing — which fails against this repo:
 #
 #   [ERROR] Cannot verify the identity of the @pnpm/exe.linux-x64 native
@@ -21,9 +25,12 @@ COPY package.json pnpm-lock.yaml ./
 # it against the lockfile. Ours is lockfileVersion 9.0, written by the
 # pnpm@9.12.3 this repo pins in packageManager, so that entry does not exist
 # and never did. Nothing in the repo changed to cause this — the upstream
-# default moved. Every other Dockerfile here already pins pnpm@9.12.3; this line was
-# the only one that did not.
-RUN npm install -g pnpm@9.12.3 && pnpm install
+# default moved. Keep `packageManager` at 9.12.3: it is now what holds this
+# build off pnpm 10+, for this Dockerfile and every other one here.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
+RUN corepack enable
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
 COPY . .
 RUN pnpm nx build core-ui --configuration=production --verbose
 

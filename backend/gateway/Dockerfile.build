@@ -226,12 +226,20 @@ WORKDIR /app
 # absent, so it would silently install a pnpm major that does not match the
 # lockfileVersion this repo was written against. Installing the exact version
 # explicitly keeps this stage pinned to the same pnpm as the build stage.
+#
+# PNPM_HOME is load-bearing for the cache mount below, not cosmetic. pnpm's
+# default store is $XDG_DATA_HOME/pnpm/store (here /root/.local/share/pnpm/
+# store/v3), which is OUTSIDE target=/pnpm/store — so without this the mount
+# would attach a directory pnpm never writes to and the cache would be silently
+# dead. Setting PNPM_HOME moves the store to /pnpm/store/v3, inside the mount.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME/bin:$PATH"
 RUN npm install -g pnpm@9.12.3
 
 COPY pnpm-lock.yaml ./
 COPY backend/gateway/package.json backend/gateway/
 COPY backend/erxes-api-shared/package.json backend/erxes-api-shared/
-RUN node -e "\
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store node -e "\
 const fs = require('fs'); \
 const shared = require('./backend/erxes-api-shared/package.json'); \
 const service = require('./backend/gateway/package.json'); \
