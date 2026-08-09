@@ -1136,6 +1136,25 @@ services:
       # when set). Model defaults to gpt-5-mini when unset.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_DEFAULT_MODEL: ${OPENAI_DEFAULT_MODEL:-}
+      # ── Cloudflare AI Gateway ────────────────────────────────────────────
+      # erxes' own DEFAULT provider is cloudflare-ai-gateway, not openai, so an
+      # agent left on the default provider needs these or it resolves to an
+      # empty base URL and every call fails. Routing through the gateway rather
+      # than straight at api.openai.com adds request logging, caching and
+      # rate-limiting on Cloudflare's side, using the same OPENAI_API_KEY above
+      # as the upstream credential.
+      #
+      # MODE=compat is what buildCloudflareAiGatewayBaseUrl() turns into
+      #   https://gateway.ai.cloudflare.com/v1/<account>/<gateway>/compat
+      # and in that mode the model is addressed provider-qualified, which is why
+      # OPENAI_DEFAULT_MODEL is set to `openai/<model>` rather than a bare name.
+      #
+      # No CLOUDFLARE_AI_GATEWAY_TOKEN: the gateway is created unauthenticated.
+      # It holds no credentials of its own — the OpenAI key still authorises the
+      # upstream call — so a token would only add a secret to rotate.
+      CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID: ${CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID:-}
+      CLOUDFLARE_AI_GATEWAY_ID: ${CLOUDFLARE_AI_GATEWAY_ID:-}
+      CLOUDFLARE_AI_GATEWAY_MODE: ${CLOUDFLARE_AI_GATEWAY_MODE:-compat}
       NODE_OPTIONS: --max-old-space-size=384
     # Liveness only. Nothing blocks on this service the way the gateway blocks
     # on the federated plugin APIs, so it needs none of their 180s start_period.
