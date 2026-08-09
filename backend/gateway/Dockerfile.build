@@ -289,15 +289,37 @@ ENV PATH="$PNPM_HOME:$PATH"
 # Router version is pinned to v1.59.2 to match what the published image ships;
 # `curl | sh` unpacks ./router into the cwd, which is why the cd is into the
 # temp dir paths.ts will later resolve.
+# BOTH network fetches are RETRIED. Each pulls a ~20 MB artifact from Apollo's
+# CDN, and rover's own HTTP timeout is short enough (~30 s) that one slow link
+# fails the whole build:
+#   downloading the 'supergraph' plugin from
+#     https://rover.apollo.dev/tar/supergraph/aarch64-unknown-linux-gnu/v2.9.3
+#   error: operation timed out
+# The URL itself is fine (verified 200, ~20 MB) — this is transient slowness
+# between the build host and the CDN, so it is worth retrying rather than
+# failing a 30-minute build on one bad fetch.
 RUN npm install -g pnpm@9.12.3 \
     && pnpm add -g @apollo/rover@0.22.0 \
     && pnpm cache clean \
-    && rover supergraph compose \
-      --config /app/backend/gateway/dist/src/apollo-router/dummy/supergraph.yaml \
-      --elv2-license=accept \
+    && ( for i in 1 2 3 4 5; do \
+           rover supergraph compose \
+             --config /app/backend/gateway/dist/src/apollo-router/dummy/supergraph.yaml \
+             --elv2-license=accept \
+           && exit 0; \
+           echo "rover supergraph compose failed (attempt $i/5), retrying in 15s"; \
+           sleep 15; \
+         done; \
+         echo "rover supergraph compose failed after 5 attempts"; exit 1 ) \
     && mkdir -p /app/backend/gateway/dist/src/apollo-router/temp \
     && cd /app/backend/gateway/dist/src/apollo-router/temp \
-    && curl -sSL https://router.apollo.dev/download/nix/v1.59.2 | sh \
+    && ( for i in 1 2 3 4 5; do \
+           curl -fsSL --connect-timeout 30 --max-time 600 --retry 3 --retry-delay 5 \
+             https://router.apollo.dev/download/nix/v1.59.2 | sh \
+           && exit 0; \
+           echo "router download failed (attempt $i/5), retrying in 15s"; \
+           sleep 15; \
+         done; \
+         echo "router download failed after 5 attempts"; exit 1 ) \
     && test -x /app/backend/gateway/dist/src/apollo-router/temp/router
 
 WORKDIR /app/backend/gateway/dist
