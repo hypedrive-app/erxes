@@ -10,6 +10,7 @@ import { validSearchText } from 'erxes-api-shared/utils';
 import { Model } from 'mongoose';
 import { IModels } from '~/connectionResolvers';
 import { generateCompanyUpdateActivityLogs } from '../../meta/activity-log/companies';
+import { applyDerivedAvatar } from '../../utils/companyAvatar';
 
 export interface ICompanyModel extends Model<ICompanyDocument> {
   getCompany(_id: string): Promise<ICompanyDocument>;
@@ -141,6 +142,10 @@ export const loadCompanyClass = (
         doc.ownerId = user._id;
       }
 
+      // Give the company a logo from its own domain when none was supplied,
+      // so imported records don't all render as blank placeholders.
+      applyDerivedAvatar(doc);
+
       this.fixListFields(doc, doc.trackedData);
 
       if (doc.propertiesData) {
@@ -188,6 +193,10 @@ export const loadCompanyClass = (
       await this.checkDuplication(doc, [_id]);
 
       const company = await models.Companies.getCompany(_id);
+
+      // A website arriving on a company that never had a logo backfills one;
+      // an avatar already on the record is left alone.
+      applyDerivedAvatar(doc, company.avatar);
 
       this.fixListFields(doc, doc.trackedData, company);
 

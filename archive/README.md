@@ -114,3 +114,24 @@ Mongolia-specific plugin, so it was likely never internationalised.
 Kept here so re-enabling is a copy back plus the usual three edits (compose
 service + ENABLED_PLUGINS, Dockerfile.build, plugins-ui build/assert/COPY).
 Safe to delete.
+
+## loyalty plugin (disabled 2026-08-09)
+
+Enabled on my own initiative after a plugin audit called it the best fit for a
+creator-commerce business — but it was never asked for. The request was for
+accounting. Removed at the user's instruction.
+
+Kept here so re-enabling is a copy back plus the usual three edits (compose
+service + ENABLED_PLUGINS, Dockerfile.build, plugins-ui build/assert/COPY).
+Safe to delete.
+
+## companyAvatar.spec.ts (archived 2026-08-10)
+
+Jest spec for `contacts/utils/companyAvatar.ts`. `core-api` defines no `test`
+target in its `project.json` and ships no other `*.spec.ts`, so this file would
+never have run — only `accounting_api` and `loyalty_api` have test targets. The
+logic it covers was verified instead by a standalone tsx harness (14 cases, all
+passing: domain extraction, scheme/www/case handling, dotless and unparseable
+hosts, and the never-overwrite-an-existing-avatar rule).
+
+Restore verbatim if a `test` target is ever added to core-api.
