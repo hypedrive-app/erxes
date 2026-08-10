@@ -43,6 +43,7 @@ export const automations = {
       ...instagramConstants.actions,
       ...ticketsAutomationContants.actions,
       ...discordConstants.actions,
+      ...whatsappConstants.actions,
     ],
     triggers: [
       ...inboxAutomationConstants.triggers,

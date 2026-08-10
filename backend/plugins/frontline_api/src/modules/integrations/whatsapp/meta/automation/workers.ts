@@ -9,6 +9,7 @@ import {
   TWhatsappTriggerConfig,
   TWhatsappTriggerTarget,
 } from '@/integrations/whatsapp/meta/automation/types';
+import { actionSendWhatsappMessage } from '@/integrations/whatsapp/meta/automation/sendMessage';
 
 const toFilterList = (value: unknown): string[] =>
   (typeof value === 'string' ? value : '')
@@ -35,6 +36,26 @@ const toHistoryRole = (message: { userId?: string }) =>
   message.userId ? ('agent' as const) : ('customer' as const);
 
 export const whatsappAutomationWorkers = {
+  receiveActions: async (
+    {
+      action,
+      execution,
+      collectionType,
+    }: TAutomationProducersInput[TAutomationProducers.RECEIVE_ACTIONS],
+    { models, subdomain }: { models: IModels; subdomain: string },
+  ) => {
+    if (collectionType === WHATSAPP_MESSAGE_COLLECTION) {
+      return await actionSendWhatsappMessage({
+        models,
+        subdomain,
+        action,
+        execution,
+      });
+    }
+
+    return { result: null };
+  },
+
   checkCustomTrigger: (
     {
       collectionType,

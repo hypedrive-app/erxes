@@ -1,4 +1,5 @@
 import {
+  WHATSAPP_MESSAGE_ACTION_METHOD,
   WHATSAPP_MESSAGE_COLLECTION,
   WHATSAPP_MODULE_NAME,
 } from '@/integrations/whatsapp/constants';
@@ -22,12 +23,29 @@ const whatsappMessageTriggerOutput = {
   ],
 };
 
+// Fields an action step exposes to whatever follows it.
+const whatsappMessageActionOutput = {
+  variables: [
+    { key: 'messageId', label: 'Sent message ID' },
+    { key: 'mid', label: 'WhatsApp message ID (wamid)' },
+    { key: 'content', label: 'Sent message content' },
+    { key: 'conversationId', label: 'Conversation ID' },
+  ],
+};
+
 export const whatsappConstants = {
-  // No actions yet. Replying to WhatsApp from an automation needs its own
-  // action (the reply must go back through the Cloud API and respects the
-  // 24-hour customer service window), which is a separate change; a workflow
-  // built on this trigger can still reply through the shared inbox action.
-  actions: [],
+  actions: [
+    {
+      moduleName: WHATSAPP_MODULE_NAME,
+      collectionName: WHATSAPP_MESSAGE_COLLECTION,
+      method: WHATSAPP_MESSAGE_ACTION_METHOD,
+      icon: 'IconBrandWhatsapp',
+      label: 'Send WhatsApp Message',
+      description:
+        'Reply to the customer on WhatsApp. Subject to the 24-hour customer service window.',
+      output: whatsappMessageActionOutput,
+    },
+  ],
   triggers: [
     {
       moduleName: WHATSAPP_MODULE_NAME,

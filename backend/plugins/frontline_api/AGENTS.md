@@ -283,6 +283,23 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — WhatsApp automations can reply
+
+- **Summary:** Adds the `Send WhatsApp Message` action, so a workflow started by
+  the WhatsApp trigger can answer the customer. Without it WhatsApp was the only
+  channel that could be listened to but not spoken on — Facebook, Instagram and
+  Discord each ship a send action, and the shared inbox action only writes into
+  the agent's thread, it does not reach the Cloud API.
+- **Affected areas:** new
+  `modules/integrations/whatsapp/meta/automation/sendMessage.ts`,
+  `modules/integrations/whatsapp/constants.ts`,
+  `modules/integrations/whatsapp/meta/automation/{constants,workers}.ts`,
+  `meta/automations.ts`.
+- **Contracts changed:** Adds action `frontline:whatsapp.messages.create` with
+  output `messageId, mid, content, conversationId`. It delegates to
+  `handleWhatsappMessage`, so the 24-hour-service-window error, the auth-failure
+  healthStatus flip, and message persistence stay identical to an agent reply.
+
 ### `2026-08-10` — WhatsApp inbound messages can start automations
 
 - **Summary:** Inbound WhatsApp messages now emit an automation trigger, so a

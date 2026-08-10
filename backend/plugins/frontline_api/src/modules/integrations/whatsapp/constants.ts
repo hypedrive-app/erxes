@@ -117,3 +117,10 @@ export const WHATSAPP_MESSAGE_COLLECTION = 'messages';
 
 // `<plugin>:<module>.<collection>`, the shape splitType() parses.
 export const WHATSAPP_MESSAGE_TRIGGER_TYPE = 'frontline:whatsapp.messages';
+
+// The send action reuses the SAME collection as the trigger, which is how
+// Discord, Facebook and Instagram are all declared: the automation type for an
+// action gains a `.create` suffix from its `method`, so trigger and action do
+// not collide (`frontline:whatsapp.messages` vs
+// `frontline:whatsapp.messages.create`).
+export const WHATSAPP_MESSAGE_ACTION_METHOD = 'create';
