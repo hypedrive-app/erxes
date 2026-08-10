@@ -39,8 +39,11 @@
   - **Surfe** — LinkedIn URL, or name + company → contact details and role.
     **Asynchronous**: POST starts a job, a second endpoint is polled. The start
     call is v2 and the poll call is v1.
-  - **Surepass** — GSTIN or DIN → registered entity data. Cannot guess; a
-    statutory identifier is required.
+  - **Surepass** — GSTIN → company record via `corporate/gstin-advanced`;
+    DIN → director's phone via `corporate/director-phone`. Cannot guess; a
+    statutory identifier is required. `corporate/din` is deliberately NOT used:
+    it is not in this account's plan, while director-phone is, so one recharge
+    enables both endpoints instead of also needing Surepass to widen the plan.
 - Asks each provider whether it has enough input BEFORE spending a credit.
 - Registers its own custom fields on first use, per tenant.
 - Records every attempt as `hit`, `miss`, `skipped` or `error`.
@@ -100,6 +103,13 @@
   outages.
 - **Port 3315.** 33010 is the generator's default and `insurance_api` already
   claims it.
+- **Surepass response keys are read defensively.** Their technical reference is
+  behind a console login and the account's balance check runs before input
+  validation, so a live probe answers 403 whatever the request body is — the
+  exact response shape for `corporate/director-phone` is unconfirmed. Several
+  plausible key spellings are tried and the untouched payload is kept in `raw`,
+  so the first call after a recharge reveals the real shape without discarding
+  the result. Tighten this once a real response has been seen.
 
 ## Validation
 
