@@ -52,6 +52,7 @@ import {
 } from '@/integrations/discord/hooks/useDiscordSetup';
 import { discordReplyToState } from '@/integrations/discord/states/discordReplyToState';
 import { whatsappReplyToState } from '@/integrations/whatsapp/states/whatsappReplyToState';
+import { findOversizedWhatsappFiles } from '@/integrations/whatsapp/constants/whatsappMedia';
 import { IntegrationType } from '@/types/Integration';
 import { InboxHotkeyScope } from '@/inbox/types/InboxHotkeyScope';
 import { ResponseTemplateDropdown } from '@/inbox/conversations/conversation-detail/components/ResponseTemplateDropdown';
@@ -225,8 +226,48 @@ export const MessageInput = ({
     (files: FileList) => {
       if (!files?.length) return;
 
+      /**
+       * WhatsApp's per-type ceilings sit below the global upload cap — an
+       * image may be 5MB and a WebP sticker 500KB, against 20MB for everything
+       * else. Without this the file uploads, reports "uploaded successfully",
+       * and only fails when the agent presses Send, by which point it is
+       * already sitting in storage.
+       *
+       * Oversized files are dropped and named; the rest still upload, so one
+       * bad file in a multi-select does not discard the others.
+       */
+      let allowed = files;
+
+      if (isWhatsapp && !isInternalNote) {
+        const oversized = findOversizedWhatsappFiles(Array.from(files));
+
+        if (oversized.length) {
+          for (const { file, mediaType, limit } of oversized) {
+            toast({
+              title: t('whatsapp-attachment-too-large', {
+                name: file.name,
+                size: formatBytes(file.size, 1),
+                limit,
+                type: mediaType,
+              }),
+              variant: 'destructive',
+            });
+          }
+
+          const rejected = new Set(oversized.map(({ file }) => file));
+          const remaining = new DataTransfer();
+
+          for (const file of Array.from(files)) {
+            if (!rejected.has(file)) remaining.items.add(file);
+          }
+
+          if (!remaining.files.length) return;
+          allowed = remaining.files;
+        }
+      }
+
       upload({
-        files,
+        files: allowed,
         beforeUpload: () =>
           toast({ title: t('uploading-file'), variant: 'default' }),
         afterRead: ({ result, fileInfo }) =>
@@ -238,7 +279,7 @@ export const MessageInput = ({
         },
       });
     },
-    [upload],
+    [upload, isWhatsapp, isInternalNote, t],
   );
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {

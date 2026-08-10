@@ -652,6 +652,7 @@
   "whatsapp-interactive-footer": "Хөл хэсэг (заавал бус)",
   "whatsapp-interactive-send": "Илгээх",
   "whatsapp-interactive-sent": "Зурвас илгээгдлээ",
+  "whatsapp-attachment-too-large": "\"{{name}}\" нь {{size}} байна. WhatsApp {{type}} файлд {{limit}} хүртэл зөвшөөрдөг.",
   "whatsapp-templates-empty": "Баталгаажсан загвар алга",
   "whatsapp-templates-empty-description": "WhatsApp Business бүртгэлдээ зурвасын загвар үүсгэж баталгаажуулаад, энэ холболт дээр бизнес бүртгэлийн ID тохируулсан эсэхийг шалгана уу.",
   "integration-desc-plivo": "Plivo дугаараа холбож дуудлагыг Багийн Инбокснаас хийж, хүлээн аваарай.",

@@ -96,6 +96,11 @@
 - The reply-button builder composes an interactive message of up to three
   buttons, enforcing Meta's caps (3 buttons, 20 characters each, unique titles,
   1024 character body, 60 character footer) before the send.
+- Composer attachments on a WhatsApp thread are checked against Meta's per-type
+  ceilings before upload, since those sit below the global
+  `REACT_APP_FILE_UPLOAD_MAX_SIZE` cap (5MB image, 500KB sticker, 16MB
+  audio/video against 20MB globally). Oversized files are named and dropped
+  while the rest of a multi-select still uploads.
 
 ## Architecture
 
@@ -113,6 +118,7 @@
 | Sidebar counts     | `src/modules/inbox/conversations/hooks/useConversationCounts.tsx`                                                                 | `conversationCounts` reads per integration type inside one channel                               |
 | Live unread        | `src/modules/inbox/channel/hooks/useChannelUnreadUpdates.tsx`                                                                     | Subscribes to incoming customer messages and refreshes channel unread counts                     |
 | WhatsApp composer  | `src/modules/integrations/whatsapp/components/{WhatsappMessageInputWrapper,WhatsappInteractiveBuilder,WhatsappTemplatePicker}.tsx` | 24 hour window gate, reply-button builder, and approved-template send                            |
+| WhatsApp media     | `src/modules/integrations/whatsapp/constants/whatsappMedia.ts`                                                                    | Meta's per-type size ceilings and MIME classification, mirrored from `frontline_api`             |
 | Channel settings   | `src/modules/channels`                                                                                                            | Channel CRUD, members, GraphQL documents, form schemas                                           |
 | Personal channel   | `src/modules/channels/components/settings/personal-channel`, `src/pages/PersonalChannelPage.tsx`                                  | Profile page for the user's private inbox                                                        |
 | Inbox              | `src/modules/inbox/`                                                                                                              | Conversations, messages, filters, channels, brands, integrations                                 |
@@ -216,6 +222,14 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 
 ## Local Invariants
 
+- `constants/whatsappMedia.ts` mirrors `frontline_api`'s ceilings and its
+  `whatsappMediaTypeFor`. A plugin's frontend cannot import from its backend, so
+  the two are kept in step by hand — change one and change the other, or a file
+  will pass the check here and be rejected at send. The API stays the
+  enforcement point; this only moves the message earlier.
+- Meta's size ceilings are reported from `WHATSAPP_MEDIA_MAX_LABEL`, never from
+  `formatBytes`, which divides by 1000 and would render the 5MiB image ceiling
+  as "5.24 MB".
 - Channel scope is presentation-only here; the server is the authority. Never
   infer privacy from the UI, and never offer a members/invite affordance on a
   channel whose `scope` is `personal`.
@@ -297,6 +311,18 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 ## Recent Changes
 
 <!-- Newest first. Keep at most 10 entries. -->
+
+### `2026-08-10` — WhatsApp attachments checked before upload
+
+- **Summary:** A composer attachment on a WhatsApp thread is measured against
+  Meta's per-type ceiling before it is uploaded, instead of uploading, toasting
+  success, and failing only on Send. Oversized files are named with their size
+  and their kind's limit; the rest of a multi-select still uploads.
+- **Affected areas:**
+  `src/modules/integrations/whatsapp/constants/whatsappMedia.ts` (new),
+  `src/modules/inbox/conversations/conversation-detail/components/MessageInput.tsx`;
+  one `whatsapp-attachment-too-large` key in the gateway-owned locale.
+- **Contracts changed:** `None`
 
 ### `2026-08-10` — WhatsApp reply-button composer
 
@@ -418,21 +444,4 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   `nested` props; new `useUsedIntegrationTypesByChannel` hook and
   `IntegrationsGetUsedTypesByChannel` document.
 
-### `2026-08-04` — Rebuild the post composer on the standard sheet and dropzone
-
-- **Summary:** The composer now follows the `CreateBrand` sheet shape
-  (uncontrolled `Sheet`, `Sheet.Close` cancel, state inside the sheet body) and
-  uses the shared `Dropzone`/`DropzoneEmptyState`/`DropzoneContent` for picking
-  files and `Attachments.Root`/`Attachments.Preview` for the uploaded ones,
-  instead of a hand-rolled drop area, thumbnail grid, and filename list; help
-  and rejected filenames render as `Alert`, the empty and loading states use
-  `Empty` and `Spinner`, and the channel picker is a searchable
-  `Popover` + `Combobox` + `Command` like `SelectChannel.FormItem`.
-- **Affected areas:**
-  `src/modules/integrations/facebook/components/FacebookPostSheet.tsx`,
-  `.../components/FacebookPostImagesField.tsx`,
-  `.../hooks/useFacebookPostImages.tsx`,
-  `src/modules/integrations/components/ChooseIntegrationType.tsx`,
-  `backend/gateway/src/locales/{en,mn}/frontline.json` (gateway-owned)
-- **Contracts changed:** `None`
 

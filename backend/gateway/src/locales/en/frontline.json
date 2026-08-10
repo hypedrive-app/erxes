@@ -652,6 +652,7 @@
   "whatsapp-interactive-footer": "Footer (optional)",
   "whatsapp-interactive-send": "Send",
   "whatsapp-interactive-sent": "Message sent",
+  "whatsapp-attachment-too-large": "\"{{name}}\" is {{size}}. WhatsApp allows up to {{limit}} for {{type}} files.",
   "whatsapp-templates-empty": "No approved templates",
   "whatsapp-templates-empty-description": "Create and get a message template approved in your WhatsApp Business account, and make sure the business account ID is set on this integration.",
   "integration-desc-plivo": "Connect a Plivo number to place and receive calls from your Team Inbox.",
