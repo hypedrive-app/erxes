@@ -19,7 +19,7 @@ import {
   PLIVO_VOICEMAIL_CLOSING_MESSAGE,
   PLIVO_VOICEMAIL_SILENCE_TIMEOUT_SECONDS,
 } from '@/integrations/plivo/constants';
-import { getReachableAgentEndpoints } from '@/integrations/plivo/helpers';
+import { getReachableAgentTargets } from '@/integrations/plivo/helpers';
 import {
   registerCallHangup,
   registerCallRecording,
@@ -460,6 +460,7 @@ export const plivoAnswerWebhook = async (req, res, next) => {
       res,
       await buildAnswerXml(
         req,
+        models,
         subdomain,
         integration,
         params,
@@ -502,12 +503,21 @@ const buildSiblingCallbackUrl = (
 const buildAgentDialElement = (
   integration: IPlivoIntegrationDocument,
   usernames: string[],
+  phoneNumbers: string[] = [],
 ): string => {
-  const legs = usernames
-    .map(
+  // `<User>` and `<Number>` legs sit inside ONE `<Dial>`, so browsers and
+  // handsets ring simultaneously and the first to answer wins. Splitting them
+  // across two `<Dial>` elements would make handset agents wait out the whole
+  // browser stage before their phone rang at all.
+  const legs = [
+    ...usernames.map(
       (username) =>
         `<User>sip:${escapeXml(username)}@${PLIVO_ENDPOINT_DOMAIN}</User>`,
-    )
+    ),
+    ...phoneNumbers.map(
+      (number) => `<Number>${escapeXml(number.replace(/^\+/, ''))}</Number>`,
+    ),
+  ]
     .join('');
 
   return (
@@ -582,6 +592,7 @@ const buildVoicemailElements = (
  */
 const buildAnswerXml = async (
   req,
+  models: IModels,
   subdomain: string,
   integration: IPlivoIntegrationDocument,
   params: IPlivoCallbackParams,
@@ -606,17 +617,24 @@ const buildAnswerXml = async (
   if (direction === 'inbound') {
     // `ringAgents` unset means ON: an integration stored before agent ringing
     // existed should still reach the agents who are logged in.
-    const agentUsernames =
+    const { usernames: agentUsernames, phoneNumbers: agentPhoneNumbers } =
       integration.ringAgents === false
-        ? []
-        : await getReachableAgentEndpoints({
+        ? { usernames: [], phoneNumbers: [] }
+        : await getReachableAgentTargets({
+            models,
             authId: integration.authId,
             authToken: integration.authToken,
             integrationId: integration.erxesApiId,
+            defaultCountryCode: integration.defaultCountryCode,
           });
 
-    if (agentUsernames.length) {
-      elements.push(buildAgentDialElement(integration, agentUsernames));
+    // One `<Dial>` over both: an agent who asked for `both` is reached on
+    // whichever answers first, and agents on handsets ring at the same time as
+    // agents on browsers rather than waiting out a stage they are not in.
+    if (agentUsernames.length || agentPhoneNumbers.length) {
+      elements.push(
+        buildAgentDialElement(integration, agentUsernames, agentPhoneNumbers),
+      );
     }
 
     const fallbackNumber = normalizePhone(

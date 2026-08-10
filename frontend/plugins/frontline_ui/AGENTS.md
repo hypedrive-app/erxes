@@ -116,6 +116,10 @@
   packets at zero `audioLevel` raises MEDIA_SILENT_MIC. The ICE candidate type
   the call settled on (`host`/`srflx`/`relay`) is logged once per call, which is
   the single fact that makes a "the call was silent" report diagnosable.
+- `Ring me on` in the softphone actions lets an agent route their own calls to
+  the browser, a handset, or both, and mark themselves as not taking calls. It
+  is scoped to the calling agent — a handset number is personal, and there is no
+  way to read or write another agent's.
 - `Test network` in the softphone actions runs ICE gathering against Plivo's
   STUN servers before a call. No `srflx` candidate means outbound UDP is
   filtered and every call from that network will connect and carry no audio.
@@ -340,6 +344,19 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — Plivo: an agent can choose where their calls ring
+
+- **Summary:** `Ring me on` lets each agent route to the browser, their phone,
+  or both, and go unavailable without signing out. Picking a handset without a
+  number is refused in the form rather than saved into silence.
+- **Affected areas:**
+  `src/modules/integrations/plivo/components/{PlivoAgentRouting,PlivoActions}.tsx`,
+  `.../graphql/queries/plivoAgentRouting.ts` (new),
+  `.../graphql/mutations/savePlivoAgentRouting.ts` (new);
+  15 `plivo-routing-*` keys in the gateway-owned locale.
+- **Contracts changed:** consumes `plivoAgentRouting` and
+  `plivoSaveAgentRouting` from `frontline_api`.
+
 ### `2026-08-10` — Plivo: detect calls that connect and carry no audio
 
 - **Summary:** The SDK never revises "connected", so a network that drops RTP
@@ -465,15 +482,3 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   `src/modules/inbox/channel/states/teamInboxSortState.ts` (deleted),
   `frontline` locale files (`sort-team-inbox`, `sort-by-unread` removed).
 - **Contracts changed:** None.
-
-### `2026-08-05` — Channel name ordering moved to the API
-
-- **Summary:** `GET_MY_CHANNELS` now sends `sortField` / `sortDirection` and
-  `useGetMyChannels` pins name-ascending for every caller, so the sidebar drops
-  its `localeCompare` pass. The persisted `teamInboxSortState` now only decides
-  whether the unread re-order runs on top of that order.
-- **Affected areas:** `src/modules/channels/graphql/queries.ts`,
-  `src/modules/channels/hooks/useGetMyChannels.tsx`,
-  `src/modules/inbox/channel/{components/TeamChannelsNav.tsx,states/teamInboxSortState.ts}`.
-- **Contracts changed:** None on this side; consumes the new `getMyChannels`
-  sort arguments from `frontline_api`.

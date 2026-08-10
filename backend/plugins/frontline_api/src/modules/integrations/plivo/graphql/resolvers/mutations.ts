@@ -176,4 +176,84 @@ export const plivoMutations = {
 
     return { callUuid };
   },
+
+  /**
+   * Sets where the calling agent should be rung.
+   *
+   * Only ever the caller's own settings. There is deliberately no `userId`
+   * argument: the handset is a personal number, and letting one agent write
+   * another's would both leak it and let somebody route a colleague's calls to
+   * a phone of their choosing.
+   *
+   * Written onto the endpoint credential row rather than a collection of its
+   * own — that row is already one-per-agent-per-integration with a unique
+   * index, so the upsert here cannot produce a duplicate.
+   */
+  plivoSaveAgentRouting: async (
+    _root: undefined,
+    {
+      integrationId,
+      device,
+      phoneNumber,
+      available,
+    }: {
+      integrationId: string;
+      device: string;
+      phoneNumber?: string;
+      available?: boolean;
+    },
+    { models, user }: IContext,
+  ) => {
+    if (!user?._id) {
+      throw new Error('Login required');
+    }
+
+    if (device !== 'browser' && device !== 'phone' && device !== 'both') {
+      throw new Error('Ring me on must be browser, phone or both');
+    }
+
+    const integration = await models.PlivoIntegrations.getIntegration({
+      erxesApiId: integrationId,
+    });
+
+    let normalized: string | undefined;
+
+    if (device === 'phone' || device === 'both') {
+      normalized =
+        normalizePhone(phoneNumber || '', integration.defaultCountryCode) ||
+        undefined;
+
+      // Refused rather than saved half-configured: an agent who picks `phone`
+      // with an unusable number would simply stop receiving calls, with
+      // nothing on screen saying why.
+      if (!normalized) {
+        throw new Error(
+          'Add a phone number to ring, or choose the browser softphone instead.',
+        );
+      }
+    }
+
+    await models.PlivoEndpointCredentials.updateOne(
+      { integrationId, userId: user._id },
+      {
+        $set: {
+          device,
+          // Cleared when going back to browser-only, so a stale number cannot
+          // start ringing again if the agent later re-enables the handset.
+          phoneNumber: normalized || '',
+          available: available !== false,
+          updatedAt: new Date(),
+        },
+        $setOnInsert: { integrationId, userId: user._id, createdAt: new Date() },
+      },
+      { upsert: true },
+    );
+
+    return {
+      integrationId,
+      device,
+      phoneNumber: normalized || null,
+      available: available !== false,
+    };
+  },
 };

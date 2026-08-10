@@ -149,6 +149,44 @@ const getCounterpartNumber = (
 
 export const plivoQueries = {
   /**
+   * The calling user's own routing settings for one integration.
+   *
+   * Scoped to `user._id` with no way to name another agent: the handset number
+   * is personal, and a query that let one agent read another's would leak a
+   * private phone number to everyone with a login.
+   *
+   * Null when the agent has never saved any — the caller renders the defaults
+   * rather than this inventing a row that does not exist.
+   */
+  plivoAgentRouting: async (
+    _root: undefined,
+    { integrationId }: { integrationId: string },
+    { models, user }: IContext,
+  ) => {
+    if (!user?._id) {
+      throw new Error('Login required');
+    }
+
+    const routing = await models.PlivoEndpointCredentials.findOne(
+      { integrationId, userId: user._id },
+      { device: 1, phoneNumber: 1, available: 1 },
+    ).lean();
+
+    if (!routing) {
+      return null;
+    }
+
+    return {
+      integrationId,
+      device: routing.device || 'browser',
+      phoneNumber: routing.phoneNumber || null,
+      // Absent means available — nobody stopped receiving calls because these
+      // fields were added to an existing row.
+      available: routing.available !== false,
+    };
+  },
+
+  /**
    * The Plivo numbers this agent can answer on in the browser.
    *
    * The floating softphone has no channel in scope — it is mounted app-wide —

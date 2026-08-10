@@ -55,9 +55,24 @@ export interface IPlivoEndpointCredential {
   alias: string;
   /** Live SIP credential. Never logged, never returned to another user. */
   password: string;
+  /** Where to ring this agent. Absent means `browser`, the prior behaviour. */
+  device?: PlivoAgentDevice;
+  /** Handset for `phone`/`both`, in E.164. */
+  phoneNumber?: string;
+  /** Whether the agent is taking calls. Absent means available. */
+  available?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+/**
+ * Where an agent is reachable.
+ *
+ * `both` rings the browser and the handset at once and connects whichever
+ * answers first — which is also the honest fallback for an agent whose network
+ * may or may not carry WebRTC on a given day.
+ */
+export type PlivoAgentDevice = 'browser' | 'phone' | 'both';
 
 export interface IPlivoEndpointCredentialDocument
   extends IPlivoEndpointCredential,

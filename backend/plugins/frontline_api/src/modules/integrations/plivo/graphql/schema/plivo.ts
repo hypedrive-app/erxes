@@ -168,10 +168,27 @@ export const types = `
   type PlivoEndCallResult {
     callUuid: String!
   }
+
+  """
+  How one agent has asked to be reached on a Plivo integration. Always the
+  CALLING user's own settings — an agent cannot read or change another's.
+  """
+  type PlivoAgentRouting {
+    """Inbox integration these settings apply to."""
+    integrationId: String!
+    """browser | phone | both. Absent means browser, the default."""
+    device: String
+    """Handset to ring for phone/both, in E.164."""
+    phoneNumber: String
+    """False stops routing calls to this agent entirely."""
+    available: Boolean
+  }
 `;
 
 export const queries = `
   plivoSoftphoneIntegrations: [PlivoSoftphoneIntegration]
+  """The calling user's own routing settings for one integration."""
+  plivoAgentRouting(integrationId: String!): PlivoAgentRouting
   plivoIntegrationConfigs: [PlivoIntegrationConfig]
   plivoSoftphoneCredentials(integrationId: String!): PlivoSoftphoneCredentials
   plivoCallHistories(
@@ -222,4 +239,16 @@ export const mutations = `
   agent's leg is released. Returns the transferred call's uuid.
   """
   plivoTransferCall(integrationId: String!, callUuid: String!, to: String!): PlivoEndCallResult
+
+  """
+  Sets where the calling user should be rung, and whether they are taking
+  calls. Always applies to the caller's own settings — there is deliberately no
+  way to change another agent's, since a handset number is personal.
+  """
+  plivoSaveAgentRouting(
+    integrationId: String!
+    device: String!
+    phoneNumber: String
+    available: Boolean
+  ): PlivoAgentRouting
 `;

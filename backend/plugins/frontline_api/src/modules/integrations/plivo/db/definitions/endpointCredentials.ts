@@ -42,6 +42,53 @@ export const endpointCredentialSchema = new Schema({
 
   password: { type: String, label: 'SIP password — write-only at Plivo' },
 
+  /**
+   * Where this agent wants to be reached.
+   *
+   * Routing used to have exactly one signal — whether the agent's browser was
+   * SIP-registered — which cannot express the two cases that matter most: an
+   * agent whose network cannot carry WebRTC audio (a call rings, is answered,
+   * and is silent), and an agent who would rather take calls on a handset. A
+   * registered browser was assumed to be the only place worth ringing.
+   *
+   * `browser` keeps the previous behaviour and stays the default, so an agent
+   * who never opens these settings is routed exactly as before.
+   */
+  device: {
+    type: String,
+    enum: ['browser', 'phone', 'both'],
+    label: 'Where to ring this agent',
+    optional: true,
+  },
+
+  /**
+   * The handset to ring for `phone` or `both`, in E.164.
+   *
+   * Held per agent rather than read from their erxes profile: the number a
+   * person takes support calls on is not necessarily the one on their staff
+   * record, and inheriting it silently would start ringing a personal phone
+   * nobody agreed to expose.
+   */
+  phoneNumber: {
+    type: String,
+    label: 'Handset to ring, E.164',
+    optional: true,
+  },
+
+  /**
+   * Whether this agent is taking calls at all.
+   *
+   * Separate from SIP registration, which only says a browser tab is open —
+   * it cannot distinguish an agent at their desk from one at lunch with the
+   * tab still up. Absent means available, so nobody stops receiving calls
+   * because a field was added.
+   */
+  available: {
+    type: Boolean,
+    label: 'Accepting calls',
+    optional: true,
+  },
+
   createdAt: { type: Date, label: 'Created At' },
   updatedAt: { type: Date, label: 'Updated At' },
 });

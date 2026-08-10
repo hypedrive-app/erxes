@@ -344,15 +344,21 @@ export const buildPlivoEndpointAliasPrefix = (integrationId: string): string =>
   `erxes_${integrationId.replace(/[^a-zA-Z0-9]/g, '')}_`;
 
 /**
- * The SIP usernames of agents currently reachable on their browser softphone.
+ * Everywhere an inbound call should ring, for one integration.
  *
- * Reachability is read from Plivo rather than tracked locally. Plivo's endpoint
- * list returns `sip_registered`, which is the registrar's own live view of
- * whether a client holds a SIP registration right now — the same fact the
- * console shows. That beats a DB flag written from the browser's `onLogin`/
- * `onLogout`, which goes stale on exactly the failures that matter: a closed
- * laptop, a killed tab or a dropped network never sends `onLogout`, so a
- * DB-tracked agent would keep absorbing calls into a dead endpoint.
+ * Reachability on the BROWSER is read from Plivo rather than tracked locally.
+ * Plivo's endpoint list returns `sip_registered`, which is the registrar's own
+ * live view of whether a client holds a registration right now. That beats a DB
+ * flag written from the browser's `onLogin`/`onLogout`, which goes stale on
+ * exactly the failures that matter: a closed laptop, a killed tab or a dropped
+ * network never sends `onLogout`, so a DB-tracked agent would keep absorbing
+ * calls into a dead endpoint.
+ *
+ * Registration alone is NOT the whole answer, which is why this reads the
+ * agent's own preferences too. It cannot express an agent at lunch with the tab
+ * still open, an agent already on another call, or — the case that motivated
+ * this — an agent whose network carries the signalling but drops the audio, so
+ * the call rings, is answered, and is silent. Those agents were rung anyway.
  *
  * An endpoint whose `sip_registered` is absent is treated as NOT reachable. The
  * cost of the two mistakes is asymmetric — ringing a dead endpoint burns the
@@ -360,36 +366,101 @@ export const buildPlivoEndpointAliasPrefix = (integrationId: string): string =>
  * reaches them via the fallback number and voicemail.
  *
  * Never throws: if Plivo cannot be reached the caller must still be handled, so
- * an empty list is returned and routing falls through to the next stage.
+ * an empty result is returned and routing falls through to the next stage.
  */
-export const getReachableAgentEndpoints = async ({
+export const getReachableAgentTargets = async ({
+  models,
   authId,
   authToken,
   integrationId,
+  defaultCountryCode,
 }: {
+  models: IModels;
   authId: string;
   authToken: string;
   integrationId: string;
-}): Promise<string[]> => {
+  defaultCountryCode?: string;
+}): Promise<{ usernames: string[]; phoneNumbers: string[] }> => {
+  const empty = { usernames: [], phoneNumbers: [] };
+
   try {
+    const preferences = await models.PlivoEndpointCredentials.find({
+      integrationId,
+    }).lean();
+
+    // Agents already on a call are excluded outright. Ringing somebody
+    // mid-conversation puts a second call in their ear and, on the browser,
+    // is refused by `allowMultipleIncomingCalls: false` anyway — so the leg
+    // is spent and the caller waits out the whole agent stage for nothing.
+    const busyUserIds = new Set(
+      (
+        await models.PlivoCallSessions.find(
+          { integrationId, endedAt: { $exists: false }, userId: { $exists: true } },
+          { userId: 1 },
+        ).lean()
+      )
+        .map((session) => session.userId)
+        .filter(Boolean) as string[],
+    );
+
+    // Absent preferences mean the prior behaviour: ring the browser. Nobody
+    // stops receiving calls because these fields were added.
+    const byUserId = new Map(
+      preferences.map((preference) => [preference.userId, preference]),
+    );
+
+    const wants = (userId: string | undefined, target: 'browser' | 'phone') => {
+      if (!userId || busyUserIds.has(userId)) {
+        return false;
+      }
+
+      const preference = byUserId.get(userId);
+
+      if (preference?.available === false) {
+        return false;
+      }
+
+      const device = preference?.device || 'browser';
+
+      return device === 'both' || device === target;
+    };
+
     const endpoints = await listPlivoEndpoints({ authId, authToken });
     const prefix = buildPlivoEndpointAliasPrefix(integrationId);
 
-    return endpoints
+    // The alias is the only thing tying a Plivo endpoint back to one of our
+    // agents, so the username is matched through it rather than assumed.
+    const userIdByUsername = new Map(
+      preferences.map((preference) => [preference.username, preference.userId]),
+    );
+
+    const usernames = endpoints
       .filter(
         (endpoint) =>
           endpoint.sipRegistered === true &&
           endpoint.username &&
-          endpoint.alias.startsWith(prefix),
+          endpoint.alias.startsWith(prefix) &&
+          wants(userIdByUsername.get(endpoint.username), 'browser'),
       )
       .map((endpoint) => endpoint.username);
+
+    // A handset needs no registration — that is the point of it — so these are
+    // read straight from the preferences rather than from Plivo's endpoint list.
+    const phoneNumbers = preferences
+      .filter((preference) => wants(preference.userId, 'phone'))
+      .map((preference) =>
+        normalizePhone(preference.phoneNumber || '', defaultCountryCode),
+      )
+      .filter((value): value is string => !!value);
+
+    return { usernames, phoneNumbers: [...new Set(phoneNumbers)] };
   } catch (e: any) {
     debugError(
-      `Could not read Plivo endpoint registrations for ${integrationId}, ` +
+      `Could not resolve Plivo ring targets for ${integrationId}, ` +
         `routing without agents: ${e.message}`,
     );
 
-    return [];
+    return empty;
   }
 };
 

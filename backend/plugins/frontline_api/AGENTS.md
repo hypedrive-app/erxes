@@ -211,6 +211,14 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
   claim is what makes a redelivered webhook a no-op rather than a second
   execution, and an unanswered call from an unknown number has no conversation
   yet is exactly what a follow-up workflow is for.
+- Plivo agent routing reads `PlivoEndpointCredentials`, which is one row per
+  agent per integration. `device` absent means `browser` and `available` absent
+  means available, so a row written before these fields existed routes exactly
+  as it did before. `storeCredential` uses a named `$set` and so cannot clobber
+  them when a softphone re-provisions.
+- An agent with an open call is excluded from ringing entirely. The browser
+  refuses a second inbound call anyway (`allowMultipleIncomingCalls: false`),
+  so ringing them spends the leg and makes the caller wait out the stage.
 - Plivo has no transfer verb. `transferPlivoCall` redirects the caller's leg
   (`legs: 'aleg'`) to a fresh answer URL carrying `TransferTo`; redirecting the
   agent's leg instead would move the agent and strand the customer.
@@ -303,6 +311,23 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 ## Recent Changes
 
 <!-- Newest first. Keep at most 10 entries. -->
+
+### `2026-08-10` — Plivo: per-agent routing, so one agent's network is not everyone's problem
+
+- **Summary:** Routing had exactly one signal — whether a browser held a SIP
+  registration — which could not express an agent at lunch, an agent already on
+  a call, or an agent whose network drops the audio. Each agent can now choose
+  browser, phone or both, give a handset number, and mark themselves
+  unavailable; busy agents are skipped. Browser and handset legs share one
+  `<Dial>` so they ring together.
+- **Affected areas:** `modules/integrations/plivo/db/definitions/endpointCredentials.ts`,
+  `.../helpers.ts` (`getReachableAgentEndpoints` → `getReachableAgentTargets`),
+  `.../controller/controller.ts`, `.../@types/index.ts`,
+  `.../graphql/{schema/plivo.ts,resolvers/{queries,mutations}.ts}`,
+  `.../handlePlivoCall.ts`.
+- **Contracts changed:** adds `plivoAgentRouting` query, `plivoSaveAgentRouting`
+  mutation and the `PlivoAgentRouting` type; `getReachableAgentEndpoints` is
+  renamed and now returns `{ usernames, phoneNumbers }`.
 
 ### `2026-08-10` — Plivo: automations, blind transfer, call cost
 
@@ -442,17 +467,3 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
   `integrationsGetUsedTypesByChannel` now returns
   `[integrationsGetUsedTypesByChannel]` instead of `[integrationsGetUsedTypes]`
   — same `_id` / `name` fields, plus the two counts.
-
-### `2026-08-06` — Personal channels accept every integration kind
-
-- **Summary:** Removed `PERSONAL_INTEGRATION_KINDS` and the kind check in
-  `integrationsCreateExternalIntegration`. A personal channel now takes the same
-  integrations a team channel does, and a create call with no `channelId` falls
-  back to the caller's personal channel for any kind instead of erroring for
-  everything but IMAP.
-- **Affected areas:**
-  `src/modules/inbox/graphql/resolvers/mutations/integrations.ts`,
-  `src/modules/inbox/db/definitions/constants.ts`.
-- **Contracts changed:** `integrationsCreateExternalIntegration` no longer
-  rejects an omitted `channelId` for non-mailbox kinds; the ownership check on
-  another user's personal channel is unchanged.
