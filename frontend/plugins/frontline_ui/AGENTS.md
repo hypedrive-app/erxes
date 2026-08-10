@@ -110,6 +110,15 @@
   the caller moves and this agent's leg is released — and is disabled until the
   call is answered, since it needs the CallUUID that `onCallAnswered` supplies.
   There is still no Hold: the Browser SDK v2 has no such method.
+- A live call is polled every 2s through `getStats()`. Six seconds of no RTP
+  in either direction raises MEDIA_BLOCKED — the signature of a network that
+  permits the signalling and drops the media — and a microphone that is sending
+  packets at zero `audioLevel` raises MEDIA_SILENT_MIC. The ICE candidate type
+  the call settled on (`host`/`srflx`/`relay`) is logged once per call, which is
+  the single fact that makes a "the call was silent" report diagnosable.
+- `Test network` in the softphone actions runs ICE gathering against Plivo's
+  STUN servers before a call. No `srflx` candidate means outbound UDP is
+  filtered and every call from that network will connect and carry no audio.
 - Call history shows what Plivo charged, deliberately unit-less: Plivo reports
   the cost in the account's billing currency without naming it, so a rendered
   symbol would be invented. The agent's live widget shows no cost.
@@ -331,6 +340,21 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — Plivo: detect calls that connect and carry no audio
+
+- **Summary:** The SDK never revises "connected", so a network that drops RTP
+  left an agent on a call the UI called healthy, hearing nothing, with no
+  explanation — the exact failure that took a long manual diagnosis. A
+  `getStats()` monitor now names it, a separate check names a silent
+  microphone, the ICE candidate type is logged per call, and a `Test network`
+  button answers the question before a customer is on the line.
+- **Affected areas:**
+  `src/modules/integrations/plivo/utils/{plivoMediaHealth,plivoNetworkCheck}.ts` (new),
+  `.../hooks/usePlivoMediaHealth.ts` (new),
+  `.../components/{PlivoNetworkCheckButton,PlivoActions,PlivoProvider}.tsx`,
+  `.../types/plivoTypes.ts`; 11 `plivo-*` keys in the gateway-owned locale.
+- **Contracts changed:** `None`
+
 ### `2026-08-10` — Plivo transfer and call cost
 
 - **Summary:** Agents can blind-transfer a live call from the in-call panel,
@@ -453,15 +477,3 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   `src/modules/inbox/channel/{components/TeamChannelsNav.tsx,states/teamInboxSortState.ts}`.
 - **Contracts changed:** None on this side; consumes the new `getMyChannels`
   sort arguments from `frontline_api`.
-
-### `2026-08-05` — Sidebar group actions no longer fold their own group
-
-- **Summary:** Create-channel, create-brand, and the team-inbox sort toggle sit
-  in a `NavigationMenuGroup` `actions` slot, which renders inside the group's
-  collapsible trigger, so every click on them also collapsed the group. A new
-  `NavigationGroupActions` wrapper stops the click at the slot.
-- **Affected areas:** `src/modules/NavigationGroupActions.tsx`,
-  `src/modules/FrontlineSubGroups.tsx` (Channels and Brands groups),
-  `src/modules/inbox/channel/components/TeamChannelsNav.tsx`.
-- **Contracts changed:** None — `NavigationGroupActions` is new and internal;
-  the sort toggle dropped its own now-redundant `stopPropagation`.

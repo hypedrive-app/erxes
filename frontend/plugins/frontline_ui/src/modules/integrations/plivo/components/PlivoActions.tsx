@@ -9,6 +9,7 @@ import {
   IconRefresh,
 } from '@tabler/icons-react';
 import { Badge, Button, Tooltip } from 'erxes-ui';
+import { PlivoNetworkCheckButton } from './PlivoNetworkCheckButton';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { usePlivo } from '@/integrations/plivo/components/PlivoProvider';
@@ -28,6 +29,9 @@ export const PlivoActions = () => {
     <div className="flex items-center gap-2">
       <PlivoStatusBadge />
       <PlivoQualityIndicator />
+      {/* Sits before the power button so the row reads status, then checks,
+          then the one control that changes state. */}
+      <PlivoNetworkCheckButton />
       <PlivoPowerButton />
     </div>
   );

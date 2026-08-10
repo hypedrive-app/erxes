@@ -21,6 +21,15 @@ export enum PlivoErrorTypeEnum {
   MEDIA_PERMISSION = 'plivoErrorType/MEDIA_PERMISSION',
   /** Autoplay policy blocked remote audio; the call is up but silent. */
   AUDIO_PLAYBACK = 'plivoErrorType/AUDIO_PLAYBACK',
+  /**
+   * The call is connected but no RTP is flowing in either direction — the
+   * signature of a network that permits the signalling and drops the media.
+   * Distinct from AUDIO_PLAYBACK, which is our own tab failing to play audio
+   * that did arrive.
+   */
+  MEDIA_BLOCKED = 'plivoErrorType/MEDIA_BLOCKED',
+  /** The microphone is live and unmuted but producing pure silence. */
+  MEDIA_SILENT_MIC = 'plivoErrorType/MEDIA_SILENT_MIC',
 }
 
 export enum PlivoCallStatusEnum {

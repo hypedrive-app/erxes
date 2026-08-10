@@ -26,6 +26,7 @@ import {
   plivoUnregisteredAtom,
 } from '@/integrations/plivo/states/plivoStates';
 import { trimPlivoLogStorage } from '@/integrations/plivo/utils/plivoLogStorage';
+import { usePlivoMediaHealth } from '@/integrations/plivo/hooks/usePlivoMediaHealth';
 
 const PlivoContext = createContext<PlivoContextValue | null>(null);
 
@@ -288,6 +289,62 @@ export const PlivoProvider = ({
       }, 2000);
     });
   }, [setPlivoState]);
+
+  /**
+   * Tells the agent when a call is connected but carrying no audio.
+   *
+   * The SDK never revises "connected", so without this a network that drops
+   * RTP while permitting the signalling leaves an agent on a call the UI calls
+   * healthy, hearing nothing, with no explanation. It also records which ICE
+   * candidate type the call settled on, which is the fact that makes a later
+   * complaint diagnosable at all.
+   */
+  usePlivoMediaHealth({
+    enabled: plivoState.callStatus === PlivoCallStatusEnum.ACTIVE,
+    getPeerConnection: () => {
+      const result = clientRef.current?.getPeerConnection?.();
+      return (result?.pc as RTCPeerConnection | undefined) || null;
+    },
+    onSilent: () => {
+      setPlivoState((prev) => ({
+        ...prev,
+        plivoErrorType: PlivoErrorTypeEnum.MEDIA_BLOCKED,
+        plivoErrorMessage: tRef.current('plivo-media-blocked-detail'),
+      }));
+
+      toast({
+        title: tRef.current('plivo-media-blocked'),
+        description: tRef.current('plivo-media-blocked-detail'),
+        variant: 'destructive',
+      });
+    },
+    onRecovered: () => {
+      setPlivoState((prev) =>
+        prev.plivoErrorType === PlivoErrorTypeEnum.MEDIA_BLOCKED
+          ? { ...prev, plivoErrorType: null, plivoErrorMessage: null }
+          : prev,
+      );
+    },
+    onSilentMic: () => {
+      // Not a destructive banner: the call is working, and only the agent's
+      // own side is silent. A muted headset is the usual cause and is fixed in
+      // seconds once somebody says so.
+      toast({
+        title: tRef.current('plivo-silent-mic'),
+        description: tRef.current('plivo-silent-mic-detail'),
+      });
+    },
+    onDiagnosis: ({ localCandidateType, remoteCandidateType, roundTripTime }) => {
+      // console, not `debug`: this is the one line that turns "the call was
+      // silent" into a diagnosis, and it has to be readable in a support
+      // session without anyone enabling a namespace first.
+      console.info(
+        `[plivo] media path: local=${localCandidateType} remote=${remoteCandidateType} rtt=${
+          roundTripTime ?? 'n/a'
+        }`,
+      );
+    },
+  });
 
   const resetCallState = useCallback(() => {
     setPlivoState((prev) => ({
