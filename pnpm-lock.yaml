@@ -1088,9 +1088,24 @@ importers:
 
   backend/plugins/enrichment_api:
     dependencies:
+      '@trpc/client':
+        specifier: ^11.0.0
+        version: 11.0.4(@trpc/server@11.0.4(typescript@5.8.3))(typescript@5.8.3)
+      '@trpc/server':
+        specifier: ^11.0.0
+        version: 11.0.4(typescript@5.8.3)
       erxes-api-shared:
         specifier: workspace:^
         version: link:../../erxes-api-shared
+      graphql:
+        specifier: ^16.9.0
+        version: 16.10.0
+      graphql-tag:
+        specifier: ^2.12.6
+        version: 2.12.6(graphql@16.10.0)
+      mongoose:
+        specifier: ^8.10.0
+        version: 8.13.2(socks@2.8.7)
 
   backend/plugins/frontline_api:
     dependencies:

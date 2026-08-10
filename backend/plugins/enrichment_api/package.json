@@ -1,7 +1,7 @@
 {
   "name": "enrichment_api",
   "version": "1.0.0",
-  "description": "",
+  "description": "Contact and company enrichment from Surfe, Apollo, Hunter and Surepass",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/main.ts",
@@ -12,7 +12,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "erxes-api-shared": "workspace:^"
+    "@trpc/client": "^11.0.0",
+    "@trpc/server": "^11.0.0",
+    "erxes-api-shared": "workspace:^",
+    "graphql": "^16.9.0",
+    "graphql-tag": "^2.12.6",
+    "mongoose": "^8.10.0"
   },
   "devDependencies": {}
 }
