@@ -238,7 +238,21 @@ export const enrichCustomer = async ({
     provider: providerKey,
     outcome: 'hit',
     input,
-    result: { ...values, ...(doc.primaryEmail ? { email: doc.primaryEmail } : {}) },
+    result: {
+      ...values,
+      ...(doc.primaryEmail ? { email: doc.primaryEmail } : {}),
+      // The provider's untouched payload, recorded only on a hit.
+      //
+      // Kept because a provider whose response shape we could not confirm up
+      // front — Surepass's reference is behind their console login — otherwise
+      // gives no way to tell "the key we read is wrong" from "there was no
+      // data". With this, the first successful call shows the real shape and
+      // the mapping can be tightened against it instead of guessed again.
+      //
+      // Only on a hit: a miss has nothing to inspect, and errors already carry
+      // their message.
+      ...(result.raw ? { providerPayload: result.raw } : {}),
+    },
     userId,
   });
 
