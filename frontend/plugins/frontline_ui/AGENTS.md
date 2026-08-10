@@ -6,7 +6,7 @@
 - **Project:** `frontline_ui`
 - **Layer:** `Frontend UI`
 - **Path:** `frontend/plugins/frontline_ui`
-- **Last synchronized:** `2026-08-06`
+- **Last synchronized:** `2026-08-10`
 
 ## Scope
 
@@ -89,6 +89,13 @@
 - Composes Facebook page posts from the integrations sidebar: channel and page
   selection, message, optional link, drag-and-drop image upload (max 10), and a
   permalink to the published post.
+- WhatsApp composer swaps on Meta's 24 hour customer service window:
+  `WhatsappMessageInputWrapper` shows the normal composer plus the reply-button
+  builder while the window is open, and replaces both with the template picker
+  once it has closed — a template being the only send Meta still accepts.
+- The reply-button builder composes an interactive message of up to three
+  buttons, enforcing Meta's caps (3 buttons, 20 characters each, unique titles,
+  1024 character body, 60 character footer) before the send.
 
 ## Architecture
 
@@ -105,6 +112,7 @@
 | Nav group actions  | `src/modules/NavigationGroupActions.tsx`                                                                                          | Click guard for a `NavigationMenuGroup` `actions` slot                                           |
 | Sidebar counts     | `src/modules/inbox/conversations/hooks/useConversationCounts.tsx`                                                                 | `conversationCounts` reads per integration type inside one channel                               |
 | Live unread        | `src/modules/inbox/channel/hooks/useChannelUnreadUpdates.tsx`                                                                     | Subscribes to incoming customer messages and refreshes channel unread counts                     |
+| WhatsApp composer  | `src/modules/integrations/whatsapp/components/{WhatsappMessageInputWrapper,WhatsappInteractiveBuilder,WhatsappTemplatePicker}.tsx` | 24 hour window gate, reply-button builder, and approved-template send                            |
 | Channel settings   | `src/modules/channels`                                                                                                            | Channel CRUD, members, GraphQL documents, form schemas                                           |
 | Personal channel   | `src/modules/channels/components/settings/personal-channel`, `src/pages/PersonalChannelPage.tsx`                                  | Profile page for the user's private inbox                                                        |
 | Inbox              | `src/modules/inbox/`                                                                                                              | Conversations, messages, filters, channels, brands, integrations                                 |
@@ -290,6 +298,19 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — WhatsApp reply-button composer
+
+- **Summary:** Agents can send an interactive message of up to three reply
+  buttons from the conversation composer, validated against Meta's caps before
+  the send and dispatched on `extraInfo.whatsappInteractive`; the builder is
+  mounted only while the 24 hour window is open, since Meta rejects free-form
+  interactive messages after it closes.
+- **Affected areas:**
+  `src/modules/integrations/whatsapp/components/{WhatsappInteractiveBuilder,WhatsappMessageInputWrapper}.tsx`;
+  eleven `whatsapp-interactive-*` keys in the gateway-owned `frontline` locale.
+- **Contracts changed:** `None` — reuses the existing `conversationMessageAdd`
+  mutation and the `extraInfo` envelope templates already ride on.
+
 ### `2026-08-08` — Call widget stays clickable above modal surfaces
 
 - **Summary:** The floating call trigger and the popover that holds the
@@ -415,29 +436,3 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   `backend/gateway/src/locales/{en,mn}/frontline.json` (gateway-owned)
 - **Contracts changed:** `None`
 
-### `2026-08-04` — Split the Facebook post composer into hooks and fields
-
-- **Summary:** `FacebookPostSheet` no longer drills nine props into its form:
-  attachment state moved to `useFacebookPostImages`, channel/page loading to
-  `useFacebookPostTargets`, and the uploader UI to `FacebookPostImagesField`;
-  the message input's dialog-drop guard is now one shared helper.
-- **Affected areas:**
-  `src/modules/integrations/facebook/components/FacebookPostSheet.tsx`,
-  `.../components/FacebookPostImagesField.tsx` (new),
-  `.../hooks/useFacebookPostImages.tsx` (new),
-  `.../hooks/useFacebookPostTargets.tsx` (new),
-  `.../constants/FbPostSchema.ts`,
-  `src/modules/inbox/conversations/conversation-detail/components/MessageInput.tsx`
-- **Contracts changed:** `None`
-
-### `2026-08-04` — Cap comment-triggered Facebook message actions at one message
-
-- **Summary:** A Facebook message action attached to a comment trigger now
-  accepts a single message and explains that the rest of the flow must continue
-  behind a button, matching Facebook's one-private-reply-per-comment rule.
-- **Affected areas:**
-  `src/widgets/automations/modules/facebook/components/action/constants/ReplyMessage.ts`,
-  `.../action/context/ReplyMessageProvider.tsx`,
-  `.../action/components/replyMessage/MessageSequenceHeader.tsx`,
-  `.../action/components/replyMessage/MessageActionForm.tsx`
-- **Contracts changed:** `None`
