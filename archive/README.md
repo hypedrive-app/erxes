@@ -135,3 +135,18 @@ passing: domain extraction, scheme/www/case handling, dotless and unparseable
 hosts, and the never-overwrite-an-existing-avatar rule).
 
 Restore verbatim if a `test` target is ever added to core-api.
+
+## backend/plugins/enrichment_api — generator scaffold resolver (2026-08-10)
+
+`src/modules/providers/graphql/resolvers/customResolvers/providers.ts`
+
+`pnpm create-plugin` emits a sample custom field resolver for a `Providers`
+GraphQL type it also invents. The real schema defines no such type — every type
+this plugin exposes (`EnrichmentProvider`, `EnrichmentOutcome`,
+`EnrichmentConfigStatus`, `EnrichmentLog`) is built completely in its query and
+mutation resolvers from values already in hand, so there is nothing to resolve
+lazily per field. Registering it would have added a resolver for a type Apollo
+never constructs.
+
+Delete once the plugin has shipped and nobody is comparing against the
+generator's output.
