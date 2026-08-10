@@ -1,5 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { IconPlus, IconSend, IconTrash } from '@tabler/icons-react';
+import {
+  IconPlus,
+  IconSend,
+  IconSquareRoundedChevronsDown,
+  IconTrash,
+} from '@tabler/icons-react';
 import {
   Button,
   Dialog,
@@ -136,8 +141,13 @@ export const WhatsappInteractiveBuilder = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button variant="ghost" size="sm">
-          {t('whatsapp-interactive-open')}
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t('whatsapp-interactive-open')}
+          className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <IconSquareRoundedChevronsDown className="h-4 w-4" />
         </Button>
       </Dialog.Trigger>
 

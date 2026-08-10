@@ -1,7 +1,9 @@
 import { stripHtml } from 'string-strip-html';
 import { IModels } from '~/connectionResolvers';
 import {
+  sendWhatsappContacts,
   sendWhatsappInteractive,
+  sendWhatsappLocation,
   sendWhatsappMedia,
   sendWhatsappTemplate,
   sendWhatsappText,
@@ -14,7 +16,9 @@ import {
 } from '@/integrations/whatsapp/constants';
 import { debugError } from '@/integrations/whatsapp/debuggers';
 import {
+  IWhatsappContactCard,
   IWhatsappInteractiveDispatch,
+  IWhatsappLocationDispatch,
   IWhatsappTemplateDispatch,
   IWhatsappTemplateSendComponent,
 } from '@/integrations/whatsapp/@types';
@@ -132,6 +136,85 @@ const getInteractiveDispatch = (
 
 
 /**
+ * Reads a location off `extraInfo`, the same envelope templates ride on.
+ *
+ * Coordinates are validated to Meta's ranges rather than forwarded: latitude
+ * and longitude arriving as strings from a form is the common case, and `0,0`
+ * from an unparsed field is a real place in the Atlantic that Meta will
+ * happily deliver.
+ */
+const getLocationDispatch = (
+  extraInfo: unknown,
+): IWhatsappLocationDispatch | undefined => {
+  if (!extraInfo || typeof extraInfo !== 'object') {
+    return undefined;
+  }
+
+  const { whatsappLocation } = extraInfo as {
+    whatsappLocation?: Partial<IWhatsappLocationDispatch>;
+  };
+
+  if (!whatsappLocation) {
+    return undefined;
+  }
+
+  const latitude = Number(whatsappLocation.latitude);
+  const longitude = Number(whatsappLocation.longitude);
+
+  if (!Number.isFinite(latitude) || Math.abs(latitude) > 90) {
+    throw new Error('A WhatsApp location needs a latitude between -90 and 90');
+  }
+
+  if (!Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+    throw new Error(
+      'A WhatsApp location needs a longitude between -180 and 180',
+    );
+  }
+
+  return {
+    latitude,
+    longitude,
+    name: whatsappLocation.name,
+    address: whatsappLocation.address,
+  };
+};
+
+/**
+ * Reads contact cards off `extraInfo`.
+ *
+ * `formatted_name` is the one field Meta requires on every card, and a card
+ * without it is rejected for the whole message — so an unnamed card is refused
+ * here, where the offending entry can be named.
+ */
+const getContactsDispatch = (
+  extraInfo: unknown,
+): IWhatsappContactCard[] | undefined => {
+  if (!extraInfo || typeof extraInfo !== 'object') {
+    return undefined;
+  }
+
+  const { whatsappContacts } = extraInfo as {
+    whatsappContacts?: unknown;
+  };
+
+  if (!whatsappContacts) {
+    return undefined;
+  }
+
+  if (!Array.isArray(whatsappContacts) || !whatsappContacts.length) {
+    throw new Error('A WhatsApp contact message needs at least one card');
+  }
+
+  for (const [index, card] of whatsappContacts.entries()) {
+    if (!card?.name?.formatted_name?.trim()) {
+      throw new Error(`Contact card ${index + 1} needs a name`);
+    }
+  }
+
+  return whatsappContacts as IWhatsappContactCard[];
+};
+
+/**
  * Handles an agent's outgoing reply, dispatched from the inbox.
  *
  * Two send paths:
@@ -172,6 +255,8 @@ export const handleWhatsappMessage = async (
 
   const template = getTemplateDispatch(doc.extraInfo);
   const interactive = getInteractiveDispatch(doc.extraInfo);
+  const location = getLocationDispatch(doc.extraInfo);
+  const contacts = getContactsDispatch(doc.extraInfo);
   // The wamid the agent chose to quote. Not carried on `extraInfo` like the
   // template above — `conversationMessageAdd` already forwards this generic,
   // provider-agnostic field to every integration's payload (Discord reads the
@@ -186,7 +271,7 @@ export const handleWhatsappMessage = async (
   // bubble; a template with no body parameters still renders its approved copy.
   const content = stripHtml(doc.content || '').result.trim();
 
-  if (!template && !interactive && !content) {
+  if (!template && !interactive && !location && !contacts && !content) {
     throw new Error('Cannot send an empty WhatsApp message');
   }
 
@@ -223,6 +308,25 @@ export const handleWhatsappMessage = async (
         phoneNumberId: integration.phoneNumberId,
         to: conversation.senderId,
         interactive,
+        replyToMid,
+      });
+    } else if (location) {
+      mid = await sendWhatsappLocation({
+        accessToken: integration.accessToken,
+        phoneNumberId: integration.phoneNumberId,
+        to: conversation.senderId,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        name: location.name,
+        address: location.address,
+        replyToMid,
+      });
+    } else if (contacts) {
+      mid = await sendWhatsappContacts({
+        accessToken: integration.accessToken,
+        phoneNumberId: integration.phoneNumberId,
+        to: conversation.senderId,
+        contacts,
         replyToMid,
       });
     } else if (attachments.length) {

@@ -6,7 +6,9 @@ import { useConversationContext } from '@/inbox/conversations/hooks/useConversat
 import { useConversationMessages } from '@/inbox/conversation-messages/hooks/useConversationMessages';
 import { IMessage } from '@/inbox/types/Conversation';
 import { WHATSAPP_MESSAGE_WINDOW_HOURS } from '../constants/whatsappSchema';
+import { WhatsappContactCardSender } from './WhatsappContactCardSender';
 import { WhatsappInteractiveBuilder } from './WhatsappInteractiveBuilder';
+import { WhatsappLocationSender } from './WhatsappLocationSender';
 import { WhatsappTemplatePicker } from './WhatsappTemplatePicker';
 
 /**
@@ -57,14 +59,17 @@ export const WhatsappMessageInputWrapper = ({
     differenceInHours(new Date(), new Date(lastCustomerMessage.createdAt)) >=
       WHATSAPP_MESSAGE_WINDOW_HOURS;
 
-  // Interactive messages are free-form, so they live here rather than beside
-  // the template picker below: Meta rejects them once the window has closed.
+  // These sends are all free-form, so they live here rather than beside the
+  // template picker below: Meta rejects every one of them once the window has
+  // closed, where only an approved template still goes through.
   if (!isOutsideWindow) {
     return (
       <div className="flex flex-col">
         {children}
-        <div className="max-w-2xl w-full mx-auto px-6 pb-2">
+        <div className="max-w-2xl w-full mx-auto px-6 pb-2 flex items-center gap-1">
           <WhatsappInteractiveBuilder />
+          <WhatsappLocationSender />
+          <WhatsappContactCardSender />
         </div>
       </div>
     );

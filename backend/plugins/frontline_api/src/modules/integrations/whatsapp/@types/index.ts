@@ -439,6 +439,14 @@ export type IWhatsappInteractiveDispatch =
  * A contact card as Meta expects it on an outbound `contacts` message. Only
  * `name.formatted_name` is required.
  */
+/** A location an agent dispatched from the composer. */
+export interface IWhatsappLocationDispatch {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
 export interface IWhatsappContactCard {
   name: {
     formatted_name: string;
