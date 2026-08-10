@@ -541,6 +541,13 @@ export function elkConvertConditionToQuery(args: {
     positiveQuery = { range: { [field]: { gte: fixedValue } } };
   }
 
+  // `propertiesData` is deliberately absent from this list. The nested rewrite
+  // below targets the v2 shape — an array of { field, stringValue } objects —
+  // but v3 writes custom fields as a FLAT map of fieldId -> value
+  // (contacts/db/definitions/company.ts declares it Schema.Types.Mixed). A
+  // condition on `propertiesData.<fieldId>` is therefore already a valid plain
+  // term query; wrapping it in `nested` produced a query that matched nothing,
+  // which is why custom-field segments silently returned no constraint.
   for (const nestedType of ['customFieldsData', 'trackedData', 'attributes']) {
     if (field.includes(nestedType)) {
       if (positiveQuery) {
