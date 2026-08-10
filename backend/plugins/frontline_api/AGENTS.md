@@ -283,6 +283,20 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — WhatsApp: interactive, reaction, location and contact sends
+
+- **Summary:** Adds the outbound message types the Cloud API supports and this
+  integration lacked — interactive (reply buttons, list menus, CTA URL),
+  reactions, location pins and contact cards. Interactive is wired into the
+  agent send path via `extraInfo.whatsappInteractive`, the same envelope
+  templates already ride on; the other three are API-level only for now.
+- **Affected areas:** `modules/integrations/whatsapp/utils.ts` (four new send
+  functions), `@types/index.ts` (dispatch types), `handleWhatsappMessage.ts`
+  (dispatch + validation).
+- **Contracts changed:** None existing. Interactive obeys the 24-hour customer
+  service window like every other free-form message — only templates may be
+  sent outside it, so the existing guard covers it unchanged.
+
 ### `2026-08-10` — WhatsApp automations can reply
 
 - **Summary:** Adds the `Send WhatsApp Message` action, so a workflow started by

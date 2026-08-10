@@ -12,6 +12,8 @@ import {
   debugExternalRequests,
 } from '@/integrations/whatsapp/debuggers';
 import {
+  IWhatsappContactCard,
+  IWhatsappInteractiveDispatch,
   IWhatsappTemplate,
   IWhatsappTemplateSendComponent,
 } from '@/integrations/whatsapp/@types';
@@ -554,4 +556,223 @@ export const downloadWhatsappMedia = async ({
     debugError(`Failed to download WhatsApp media ${mediaId}: ${e.message}`);
     return null;
   }
+};
+
+/**
+ * Sends an interactive message — reply buttons, a list menu, or a CTA URL.
+ *
+ * All three are FREE-FORM messages, not templates, so they obey the same
+ * 24-hour customer service window as text: outside it Meta answers 131047 and
+ * only an approved template gets through. Callers must not treat these as a
+ * way to re-open a lapsed conversation.
+ *
+ * Meta's limits, enforced by the caller rather than here because a rejected
+ * send costs a round trip and loses the agent's typing:
+ *   button  — max 3 buttons, title <= 20 chars and unique, id <= 256
+ *   list    — max 10 sections, max 10 rows TOTAL, row title <= 24,
+ *             description <= 72, opener label <= 20
+ *   cta_url — exactly one URL, display_text <= 20
+ * Shared: body <= 1024, footer <= 60, text header <= 60.
+ *
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-reply-buttons-messages
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-list-messages
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-cta-url-messages
+ */
+export const sendWhatsappInteractive = async ({
+  accessToken,
+  phoneNumberId,
+  to,
+  interactive,
+  replyToMid,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  to: string;
+  interactive: IWhatsappInteractiveDispatch;
+  replyToMid?: string;
+}): Promise<string> => {
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive,
+  };
+
+  if (replyToMid) {
+    body.context = { message_id: replyToMid };
+  }
+
+  const response = await graphRequest<{ messages?: Array<{ id: string }> }>({
+    accessToken,
+    method: 'POST',
+    path: `/${phoneNumberId}/messages`,
+    body,
+  });
+
+  const mid = response?.messages?.[0]?.id;
+
+  if (!mid) {
+    throw new Error('WhatsApp did not return a message id for the interactive message');
+  }
+
+  return mid;
+};
+
+/**
+ * Reacts to one of the customer's messages, or removes our reaction.
+ *
+ * An EMPTY emoji removes it. That is the widely used form but it is not stated
+ * in Meta's own reference text, so it is worth confirming against a live send
+ * before relying on removal specifically — the add path is documented.
+ *
+ * Meta rejects a target older than 30 days, or a target that is itself a
+ * reaction or was deleted, with error 131009. Reactions also produce only a
+ * `sent` status webhook — never delivered or read — so the delivery ticks will
+ * stop at one check for these by design, not because anything failed.
+ *
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/reaction-messages
+ */
+export const sendWhatsappReaction = async ({
+  accessToken,
+  phoneNumberId,
+  to,
+  messageId,
+  emoji,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  to: string;
+  messageId: string;
+  emoji?: string;
+}): Promise<string> => {
+  const response = await graphRequest<{ messages?: Array<{ id: string }> }>({
+    accessToken,
+    method: 'POST',
+    path: `/${phoneNumberId}/messages`,
+    body: {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'reaction',
+      reaction: { message_id: messageId, emoji: emoji || '' },
+    },
+  });
+
+  const mid = response?.messages?.[0]?.id;
+
+  if (!mid) {
+    throw new Error('WhatsApp did not return a message id for the reaction');
+  }
+
+  return mid;
+};
+
+/**
+ * Sends a pin on the map. `name` and `address` are optional but render as the
+ * pin's label, so a location without them shows only coordinates.
+ *
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/location-messages
+ */
+export const sendWhatsappLocation = async ({
+  accessToken,
+  phoneNumberId,
+  to,
+  latitude,
+  longitude,
+  name,
+  address,
+  replyToMid,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  to: string;
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+  replyToMid?: string;
+}): Promise<string> => {
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'location',
+    location: {
+      latitude,
+      longitude,
+      ...(name ? { name } : {}),
+      ...(address ? { address } : {}),
+    },
+  };
+
+  if (replyToMid) {
+    body.context = { message_id: replyToMid };
+  }
+
+  const response = await graphRequest<{ messages?: Array<{ id: string }> }>({
+    accessToken,
+    method: 'POST',
+    path: `/${phoneNumberId}/messages`,
+    body,
+  });
+
+  const mid = response?.messages?.[0]?.id;
+
+  if (!mid) {
+    throw new Error('WhatsApp did not return a message id for the location');
+  }
+
+  return mid;
+};
+
+/**
+ * Shares one or more contact cards. Only `name.formatted_name` is required per
+ * card; everything else is optional and simply omitted when absent.
+ *
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/contacts-messages
+ */
+export const sendWhatsappContacts = async ({
+  accessToken,
+  phoneNumberId,
+  to,
+  contacts,
+  replyToMid,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  to: string;
+  contacts: IWhatsappContactCard[];
+  replyToMid?: string;
+}): Promise<string> => {
+  if (!contacts.length) {
+    throw new Error('At least one contact card is required');
+  }
+
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'contacts',
+    contacts,
+  };
+
+  if (replyToMid) {
+    body.context = { message_id: replyToMid };
+  }
+
+  const response = await graphRequest<{ messages?: Array<{ id: string }> }>({
+    accessToken,
+    method: 'POST',
+    path: `/${phoneNumberId}/messages`,
+    body,
+  });
+
+  const mid = response?.messages?.[0]?.id;
+
+  if (!mid) {
+    throw new Error('WhatsApp did not return a message id for the contacts');
+  }
+
+  return mid;
 };

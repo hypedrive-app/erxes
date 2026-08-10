@@ -360,3 +360,81 @@ export interface IWhatsappTemplateDispatch {
   languageCode: string;
   components?: IWhatsappTemplateSendComponent[];
 }
+
+/**
+ * Header of an interactive message. Text headers cap at 60 characters; the
+ * media forms carry a `link` or an uploaded media id instead.
+ */
+export type IWhatsappInteractiveHeader =
+  | { type: 'text'; text: string }
+  | { type: 'image'; image: { link?: string; id?: string } }
+  | { type: 'video'; video: { link?: string; id?: string } }
+  | { type: 'document'; document: { link?: string; id?: string; filename?: string } };
+
+/**
+ * The three interactive shapes Meta currently documents.
+ *
+ * Modelled as a discriminated union rather than one loose object so an invalid
+ * combination — say a `cta_url` carrying `buttons` — cannot compile. Meta
+ * rejects those at send time with a message that does not name the offending
+ * field, which is expensive to debug.
+ *
+ * All three are free-form messages and obey the 24-hour customer service
+ * window; none of them can re-open a lapsed conversation.
+ */
+export type IWhatsappInteractiveDispatch =
+  | {
+      type: 'button';
+      header?: IWhatsappInteractiveHeader;
+      body: { text: string };
+      footer?: { text: string };
+      // Max 3. Titles must be unique and <= 20 characters.
+      action: {
+        buttons: Array<{
+          type: 'reply';
+          reply: { id: string; title: string };
+        }>;
+      };
+    }
+  | {
+      type: 'list';
+      header?: IWhatsappInteractiveHeader;
+      body: { text: string };
+      footer?: { text: string };
+      action: {
+        // The label on the button that opens the list. Max 20 characters.
+        button: string;
+        // Max 10 sections and max 10 rows in TOTAL across them — not 10 each.
+        sections: Array<{
+          title?: string;
+          rows: Array<{ id: string; title: string; description?: string }>;
+        }>;
+      };
+    }
+  | {
+      type: 'cta_url';
+      header?: IWhatsappInteractiveHeader;
+      body: { text: string };
+      footer?: { text: string };
+      // Exactly one URL button per message.
+      action: {
+        name: 'cta_url';
+        parameters: { display_text: string; url: string };
+      };
+    };
+
+/**
+ * A contact card as Meta expects it on an outbound `contacts` message. Only
+ * `name.formatted_name` is required.
+ */
+export interface IWhatsappContactCard {
+  name: {
+    formatted_name: string;
+    first_name?: string;
+    last_name?: string;
+  };
+  phones?: Array<{ phone?: string; type?: string; wa_id?: string }>;
+  emails?: Array<{ email?: string; type?: string }>;
+  org?: { company?: string; department?: string; title?: string };
+  urls?: Array<{ url?: string; type?: string }>;
+}

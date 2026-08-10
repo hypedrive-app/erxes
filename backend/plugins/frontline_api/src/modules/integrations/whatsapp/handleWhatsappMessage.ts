@@ -1,6 +1,7 @@
 import { stripHtml } from 'string-strip-html';
 import { IModels } from '~/connectionResolvers';
 import {
+  sendWhatsappInteractive,
   sendWhatsappMedia,
   sendWhatsappTemplate,
   sendWhatsappText,
@@ -13,6 +14,7 @@ import {
 } from '@/integrations/whatsapp/constants';
 import { debugError } from '@/integrations/whatsapp/debuggers';
 import {
+  IWhatsappInteractiveDispatch,
   IWhatsappTemplateDispatch,
   IWhatsappTemplateSendComponent,
 } from '@/integrations/whatsapp/@types';
@@ -60,6 +62,74 @@ const getTemplateDispatch = (
   };
 };
 
+/**
+ * Reads an interactive message off `extraInfo`, the same envelope templates
+ * ride on.
+ *
+ * Validated to the shape Meta accepts rather than passed through: a malformed
+ * interactive is rejected at send time with an error that does not name the
+ * offending field, which is expensive to debug from a webhook log. Rejecting
+ * here names it.
+ */
+const getInteractiveDispatch = (
+  extraInfo: unknown,
+): IWhatsappInteractiveDispatch | undefined => {
+  if (!extraInfo || typeof extraInfo !== 'object') {
+    return undefined;
+  }
+
+  const { whatsappInteractive } = extraInfo as {
+    whatsappInteractive?: Partial<IWhatsappInteractiveDispatch>;
+  };
+
+  if (!whatsappInteractive) {
+    return undefined;
+  }
+
+  const { type } = whatsappInteractive;
+
+  if (type !== 'button' && type !== 'list' && type !== 'cta_url') {
+    throw new Error(
+      'WhatsApp interactive message needs a type of button, list or cta_url',
+    );
+  }
+
+  const body = (whatsappInteractive as { body?: { text?: string } }).body;
+
+  if (!body?.text?.trim()) {
+    throw new Error('WhatsApp interactive message needs body text');
+  }
+
+  // Meta's own caps. Checked here because exceeding one costs a round trip and
+  // loses whatever the agent composed.
+  if (type === 'button') {
+    const buttons =
+      (whatsappInteractive as { action?: { buttons?: unknown[] } }).action
+        ?.buttons || [];
+
+    if (!buttons.length || buttons.length > 3) {
+      throw new Error('WhatsApp reply buttons must number between 1 and 3');
+    }
+  }
+
+  if (type === 'list') {
+    const sections =
+      (whatsappInteractive as { action?: { sections?: Array<{ rows?: unknown[] }> } })
+        .action?.sections || [];
+    const rows = sections.reduce(
+      (total, section) => total + (section.rows?.length || 0),
+      0,
+    );
+
+    // 10 rows in TOTAL across every section, not 10 per section.
+    if (!rows || rows > 10) {
+      throw new Error('A WhatsApp list must have between 1 and 10 rows in total');
+    }
+  }
+
+  return whatsappInteractive as IWhatsappInteractiveDispatch;
+};
+
 
 /**
  * Handles an agent's outgoing reply, dispatched from the inbox.
@@ -101,6 +171,7 @@ export const handleWhatsappMessage = async (
   });
 
   const template = getTemplateDispatch(doc.extraInfo);
+  const interactive = getInteractiveDispatch(doc.extraInfo);
   // The wamid the agent chose to quote. Not carried on `extraInfo` like the
   // template above — `conversationMessageAdd` already forwards this generic,
   // provider-agnostic field to every integration's payload (Discord reads the
@@ -115,7 +186,7 @@ export const handleWhatsappMessage = async (
   // bubble; a template with no body parameters still renders its approved copy.
   const content = stripHtml(doc.content || '').result.trim();
 
-  if (!template && !content) {
+  if (!template && !interactive && !content) {
     throw new Error('Cannot send an empty WhatsApp message');
   }
 
@@ -144,6 +215,14 @@ export const handleWhatsappMessage = async (
         name: template.name,
         languageCode: template.languageCode,
         components: template.components,
+        replyToMid,
+      });
+    } else if (interactive) {
+      mid = await sendWhatsappInteractive({
+        accessToken: integration.accessToken,
+        phoneNumberId: integration.phoneNumberId,
+        to: conversation.senderId,
+        interactive,
         replyToMid,
       });
     } else if (attachments.length) {
