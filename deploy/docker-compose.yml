@@ -376,7 +376,7 @@ services:
       # ENABLED_PLUGINS occurrence in this file (core-api, each plugin api, and
       # the gateway) must stay identical — the gateway compares its list
       # against what the plugins actually registered.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
       # ENABLED_PLUGINS_ONLY_API stays ABSENT — same empty-string trap.
       # ── PLUGIN_CDN_URL: where the BROWSER fetches plugin remotes ─────────
       # routes.ts builds `${PLUGIN_CDN_URL}/${version}/${plugin}_ui/remoteEntry.js`
@@ -491,7 +491,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. frontline itself
       # calls isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Frontline needs these in its own right, not just for parity: inbound
       # WhatsApp media and email (imap) attachments are streamed straight to
@@ -587,7 +587,7 @@ services:
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
       # Same non-empty rule as everywhere else in this file. sales itself calls
       # isEnabled()/getPlugins() for cross-plugin checks.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Deal attachments and import/export artifacts are streamed to object
       # storage by this process. Same readConfigValue fallback chain as
@@ -656,7 +656,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
       # ── File storage: S3-compatible (Cloudflare R2) ──────────────────────
       # Task attachments and import/export artifacts are streamed to object
       # storage by this process. Same readConfigValue fallback chain as
@@ -723,7 +723,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
 
       # ── Cal.com integration ──────────────────────────────────────────────
       # Shared secret configured on the Cal.com webhook subscription. The
@@ -747,6 +747,60 @@ services:
       NODE_OPTIONS: --max-old-space-size=1536
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3314)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 180s
+    restart: unless-stopped
+    networks: [erxes]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  plugin-enrichment-api:
+    # Built from source — exists only in this fork, like calcom above.
+    build:
+      context: ..
+      dockerfile: backend/plugins/enrichment_api/Dockerfile.build
+    depends_on:
+      mongo: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      plugin-core-api: {condition: service_healthy}
+    environment:
+      NODE_ENV: production
+      VERSION: os
+      # Must equal the port in startPlugin({name:'enrichment', port:3315})
+      # (backend/plugins/enrichment_api/src/main.ts) and the fallback in that
+      # plugin's Dockerfile.build HEALTHCHECK. 3315 and not the generator's
+      # default 33010, which insurance_api already claims.
+      PORT: "3315"
+      DOMAIN: https://${ERXES_UI_DOMAIN}
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_TOKEN_SECRET: ${JWT_TOKEN_SECRET}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
+
+      # ── Enrichment providers ─────────────────────────────────────────────
+      # All four are optional and resolve DB-first: a key set through Settings →
+      # Enrichment wins over the value here, so rotating a leaked key is a form
+      # submission rather than a redeploy. Unset simply means that provider
+      # reports itself as not configured and its button stays disabled.
+      SURFE_API_KEY: ${SURFE_API_KEY:-}
+      APOLLO_API_KEY: ${APOLLO_API_KEY:-}
+      HUNTER_API_KEY: ${HUNTER_API_KEY:-}
+      # Deliberately the same variable name the kyc-service already uses for
+      # this fleet's Surepass account, so the existing token is picked up
+      # without a second copy of it living in two places.
+      SUREPASS_API_TOKEN: ${SUREPASS_API_TOKEN:-}
+      SUREPASS_BASE_URL: ${SUREPASS_BASE_URL:-https://kyc-api.surepass.io/api/v1}
+
+      NODE_OPTIONS: --max-old-space-size=1536
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3315)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -848,6 +902,10 @@ services:
       # name from ENABLED_PLUGINS leaves a container nothing talks to; removing
       # only the service makes compose fail to start on an unknown dependency.
       plugin-calcom-api: {condition: service_healthy}
+      # Same three-place contract as calcom above: the name in ENABLED_PLUGINS,
+      # this dependency, and the plugin-enrichment-api service must be added and
+      # removed together.
+      plugin-enrichment-api: {condition: service_healthy}
     environment:
       NODE_ENV: production
       VERSION: os
@@ -874,7 +932,7 @@ services:
       # true of sales and operation: each name added here is one more subgraph
       # the gateway REQUIRES before it will serve anything.
       # Still never "" — see the long note on plugin-core-api.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
       # Bound the service-discovery retry loop. Unset => MAX_SAFE_INTEGER, i.e.
       # the gateway waits forever instead of failing visibly (targets.ts).
       #
@@ -1196,7 +1254,7 @@ services:
       # marks all 13 published articles "skipped — the source is unavailable or
       # not published" while the BullMQ job still reports success. Confirmed on
       # this instance: frontline logged nothing at all during a reindex.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
       # LOAD_BALANCER_ADDRESS is intentionally unset: it would override the
       # container-DNS address the service registers for itself.
       #
@@ -1279,7 +1337,7 @@ services:
       # defaultValue unless isEnabled(pluginName) is true — which is decided
       # solely by this env var. Without it every afterProcess hook is a no-op,
       # and because sendProducer swallows errors it fails silently.
-      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom}
+      ENABLED_PLUGINS: ${ENABLED_PLUGINS:-frontline,sales,operation,calcom,enrichment}
       # Lighter than automations: two Mongo-writing queue workers, no AI path.
       NODE_OPTIONS: --max-old-space-size=192
     healthcheck:

@@ -164,7 +164,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm nx build frontline_ui \
  && pnpm nx build sales_ui \
  && pnpm nx build operation_ui \
- && pnpm nx build calcom_ui
+ && pnpm nx build calcom_ui \
+ && pnpm nx build enrichment_ui
 
 # Fail HERE rather than shipping an nginx that 404s the one file that matters.
 # Per plugin, because a partial build is the failure mode this catches: MF
@@ -174,7 +175,8 @@ RUN test -f dist/frontend/plugins/frontline_ui/remoteEntry.js \
  && test -f dist/frontend/plugins/sales_ui/remoteEntry.js \
  && test -f dist/frontend/plugins/operation_ui/remoteEntry.js \
  && test -f dist/frontend/plugins/calcom_ui/remoteEntry.js \
- && echo "frontline_ui + sales_ui + operation_ui + calcom_ui build OK"
+ && test -f dist/frontend/plugins/enrichment_ui/remoteEntry.js \
+ && echo "frontline_ui + sales_ui + operation_ui + calcom_ui + enrichment_ui build OK"
 
 # ── Stage 2: static server ───────────────────────────────────────────────────
 FROM nginx:alpine
@@ -190,6 +192,8 @@ COPY --from=build /app/dist/frontend/plugins/operation_ui \
                   /usr/share/nginx/html/latest/operation_ui
 COPY --from=build /app/dist/frontend/plugins/calcom_ui \
                   /usr/share/nginx/html/latest/calcom_ui
+COPY --from=build /app/dist/frontend/plugins/enrichment_ui \
+                  /usr/share/nginx/html/latest/enrichment_ui
 
 # The frontline_ui vhost, reused verbatim for all three. Its rules are per-URL,
 # not per-plugin: no-cache on the stable-named remoteEntry.js manifests,
