@@ -11,7 +11,10 @@ import {
   listCalcomEventTypes,
 } from '@/bookings/calcomApi';
 import { getCalcomConfigStatus } from '@/bookings/config';
-import { checkWebhookHealth } from '@/bookings/webhookProvisioning';
+import {
+  checkWebhookHealth,
+  webhookApiDomain,
+} from '@/bookings/webhookProvisioning';
 
 type ListArgs = {
   customerId?: string;
@@ -253,10 +256,7 @@ export const bookingsQueries = {
     { models }: IContext,
   ) => {
     try {
-      return await checkWebhookHealth(
-        models,
-        process.env.DOMAIN || '',
-      );
+      return await checkWebhookHealth(models, webhookApiDomain());
     } catch (e) {
       // A failed lookup is itself diagnostic — almost always a bad API key —
       // so it answers with a status rather than erroring the whole settings

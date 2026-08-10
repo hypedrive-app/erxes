@@ -704,6 +704,17 @@ services:
       # generator's default 33010, which insurance_api already claims.
       PORT: "3314"
       DOMAIN: https://${ERXES_UI_DOMAIN}
+      # ── API_DOMAIN: the origin Cal.com is told to POST bookings to ───────
+      # The webhook this plugin registers with Cal.com must name the host that
+      # actually serves `/pl:calcom/calcom/webhook`. That is the API origin;
+      # the UI origin answers 405 on plugin mounts, and Cal.com accepts such a
+      # webhook happily and then never delivers to it — verified here, where
+      # the provisioned URL had to be rebuilt after landing on the UI host.
+      #
+      # Same distinction, same reason as PLIVO_CALLBACK_PUBLIC_URL on
+      # plugin-frontline-api below. DOMAIN cannot serve both jobs: it is also
+      # the gateway's CORS origin and must stay the UI host.
+      API_DOMAIN: https://${ERXES_API_DOMAIN}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/erxes?authSource=admin&directConnection=true
       # Segments, engage targeting, inbox and form search all read through
       # Elasticsearch; without this they fail closed (see the elasticsearch service).

@@ -45,6 +45,23 @@ export type WebhookHealth = {
 export const webhookSubscriberUrl = (apiDomain: string) =>
   `${apiDomain.replace(/\/+$/, '')}/pl:calcom/calcom/webhook`;
 
+/**
+ * The origin Cal.com must call back on.
+ *
+ * NOT `DOMAIN`. That is the UI origin — the gateway seeds its CORS allow-list
+ * from it — and it does not serve the plugin webhook mounts: a POST to
+ * `https://<ui-host>/pl:calcom/calcom/webhook` answers 405, so a webhook
+ * registered against it is accepted by Cal.com and then silently never
+ * delivers. The same distinction is already load-bearing for Plivo, whose
+ * callbacks are registered against PLIVO_CALLBACK_PUBLIC_URL for exactly this
+ * reason (see deploy/docker-compose.yml).
+ *
+ * Falls back to DOMAIN only so a single-origin deployment keeps working
+ * unchanged; where the two differ, API_DOMAIN is the correct one.
+ */
+export const webhookApiDomain = () =>
+  process.env.API_DOMAIN || process.env.DOMAIN || '';
+
 const sameTriggers = (a: string[] = [], b: string[] = []) => {
   if (a.length !== b.length) return false;
 
