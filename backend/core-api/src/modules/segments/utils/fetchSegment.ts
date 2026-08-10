@@ -46,10 +46,11 @@ export const fetchSegment = async (
         query: selector,
         _source: '_id',
       },
-      defaultValue: { hits: { hits: [] } },
+      defaultValue: { body: { hits: { hits: [] } } },
     });
 
-    const items = itemsResponse.hits.hits;
+    // ES 7 client replies are enveloped as { body, statusCode, headers }.
+    const items = (itemsResponse?.body ?? itemsResponse)?.hits?.hits ?? [];
     const itemIds = items.map((i) => getRealIdFromElk(i._id));
 
     const associationIds = await models.Conformities.filterConformity({
@@ -129,7 +130,7 @@ export const fetchSegment = async (
       query: selector,
       ...pagination,
     },
-    defaultValue: { hits: { hits: [] } },
+    defaultValue: { body: { hits: { hits: [] } } },
   };
 
   if (options.scroll && options.perPage) {
@@ -145,7 +146,9 @@ export const fetchSegment = async (
     resp.push(initialResponse);
 
     while (resp.length) {
-      const { hits = {} } = resp.shift();
+      const raw = resp.shift();
+      // Unwrap the ES 7 client envelope; scroll replies carry it too.
+      const { hits = {} } = (raw?.body ?? raw) || {};
 
       if (hits.hits) {
         hits.hits.forEach((hit) => {
@@ -162,9 +165,11 @@ export const fetchSegment = async (
 
       /* istanbul ignore next */
 
-      if (initialResponse._scroll_id) {
+      const scrollId = (initialResponse?.body ?? initialResponse)?._scroll_id;
+
+      if (scrollId) {
         // get the next response if there are more to fetch
-        resp.push(await fetchEsWithScroll(initialResponse._scroll_id));
+        resp.push(await fetchEsWithScroll(scrollId));
       }
     }
 
@@ -173,12 +178,18 @@ export const fetchSegment = async (
 
   const response = await fetchEs(fetchOptions);
 
+  // The ES 7 client wraps every reply as { body, statusCode, headers }, so the
+  // hits live under `body` — the count path above already reads `body.count`
+  // for exactly this reason. Reading `response.hits` directly threw
+  // "Cannot read properties of undefined (reading 'hits')" on every segment.
+  const hits = (response?.body ?? response)?.hits?.hits ?? [];
+
   if (options.returnFullDoc || options.returnFields) {
-    return response.hits.hits.map((hit) => ({
+    return hits.map((hit) => ({
       _id: getRealIdFromElk(hit._id),
       ...hit._source,
     }));
   }
 
-  return response.hits.hits.map((hit) => getRealIdFromElk(hit._id));
+  return hits.map((hit) => getRealIdFromElk(hit._id));
 };
