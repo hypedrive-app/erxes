@@ -135,6 +135,63 @@ const extractContent = async (
     };
   }
 
+  // A shared contact card. The phone number is the point of sharing one, so it
+  // has to survive into the thread — rendering "[contacts]" loses exactly the
+  // thing the customer sent.
+  if (message.type === 'contacts') {
+    const cards = (message.contacts || [])
+      .map((card) => {
+        const name =
+          card.name?.formatted_name ||
+          [card.name?.first_name, card.name?.last_name]
+            .filter(Boolean)
+            .join(' ');
+        const phone = card.phones?.[0]?.phone || card.phones?.[0]?.wa_id;
+
+        return [name, phone].filter(Boolean).join(' · ');
+      })
+      .filter(Boolean);
+
+    return {
+      content: cards.length
+        ? `[contact] ${cards.join(' | ')}`
+        : '[contact card]',
+      attachments,
+    };
+  }
+
+  // A catalog order. The line items are the message; a bare "[order]" tells an
+  // agent nothing about what was ordered.
+  if (message.type === 'order') {
+    const items = message.order?.product_items || [];
+    const total = items.reduce(
+      (sum, item) => sum + (item.item_price || 0) * (item.quantity || 0),
+      0,
+    );
+    const currency = items[0]?.currency || '';
+    const summary = `${items.length} item${items.length === 1 ? '' : 's'}${
+      total ? ` · ${total} ${currency}`.trimEnd() : ''
+    }`;
+
+    return {
+      content: message.order?.text
+        ? `[order] ${summary} — ${message.order.text}`
+        : `[order] ${summary}`,
+      attachments,
+    };
+  }
+
+  // Platform events — most often "customer changed their number". Meta writes
+  // the description itself, so it is passed through rather than reworded.
+  if (message.type === 'system') {
+    return {
+      content: message.system?.body
+        ? `[system] ${message.system.body}`
+        : '[system message]',
+      attachments,
+    };
+  }
+
   // Meta delivers types it cannot render (e.g. 131051) with the reason in
   // `errors[]`, so show that rather than a bare type name.
   const error = message.errors?.[0];

@@ -137,6 +137,9 @@ export type WhatsappMessageType =
   | 'interactive'
   | 'button'
   | 'reaction'
+  | 'contacts'
+  | 'order'
+  | 'system'
   | (string & {});
 
 export interface IWhatsappWebhookMessage {
@@ -164,6 +167,38 @@ export interface IWhatsappWebhookMessage {
   button?: { text?: string; payload?: string };
   /** `emoji` is omitted when the user REMOVES their reaction. */
   reaction?: { message_id: string; emoji?: string };
+  /**
+   * A shared contact card. Meta sends an ARRAY — one entry per card, since a
+   * customer can attach several at once.
+   * https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples#contacts-messages
+   */
+  contacts?: Array<{
+    name?: { formatted_name?: string; first_name?: string; last_name?: string };
+    phones?: Array<{ phone?: string; wa_id?: string; type?: string }>;
+    emails?: Array<{ email?: string; type?: string }>;
+    org?: { company?: string; title?: string };
+  }>;
+  /** Catalog order placed from a product message. */
+  order?: {
+    catalog_id?: string;
+    text?: string;
+    product_items?: Array<{
+      product_retailer_id?: string;
+      quantity?: number;
+      item_price?: number;
+      currency?: string;
+    }>;
+  };
+  /**
+   * A platform event rather than something the customer typed — most often a
+   * number change. `body` carries Meta's own human-readable description.
+   */
+  system?: {
+    body?: string;
+    type?: string;
+    wa_id?: string;
+    customer?: string;
+  };
   context?: { id?: string; from?: string; forwarded?: boolean };
   /**
    * Present when Meta could not render the inbound message (e.g. 131051 for a
