@@ -6,7 +6,14 @@ import {
   IconUserX,
   IconX,
 } from '@tabler/icons-react';
-import { Badge, Button, Sheet, Skeleton, Tabs } from 'erxes-ui';
+import {
+  AlertDialog,
+  Badge,
+  Button,
+  Sheet,
+  Skeleton,
+  Tabs,
+} from 'erxes-ui';
 import { format } from 'date-fns';
 import { useState } from 'react';
 
@@ -48,6 +55,10 @@ export const BookingDetailSheet = ({
     useCalcomBookingActions();
 
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Declining notifies the attendee and cannot be undone — the same weight as
+  // cancelling, which is already gated. Confirm and no-show are not: confirming
+  // is the expected outcome, and a no-show mark can simply be corrected.
+  const [declineOpen, setDeclineOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
 
@@ -234,7 +245,7 @@ export const BookingDetailSheet = ({
             <Button
               variant="ghost"
               disabled={pending}
-              onClick={() => booking.uid && declineBooking(booking.uid)}
+              onClick={() => setDeclineOpen(true)}
             >
               <IconX className="w-4 h-4" />
               Decline
@@ -296,6 +307,28 @@ export const BookingDetailSheet = ({
         open={cancelOpen}
         onOpenChange={setCancelOpen}
       />
+
+      <AlertDialog open={declineOpen} onOpenChange={setDeclineOpen}>
+        <AlertDialog.Content>
+          <AlertDialog.Header>
+            <AlertDialog.Title>Decline this booking?</AlertDialog.Title>
+            <AlertDialog.Description>
+              {booking?.title
+                ? `“${booking.title}” will be rejected and the attendee notified. This cannot be undone.`
+                : 'The booking will be rejected and the attendee notified. This cannot be undone.'}
+            </AlertDialog.Description>
+          </AlertDialog.Header>
+          <AlertDialog.Footer>
+            <AlertDialog.Cancel disabled={pending}>Keep it</AlertDialog.Cancel>
+            <AlertDialog.Action
+              disabled={pending}
+              onClick={() => booking?.uid && declineBooking(booking.uid)}
+            >
+              {pending ? 'Declining…' : 'Decline'}
+            </AlertDialog.Action>
+          </AlertDialog.Footer>
+        </AlertDialog.Content>
+      </AlertDialog>
 
       <RescheduleBookingDialog
         uid={booking?.uid}

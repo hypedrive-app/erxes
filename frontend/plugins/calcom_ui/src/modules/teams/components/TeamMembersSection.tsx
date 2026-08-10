@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Alert,
+  AlertDialog,
   Badge,
   Button,
   Dialog,
@@ -141,6 +142,12 @@ export const TeamMembersSection = ({ teamId }: { teamId: number }) => {
     removeMember,
   } = useCalcomTeamMemberships(teamId);
   const [addOpen, setAddOpen] = useState(false);
+  // Holds the membership awaiting confirmation. Removal is not undoable and
+  // re-adding needs the person's Cal.com user id looked up again, so it is
+  // confirmed like every other destructive action in this plugin.
+  const [removeTarget, setRemoveTarget] = useState<
+    { id: number; userId: number } | undefined
+  >();
 
   if (loading && !memberships.length) {
     return <Skeleton className="h-24 w-full" />;
@@ -217,7 +224,12 @@ export const TeamMembersSection = ({ teamId }: { teamId: number }) => {
                       )}
                       <DropdownMenu.Item
                         className="text-destructive"
-                        onClick={() => removeMember(membership.id)}
+                        onClick={() =>
+                          setRemoveTarget({
+                            id: membership.id,
+                            userId: membership.userId,
+                          })
+                        }
                       >
                         Remove
                       </DropdownMenu.Item>
@@ -229,6 +241,31 @@ export const TeamMembersSection = ({ teamId }: { teamId: number }) => {
           </Table.Body>
         </Table>
       )}
+
+      <AlertDialog
+        open={!!removeTarget}
+        onOpenChange={(next) => !next && setRemoveTarget(undefined)}
+      >
+        <AlertDialog.Content>
+          <AlertDialog.Header>
+            <AlertDialog.Title>Remove team member</AlertDialog.Title>
+            <AlertDialog.Description>
+              {removeTarget
+                ? `Cal.com user ${removeTarget.userId} will lose access to this team. Adding them back needs their Cal.com user id again.`
+                : 'This member will lose access to the team.'}
+            </AlertDialog.Description>
+          </AlertDialog.Header>
+          <AlertDialog.Footer>
+            <AlertDialog.Cancel disabled={pending}>Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action
+              disabled={pending}
+              onClick={() => removeTarget && removeMember(removeTarget.id)}
+            >
+              {pending ? 'Removing…' : 'Remove'}
+            </AlertDialog.Action>
+          </AlertDialog.Footer>
+        </AlertDialog.Content>
+      </AlertDialog>
     </div>
   );
 };

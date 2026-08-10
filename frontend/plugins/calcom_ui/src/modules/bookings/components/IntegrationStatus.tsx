@@ -77,7 +77,13 @@ export const CalcomIntegrationStatus = () => {
   } = useCalcomEventTypes();
 
   const webhooksWorking = totalCount > 0;
-  const apiWorking = !eventTypesError && eventTypes.length > 0;
+
+  // A successful call is what proves the key works — not whether it returned
+  // anything. An account with a valid key and no event types yet is a normal
+  // state, and reporting it as "usually a missing or invalid CALCOM_API_KEY"
+  // sends someone to rotate a key that was fine.
+  const apiWorking = !eventTypesError;
+  const hasEventTypes = eventTypes.length > 0;
 
   return (
     <div className="flex flex-col">
@@ -99,25 +105,37 @@ export const CalcomIntegrationStatus = () => {
         ok={apiWorking}
         loading={loadingTypes}
         detail={
-          apiWorking
-            ? `${eventTypes.length} event type${
-                eventTypes.length === 1 ? '' : 's'
-              } available to book.`
-            : 'Cal.com did not return any event types — usually a missing or invalid CALCOM_API_KEY.'
+          !apiWorking
+            ? 'Cal.com rejected the request — usually a missing or invalid CALCOM_API_KEY.'
+            : hasEventTypes
+              ? `${eventTypes.length} event type${
+                  eventTypes.length === 1 ? '' : 's'
+                } available to book.`
+              : 'Connected, but no event types exist yet. Create one in Cal.com before booking from here.'
         }
       />
 
+      {/* Points at Cal.com Cloud rather than a specific self-hosted host.
+          The instance this plugin talks to is CALCOM_API_URL, but the config
+          query deliberately returns only whether each key is set — never its
+          value — so the host cannot be derived here. A hardcoded host was
+          worse: it named one deployment's Cal.com and sent everyone else to a
+          domain that is not theirs. */}
       <div className="pt-4">
         <Button variant="secondary" size="sm" asChild>
           <a
-            href="https://cal.sharksmarketing.com/settings/developer/webhooks"
+            href="https://app.cal.com/settings/developer/webhooks"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open Cal.com settings
+            Open Cal.com webhook settings
             <IconExternalLink className="w-3.5 h-3.5" />
           </a>
         </Button>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Self-hosted? Use your own instance&apos;s
+          /settings/developer/webhooks.
+        </p>
       </div>
     </div>
   );
