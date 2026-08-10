@@ -183,7 +183,13 @@ export const generateFilter = async (
     subdomain,
     segment,
     segmentData,
-    contentType: type === 'company' ? 'core:company' : 'core:customer',
+    // Must be the full plugin:module:type triplet. getEsIndexByContentType
+    // splits on ':' and matches the THIRD segment against the types registered
+    // in meta/segments.ts ('companies' / 'customers', plural). A two-part
+    // 'core:company' resolves to an empty esIndex, and the query then runs
+    // against the bare prefix `erxes__`, which does not exist.
+    contentType:
+      type === 'company' ? 'core:contacts:companies' : 'core:contacts:customers',
   });
 
   if (segmentIds) {
