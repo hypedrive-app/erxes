@@ -65,6 +65,22 @@ const PLIVO_OPTIONS = {
   codecs: ['OPUS', 'PCMU', 'PCMA'],
   dscp: true,
   useDefaultAudioDevice: true,
+  /**
+   * Use Plivo's own STUN servers rather than the SDK's default.
+   *
+   * The SDK defaults this to FALSE (`usePlivoStunServer:!1` in its bundle),
+   * which leaves it resolving candidates through `stun.l.google.com`. Networks
+   * that filter egress — a college or corporate proxy — commonly block that
+   * host while allowing Plivo's own, so the browser could not discover a
+   * reachable address and the call connected with no audio, or not at all.
+   * Plivo's `stun.plivo.com` travels the same path as the signalling that
+   * already works on those networks.
+   *
+   * This does not make WebRTC work through a proxy that blocks UDP outright —
+   * nothing client-side can — but it removes the failure that is ours to
+   * remove rather than the network's.
+   */
+  usePlivoStunServer: true,
 };
 
 /**

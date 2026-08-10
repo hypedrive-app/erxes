@@ -509,6 +509,19 @@ services:
       AWS_DISABLE_ACL: ${AWS_DISABLE_ACL:-}
       FILE_SYSTEM_PUBLIC: ${FILE_SYSTEM_PUBLIC:-}
       NODE_OPTIONS: --max-old-space-size=1536
+      # ── DEBUG: turns on the `debug` namespaces this plugin logs through ───
+      # The integrations log almost entirely through the `debug` package
+      # (debuggers.ts in whatsapp/, plivo/, facebook/, …), and `debug` writes
+      # NOTHING unless the namespace is enabled here. With this unset, a failing
+      # call or webhook produced an empty log and every diagnosis had to be done
+      # by reading code — which is exactly what happened chasing a softphone
+      # that would not connect.
+      #
+      # Scoped to the integration namespaces rather than `*`: the wildcard also
+      # enables the HTTP and mongoose namespaces, which bury real errors under
+      # per-request noise. Override to '' to silence, or widen when chasing
+      # something outside these.
+      DEBUG: ${FRONTLINE_DEBUG:-erxes-plivo:*,erxes-whatsapp:*}
     # Defined in Dockerfile.build; restated here so it is visible at the level
     # the `gateway` depends_on condition below actually reads, and so it still
     # applies if the image is ever swapped for a published one.
