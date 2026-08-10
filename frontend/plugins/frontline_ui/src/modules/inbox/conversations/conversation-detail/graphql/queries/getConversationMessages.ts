@@ -37,6 +37,10 @@ export const GET_CONVERSATION_MESSAGES = gql`
         content
       }
       whatsappMid
+      whatsappReactions {
+        emoji
+        isCustomer
+      }
     }
     conversationMessagesTotalCount(conversationId: $conversationId)
   }

@@ -74,9 +74,21 @@ export interface IWhatsappConversationMessage {
   internal?: boolean;
   /** wamid of the message this one replies to. See the schema definition. */
   replyToMid?: string;
+  /** Emoji reactions left on this message. See the schema definition. */
+  reactions?: IWhatsappReaction[];
   // from inbox
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+/** One person's reaction to a message. One per person per message. */
+export interface IWhatsappReaction {
+  /** The reactor: a customer's `wa_id`, or an agent's erxes user id. */
+  senderId: string;
+  /** Stored, not derived — the two id spaces above are not comparable. */
+  isCustomer: boolean;
+  emoji: string;
+  reactedAt: Date;
 }
 
 export interface IWhatsappConversationMessageDocument

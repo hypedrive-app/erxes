@@ -115,4 +115,37 @@ export default {
 
     return own?.mid || null;
   },
+
+  /**
+   * Emoji reactions left on this message, by either party.
+   *
+   * Reactions live on the message they annotate rather than as messages of
+   * their own — WhatsApp renders them beneath the bubble, and a row apiece
+   * would fill the thread with bubbles for something the customer never sent.
+   * So they are resolved here rather than arriving as their own inbox rows.
+   *
+   * Empty array rather than null when there are none, so the frontend can map
+   * over it without a guard; null is reserved for "not a WhatsApp message".
+   */
+  async whatsappReactions(
+    message: IMessageDocument,
+    _args,
+    { models }: IContext,
+  ) {
+    const own = await models.WhatsappConversationMessages.findOne(
+      { erxesApiMessageId: message._id },
+      { reactions: 1 },
+    ).lean();
+
+    if (!own) return null;
+
+    // `senderId` is deliberately not exposed: the thread only needs to know
+    // which side left a reaction in order to place the chip, and the reactor's
+    // wa_id is a phone number the inbox has no reason to render.
+    return (own.reactions || []).map((reaction) => ({
+      emoji: reaction.emoji,
+      isCustomer: reaction.isCustomer,
+      reactedAt: reaction.reactedAt,
+    }));
+  },
 };

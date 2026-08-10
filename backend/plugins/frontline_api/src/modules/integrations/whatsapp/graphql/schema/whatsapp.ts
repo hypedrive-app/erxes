@@ -48,4 +48,11 @@ export const mutations = `
     components: JSON
     content: String!
   ): String
+
+  """
+  Reacts to a message, or clears this agent's reaction when emoji is omitted —
+  an empty emoji is Meta's own "remove" signal, not a missing value. messageId
+  is the target's wamid. Returns the reaction's own wamid.
+  """
+  whatsappReactToMessage(messageId: String!, emoji: String): String
 `;

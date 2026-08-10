@@ -124,17 +124,6 @@ const extractContent = async (
     return { content: message.button?.text || '[button]', attachments };
   }
 
-  // A reaction carries no body of its own; `emoji` is omitted entirely when the
-  // user REMOVES their reaction, which is why the two cases read differently.
-  if (message.type === 'reaction') {
-    const emoji = message.reaction?.emoji;
-
-    return {
-      content: emoji ? `[reacted ${emoji}]` : '[removed reaction]',
-      attachments,
-    };
-  }
-
   // A shared contact card. The phone number is the point of sharing one, so it
   // has to survive into the thread — rendering "[contacts]" loses exactly the
   // thing the customer sent.
@@ -216,6 +205,58 @@ const extractContent = async (
  * no-op, so writing it first means a retry cannot produce a second copy in the
  * agent's inbox.
  */
+/**
+ * Applies an emoji reaction to the message it names.
+ *
+ * WhatsApp allows one reaction per person per message, so a second one from
+ * the same person replaces the first — hence the pull-then-push rather than a
+ * plain append. An empty `emoji` is Meta's "reaction removed" signal, which the
+ * pull alone already expresses.
+ *
+ * A reaction to a message we do not hold is dropped. That happens when the
+ * customer reacts to something sent before this integration was connected;
+ * there is no bubble to attach it to, and inventing a row for it would put the
+ * reaction in the thread as a message, which is the very thing this avoids.
+ */
+const applyReaction = async (
+  models: IModels,
+  message: IWhatsappWebhookMessage,
+  senderId: string,
+  reactedAt: Date,
+) => {
+  const targetMid = message.reaction?.message_id;
+
+  if (!targetMid) {
+    return;
+  }
+
+  const emoji = message.reaction?.emoji;
+
+  // Removing this person's existing reaction is the first half of BOTH cases:
+  // a removal is only this, and a new reaction replaces whatever they left
+  // before.
+  const result = await models.WhatsappConversationMessages.updateOne(
+    { mid: targetMid },
+    { $pull: { reactions: { senderId } } },
+  );
+
+  if (!result.matchedCount) {
+    debugWhatsapp(`Reaction for unknown message ${targetMid} ignored`);
+    return;
+  }
+
+  if (emoji) {
+    await models.WhatsappConversationMessages.updateOne(
+      { mid: targetMid },
+      {
+        $push: {
+          reactions: { senderId, isCustomer: true, emoji, reactedAt },
+        },
+      },
+    );
+  }
+};
+
 const receiveCustomerMessage = async (
   models: IModels,
   subdomain: string,
@@ -247,6 +288,20 @@ const receiveCustomerMessage = async (
 
   if (existingMessage) {
     debugWhatsapp(`Ignoring already-processed message ${message.id}`);
+    return;
+  }
+
+  /**
+   * A reaction annotates a message that already exists; it is not one itself.
+   *
+   * WhatsApp shows it beneath the bubble it belongs to, so storing it as a row
+   * of its own would put a bubble in the thread for something the customer
+   * never sent as a message — a contact reacting to five messages would fill
+   * the thread with five of them. It is applied to the target and the webhook
+   * ends here.
+   */
+  if (message.type === 'reaction') {
+    await applyReaction(models, message, waId, timestamp);
     return;
   }
 

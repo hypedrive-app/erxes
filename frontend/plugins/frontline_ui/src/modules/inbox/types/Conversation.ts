@@ -98,6 +98,15 @@ export interface IMessage {
   } | null;
   /** This message's own wamid. Null on every non-WhatsApp message. */
   whatsappMid?: string | null;
+  /**
+   * Emoji reactions left on this message. Reactions annotate a message rather
+   * than being messages themselves, so they arrive here instead of as rows of
+   * their own. Empty when there are none; null on every non-WhatsApp message.
+   */
+  whatsappReactions?: Array<{
+    emoji: string;
+    isCustomer: boolean;
+  }> | null;
 }
 
 export enum ConversationStatus {

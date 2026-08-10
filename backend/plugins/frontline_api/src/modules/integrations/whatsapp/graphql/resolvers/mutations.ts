@@ -7,6 +7,7 @@ import {
 } from '@/integrations/whatsapp/controller/store';
 import { debugError } from '@/integrations/whatsapp/debuggers';
 import {
+  sendWhatsappReaction,
   sendWhatsappTemplate,
   WhatsappApiError,
 } from '@/integrations/whatsapp/utils';
@@ -201,5 +202,104 @@ export const whatsappMutations = {
     }
 
     return conversation.erxesApiId;
+  },
+
+  /**
+   * Reacts to a message with an emoji, or clears an existing reaction.
+   *
+   * A reaction is not a message: it attaches to one that already exists, and
+   * WhatsApp renders it under that bubble rather than as a new line in the
+   * thread. So this deliberately does NOT go through `conversationMessageAdd`
+   * and `extraInfo` the way templates and interactive messages do — that path
+   * exists to create a message, and using it would leave a stray bubble in the
+   * thread for something the customer sees as an annotation.
+   *
+   * Meta signals "remove the reaction" by an empty `emoji`, which is why the
+   * argument is optional rather than required — omitting it is a real
+   * operation, not a missing value.
+   *
+   * The reaction is stored on the target message, the same place an inbound
+   * one lands, so the thread shows it under the bubble it belongs to. Meta does
+   * NOT echo a business's own reaction back on the webhook the way it echoes
+   * inbound ones, so writing here is what makes an agent's reaction visible at
+   * all.
+   */
+  whatsappReactToMessage: async (
+    _root: undefined,
+    { messageId, emoji }: { messageId: string; emoji?: string },
+    { models, user }: IContext,
+  ): Promise<string> => {
+    if (!user?._id) {
+      throw new Error('Login required');
+    }
+
+    // `messageId` is Meta's wamid, the only id a reaction can name. Resolving
+    // the row first is what proves the message belongs to a conversation this
+    // installation owns — reacting by a bare wamid would otherwise let any
+    // string be forwarded to Meta.
+    const message = await models.WhatsappConversationMessages.findOne({
+      mid: messageId,
+    });
+
+    if (!message) {
+      throw new Error('That WhatsApp message is no longer available.');
+    }
+
+    const conversation = await models.WhatsappConversations.getConversation({
+      _id: message.conversationId,
+    });
+
+    const integration = await models.WhatsappIntegrations.getIntegration({
+      erxesApiId: conversation.integrationId,
+    });
+
+    let mid: string;
+
+    try {
+      mid = await sendWhatsappReaction({
+        accessToken: integration.accessToken,
+        phoneNumberId: integration.phoneNumberId,
+        to: conversation.senderId,
+        messageId,
+        emoji,
+      });
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+
+      debugError(`Failed to send WhatsApp reaction: ${reason}`);
+
+      if (e instanceof WhatsappApiError) {
+        throw new Error(`WhatsApp rejected the reaction: ${reason}`);
+      }
+
+      throw e;
+    }
+
+    // Written only after Meta accepted it, so a rejected reaction leaves no
+    // trace claiming the customer saw one. The pull-then-push mirrors the
+    // inbound path: one reaction per person per message, and an empty emoji is
+    // a removal, which the pull alone already expresses.
+    await models.WhatsappConversationMessages.updateOne(
+      { mid: messageId },
+      { $pull: { reactions: { senderId: user._id } } },
+    );
+
+    if (emoji) {
+      await models.WhatsappConversationMessages.updateOne(
+        { mid: messageId },
+        {
+          $push: {
+            reactions: {
+              senderId: user._id,
+              isCustomer: false,
+              emoji,
+              reactedAt: new Date(),
+            },
+          },
+        },
+      );
+    }
+
+    return mid;
   },
 };

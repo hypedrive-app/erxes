@@ -104,6 +104,27 @@ export const types = `
     other channel and the field to check for "can this be replied to".
     """
     whatsappMid: String
+
+    """
+    Emoji reactions left on this message, by either the contact or an agent.
+    Reactions annotate a message rather than being messages themselves, so they
+    resolve here instead of arriving as their own rows. Empty when there are
+    none; null on every non-WhatsApp message.
+    """
+    whatsappReactions: [WhatsappReaction]
+  }
+
+  """
+  One emoji reaction on a WhatsApp message.
+
+  isCustomer is what places the chip on the correct side of the thread. The
+  reactor's own id is deliberately not exposed — for a contact it is their
+  phone number, which the inbox has no reason to render.
+  """
+  type WhatsappReaction {
+    emoji: String
+    isCustomer: Boolean
+    reactedAt: Date
   }
 
   """

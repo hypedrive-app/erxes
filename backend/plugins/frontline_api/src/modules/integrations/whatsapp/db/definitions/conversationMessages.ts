@@ -61,4 +61,36 @@ export const conversationMessageSchema = new Schema({
     label: 'wamid of the message this one replies to',
     optional: true,
   },
+  /**
+   * Emoji reactions attached to THIS message, keyed by who left them.
+   *
+   * Stored on the reacted-to message rather than as a message of its own,
+   * because that is what a reaction is: WhatsApp renders it beneath the bubble
+   * it belongs to, and giving it a row would put a bubble in the thread for
+   * something the customer never sent as a message.
+   *
+   * `senderId` is the reactor's wa_id for a customer, or the erxes user id for
+   * an agent, and is unique per row: WhatsApp allows one reaction per person
+   * per message, so a second one replaces the first and an empty emoji from
+   * that person removes it.
+   *
+   * `isCustomer` is stored rather than derived, because the two id spaces are
+   * not comparable — a customer's wa_id is a phone number and an agent's is an
+   * erxes user id, so nothing at read time could tell them apart.
+   */
+  reactions: {
+    type: [
+      new Schema(
+        {
+          senderId: { type: String, label: 'wa_id or erxes user id' },
+          isCustomer: { type: Boolean, label: 'Left by the contact, not an agent' },
+          emoji: { type: String, label: 'The reaction emoji' },
+          reactedAt: { type: Date, label: 'When it was left' },
+        },
+        { _id: false },
+      ),
+    ],
+    optional: true,
+    label: 'Emoji reactions left on this message',
+  },
 });

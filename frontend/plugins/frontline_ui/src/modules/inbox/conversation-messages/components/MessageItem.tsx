@@ -20,6 +20,7 @@ import { useConversationMessageContext } from '@/inbox/conversations/conversatio
 import { activeConversationState } from '@/inbox/conversations/states/activeConversationState';
 import { DiscordMessageActions } from '@/integrations/discord/components/DiscordMessageActions';
 import { WhatsappMessageActions } from '@/integrations/whatsapp/components/WhatsappMessageActions';
+import { WhatsappReactionChips } from '@/integrations/whatsapp/components/WhatsappReactionChips';
 import { PlivoRecordingPlayer } from '@/integrations/plivo/components/PlivoRecordingPlayer';
 import { WhatsappDeliveryTicks } from '@/inbox/conversation-messages/components/WhatsappDeliveryTicks';
 import { WhatsappReplyPreview } from '@/inbox/conversation-messages/components/WhatsappReplyPreview';
@@ -80,6 +81,7 @@ export const MessageItem = () => {
     whatsappDelivery,
     whatsappReplyTo,
     whatsappMid,
+    whatsappReactions,
   } = message;
 
   const poll = extraData?.poll;
@@ -188,6 +190,11 @@ export const MessageItem = () => {
               <WhatsappMessageActions
                 mid={whatsappMid}
                 content={hasTextBubble ? displayContent : undefined}
+                // Meta allows one reaction per person per message, so the
+                // agent side has at most one — picking it again is the undo.
+                ownReaction={
+                  whatsappReactions?.find((r) => !r.isCustomer)?.emoji
+                }
               />
             </div>
           )}
@@ -253,6 +260,14 @@ export const MessageItem = () => {
           )}
           {!isDeleted && poll && <MessagePoll poll={poll} />}
           {!isDeleted && <MessageEmbeds embeds={embeds} />}
+          {/* Below whatever the message turned out to be — text, attachment or
+              poll — because a reaction annotates the message as a whole. */}
+          {!isDeleted && !!whatsappReactions?.length && (
+            <WhatsappReactionChips
+              reactions={whatsappReactions}
+              align={userId ? 'right' : 'left'}
+            />
+          )}
           {!isDeleted &&
             !hasTextBubble &&
             separateNext &&
