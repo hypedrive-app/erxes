@@ -93,9 +93,19 @@
   `WhatsappMessageInputWrapper` shows the normal composer plus the reply-button
   builder while the window is open, and replaces both with the template picker
   once it has closed — a template being the only send Meta still accepts.
-- The reply-button builder composes an interactive message of up to three
-  buttons, enforcing Meta's caps (3 buttons, 20 characters each, unique titles,
-  1024 character body, 60 character footer) before the send.
+- The interactive builder composes all three of Meta's types — reply buttons
+  (max 3, 20 characters, unique), a list menu (max 10 rows, 24/72 character
+  title/description, 20 character opener) and a CTA URL button — enforcing each
+  type's caps before the send. Switching type resets the form, since the three
+  shapes barely overlap.
+- Locations send from a pasted maps link or coordinate pair, and contact cards
+  are built from a CRM record rather than typed, with a preview of what the
+  recipient will receive.
+- Emoji reactions render as chips beneath the bubble they belong to, and are
+  left from a six-emoji picker in the hover bar. Picking the one already there
+  clears it — Meta expresses removal as an empty emoji, not a delete.
+- The composer signals typing on WhatsApp as well as Discord, on a 10 second
+  throttle that stays inside Meta's 25 second indicator expiry.
 - Composer attachments on a WhatsApp thread are checked against Meta's per-type
   ceilings before upload, since those sit below the global
   `REACT_APP_FILE_UPLOAD_MAX_SIZE` cap (5MB image, 500KB sticker, 16MB
@@ -119,6 +129,8 @@
 | Live unread        | `src/modules/inbox/channel/hooks/useChannelUnreadUpdates.tsx`                                                                     | Subscribes to incoming customer messages and refreshes channel unread counts                     |
 | WhatsApp composer  | `src/modules/integrations/whatsapp/components/{WhatsappMessageInputWrapper,WhatsappInteractiveBuilder,WhatsappTemplatePicker}.tsx` | 24 hour window gate, reply-button builder, and approved-template send                            |
 | WhatsApp media     | `src/modules/integrations/whatsapp/constants/whatsappMedia.ts`                                                                    | Meta's per-type size ceilings and MIME classification, mirrored from `frontline_api`             |
+| WhatsApp rich send | `src/modules/integrations/whatsapp/components/{WhatsappLocationSender,WhatsappContactCardSender,WhatsappReactionChips}.tsx`        | Location, contact-card and reaction surfaces                                                     |
+| Maps link parsing  | `src/modules/integrations/whatsapp/utils/parseLocation.ts`                                                                        | Pulls coordinates out of a pasted Google/Apple Maps URL or a bare pair                           |
 | Channel settings   | `src/modules/channels`                                                                                                            | Channel CRUD, members, GraphQL documents, form schemas                                           |
 | Personal channel   | `src/modules/channels/components/settings/personal-channel`, `src/pages/PersonalChannelPage.tsx`                                  | Profile page for the user's private inbox                                                        |
 | Inbox              | `src/modules/inbox/`                                                                                                              | Conversations, messages, filters, channels, brands, integrations                                 |
@@ -312,6 +324,28 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — WhatsApp: reactions, locations, contact cards, list and CTA
+
+- **Summary:** Reactions render as chips on the message they annotate and are
+  left from the hover bar; locations send from a pasted maps link; contact
+  cards are built from a CRM record; the interactive builder now covers list
+  menus and CTA URL buttons alongside reply buttons. The composer also signals
+  typing on WhatsApp, which previously threw on every keystroke.
+- **Affected areas:**
+  `src/modules/integrations/whatsapp/components/{WhatsappReactionChips,WhatsappLocationSender,WhatsappContactCardSender}.tsx`
+  (new), `.../components/{WhatsappInteractiveBuilder,WhatsappMessageActions,WhatsappMessageInputWrapper}.tsx`,
+  `.../utils/parseLocation.ts` (new),
+  `.../hooks/useWhatsappReactToMessage.ts` (new),
+  `.../graphql/mutations/reactToWhatsappMessage.ts` (new),
+  `src/modules/inbox/conversation-messages/components/MessageItem.tsx`,
+  `src/modules/inbox/conversations/conversation-detail/components/MessageInput.tsx`,
+  `src/modules/inbox/types/Conversation.ts`,
+  `.../graphql/queries/getConversationMessages.ts`;
+  38 `whatsapp-*` keys in the gateway-owned locale.
+- **Contracts changed:** consumes the new `whatsappReactions` field on
+  `ConversationMessage` and the `whatsappReactToMessage` mutation, both from
+  `frontline_api`.
+
 ### `2026-08-10` — WhatsApp attachments checked before upload
 
 - **Summary:** A composer attachment on a WhatsApp thread is measured against
@@ -429,19 +463,3 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   `TeamChannelsNav` render their own `NavigationMenuGroup` instead of expecting
   a caller to wrap them; `ConversationCounts` gained an `$awaitingResponse`
   variable.
-
-### `2026-08-04` — Integration-type tree in the inbox sidebar
-
-- **Summary:** Restructured the inbox navigation so `Me` lists the personal
-  channel's integration types and `Team inbox` renders each team channel as a
-  collapsible row over the types used inside it, fetched lazily on expand.
-- **Affected areas:** `src/modules/FrontlineSubGroups.tsx`,
-  `src/modules/inbox/channel/components/{PersonalInboxNav,TeamChannelsNav,ChooseChannel}.tsx`,
-  `src/modules/channels/utils/channelScope.ts`,
-  `src/modules/integrations/{components/ChooseIntegrationType.tsx,hooks/useUsedIntegrationTypes.tsx,graphql/queries/getIntegrations.ts}`,
-  integration add/remove/archive refetch lists.
-- **Contracts changed:** `IntegrationTypeItem` gained optional `channelId` and
-  `nested` props; new `useUsedIntegrationTypesByChannel` hook and
-  `IntegrationsGetUsedTypesByChannel` document.
-
-

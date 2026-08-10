@@ -6,7 +6,7 @@
 - **Project:** `frontline_api`
 - **Layer:** `Backend API`
 - **Path:** `backend/plugins/frontline_api`
-- **Last synchronized:** `2026-08-07`
+- **Last synchronized:** `2026-08-10`
 
 ## Scope
 
@@ -205,6 +205,18 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 
 ## Local Invariants
 
+- A WhatsApp reaction is stored on the message it annotates
+  (`WhatsappConversationMessages.reactions`), never as a message row. Meta's
+  own client renders it beneath the bubble, and giving it a row puts a bubble in
+  the thread for something the contact never sent — which is what
+  `extractContent` used to do.
+- `reactions[].isCustomer` is stored, not derived. A contact's reaction is keyed
+  by `wa_id` and an agent's by erxes user id, so nothing at read time can tell
+  the two id spaces apart.
+- The inbox dispatches BOTH replies and typing notifications to
+  `handleWhatsappIntegration` with `type: 'whatsapp'`, distinguished only by
+  `action`. Anything added there must branch on `action` — a payload that falls
+  through to the message path throws, and the caller's bare catch swallows it.
 - A personal channel always has exactly one `ChannelMembers` row: its owner,
   with role `admin`. Nothing may add, remove, or demote that member.
   `channelAdd(scope: "personal")` rejects `memberIds`, `channelAddMembers`
@@ -282,6 +294,24 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 ## Recent Changes
 
 <!-- Newest first. Keep at most 10 entries. -->
+
+### `2026-08-10` — WhatsApp: reactions land on the message, typing works
+
+- **Summary:** Reactions are stored on the reacted-to message and exposed as
+  `ConversationMessage.whatsappReactions`, with a `whatsappReactToMessage`
+  mutation for leaving and clearing one; inbound reactions no longer become
+  their own bubble. Typing notifications now branch on `action` in the message
+  broker instead of falling into the send path and throwing on every keystroke.
+  Locations and contact cards became reachable through `extraInfo`, the
+  automation action gained the same three rich types, and account-level
+  `value.errors[]` now flips `healthStatus` instead of being ignored.
+- **Affected areas:** `modules/integrations/whatsapp/{messageBroker.ts,handleWhatsappMessage.ts,utils.ts}`,
+  `.../controller/receiveMessage.ts`, `.../db/definitions/conversationMessages.ts`,
+  `.../@types/index.ts`, `.../graphql/{schema/whatsapp.ts,resolvers/mutations.ts}`,
+  `.../meta/automation/sendMessage.ts`,
+  `modules/inbox/graphql/{schemas/conversation.ts,resolvers/conversationMessage.ts}`.
+- **Contracts changed:** adds `whatsappReactToMessage` mutation, the
+  `WhatsappReaction` type, and `ConversationMessage.whatsappReactions`.
 
 ### `2026-08-10` — WhatsApp: interactive, reaction, location and contact sends
 
@@ -410,83 +440,3 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
   `src/modules/integrations/facebook/middlewares/loginMiddleware.ts`,
   `src/modules/integrations/facebook/routes.ts`
 - **Contracts changed:** new HTTP route `GET /facebook/kind/:kind/fblogin`
-
-### `2026-08-05` — `getMyChannels` sorting
-
-- **Summary:** `getMyChannels` accepts `sortField` / `sortDirection` and sorts in
-  Mongo, so the UI no longer has to order the list client-side. `sortField` is
-  checked against an allowlist (`name`, `createdAt`) before it reaches the query,
-  and the query is collated so `name` does not fall back to byte order.
-- **Affected areas:**
-  `src/modules/channel/graphql/{schemas,resolvers/queries}/channel.ts`.
-- **Contracts changed:** `getMyChannels` gained optional `sortField: String` and
-  `sortDirection: Int` arguments; default order is `createdAt` descending, where
-  it was previously unspecified.
-
-### `2026-08-05` — `getChannels` restricted to team scope
-
-- **Summary:** `getChannels` now returns only team-scoped channels on all four
-  branches; personal inboxes (including the caller's own) are excluded and
-  remain reachable through `getPersonalChannel`. Added `teamChannelsOnly` in
-  `src/modules/channel/utils.ts`, which also matches legacy documents written
-  before `scope` existed, since the schema default is `team`.
-- **Affected areas:** `src/modules/channel/utils.ts`,
-  `src/modules/channel/graphql/resolvers/queries/channel.ts`.
-- **Contracts changed:** `getChannels` no longer returns personal channels; its
-  arguments and return type are unchanged.
-
-### `2026-08-04` — `integrationsGetUsedTypesByChannel` resolver
-
-- **Summary:** Implemented the already-declared query so it returns the active
-  integration kinds used by the caller's visible channels, optionally narrowed
-  by channel id and/or scope, resolving channel ids first and then a single
-  `distinct('kind')` read; extracted `visibleChannelsFilter` so the channel
-  visibility rule has one implementation.
-- **Affected areas:**
-  `src/modules/inbox/graphql/{resolvers/queries/integrations.ts,schemas/integration.ts}`,
-  `src/modules/channel/utils.ts`,
-  `src/modules/channel/graphql/resolvers/queries/channel.ts`.
-- **Contracts changed:** `integrationsGetUsedTypesByChannel` gained an optional
-  `scope: String` argument and its `channelId` relaxed from `String!` to
-  `String`; the query itself was already declared and previously returned
-  `undefined`.
-
-### `2026-08-04` — Drop the unreachable `imageUrls` path from page posting
-
-- **Summary:** `facebookCreatePost` only accepts uploaded image keys, so the
-  never-called URL variant (`uploadUnpublishedPhoto`, its https-only check, and
-  the `imageUrls` argument) is gone, along with a write-only `accountId` in the
-  login middleware.
-- **Affected areas:** `src/modules/integrations/facebook/postService.ts`,
-  `.../utils.ts`, `.../graphql/schema/facebook.ts`,
-  `.../middlewares/loginMiddleware.ts`
-- **Contracts changed:** `facebookCreatePost` no longer accepts `imageUrls`
-
-### `2026-08-04` — Extract the page-post publishing pipeline out of the resolver
-
-- **Summary:** `facebookCreatePost` now delegates to `publishPagePost` in
-  `postService.ts`, which owns image validation, unpublished-photo staging with
-  cleanup, permalink lookup, and audit logging; account queries share one
-  app-scope selector.
-- **Affected areas:**
-  `src/modules/integrations/facebook/postService.ts` (new),
-  `.../graphql/resolvers/mutations.ts`, `.../graphql/resolvers/queries.ts`,
-  `.../commonUtils.ts`, `.../db/definitions/accounts.ts`
-- **Contracts changed:** `None`
-
-### `2026-08-04` — Stop message-level Graph errors from marking integrations unhealthy
-
-- **Summary:** Request-level Facebook Graph error codes no longer set
-  `FacebookIntegrations.healthStatus` to `account-token`, which was showing a
-  false token failure whenever an automation sent an invalid payload.
-- **Affected areas:** `src/modules/integrations/facebook/utils.ts` (`sendReply`)
-- **Contracts changed:** `None`
-
-### `2026-08-03` — Lazy personal-channel provisioning
-
-- **Summary:** Added the `getPersonalChannel` query so a personal channel is
-  created the first time it is read, replacing any need to choose a scope at
-  channel-creation time.
-- **Affected areas:** `src/modules/channel/graphql/{schemas,resolvers/queries}/channel.ts`.
-- **Contracts changed:** New query `getPersonalChannel: Channel` with
-  get-or-create semantics.
