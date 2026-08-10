@@ -21,7 +21,9 @@ type TLog = {
   provider: string;
   outcome: string;
   errorMessage?: string;
-  result?: Record<string, string>;
+  // Written field codes mapped to their values, plus `providerPayload` — the
+  // provider's raw response object — so this cannot be Record<string, string>.
+  result?: Record<string, unknown>;
   createdAt: string;
 };
 
@@ -30,6 +32,68 @@ const OUTCOME_LABEL: Record<string, string> = {
   miss: 'No match',
   skipped: 'Skipped',
   error: 'Failed',
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  surfe: 'Surfe',
+  apollo: 'Apollo.io',
+  hunter: 'Hunter.io',
+  surepass: 'Surepass',
+};
+
+// Field codes are how the backend keys what it wrote; this turns them into the
+// names the operator sees on the properties tab.
+const FIELD_LABELS: Record<string, string> = {
+  enrichment_job_title: 'job title',
+  enrichment_seniority: 'seniority',
+  enrichment_linkedin: 'LinkedIn',
+  enrichment_company_name: 'company',
+  enrichment_company_domain: 'domain',
+  enrichment_company_size: 'company size',
+  enrichment_company_industry: 'industry',
+  enrichment_location: 'location',
+  email: 'email',
+};
+
+// Bookkeeping the operator did not ask about — every hit sets these, so listing
+// them would bury the fields that actually differ between one run and the next.
+const NOT_WORTH_LISTING = new Set([
+  'enrichment_source',
+  'enrichment_date',
+  'providerPayload',
+]);
+
+const describeWritten = (result?: Record<string, unknown>) => {
+  if (!result) {
+    return 'Updated the contact.';
+  }
+
+  const fields = Object.keys(result)
+    .filter((key) => !NOT_WORTH_LISTING.has(key))
+    .map((key) => FIELD_LABELS[key] || key);
+
+  if (!fields.length) {
+    return 'Updated the contact.';
+  }
+
+  return `Wrote ${fields.join(', ')}.`;
+};
+
+const formatWhen = (value?: string) => {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  });
 };
 
 export const EnrichmentPanel = ({ customerId }: { customerId: string }) => {
@@ -119,31 +183,45 @@ export const EnrichmentPanel = ({ customerId }: { customerId: string }) => {
             <Spinner size="sm" />
           </div>
         ) : logs.length ? (
-          <ul className="mt-2 flex flex-col gap-2">
+          <ul className="mt-2 flex flex-col gap-3">
             {logs.map((log: TLog) => (
-              <li
-                key={log._id}
-                className="flex items-start justify-between gap-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <span className="font-medium">{log.provider}</span>
-                  {log.errorMessage && (
-                    <div className="text-xs text-muted-foreground">
-                      {log.errorMessage}
-                    </div>
-                  )}
+              <li key={log._id} className="flex flex-col gap-1 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="font-medium">
+                      {PROVIDER_LABELS[log.provider] || log.provider}
+                    </span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {formatWhen(log.createdAt)}
+                    </span>
+                  </div>
+                  <Badge
+                    variant={
+                      log.outcome === 'hit'
+                        ? 'default'
+                        : log.outcome === 'error'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                  >
+                    {OUTCOME_LABEL[log.outcome] || log.outcome}
+                  </Badge>
                 </div>
-                <Badge
-                  variant={
-                    log.outcome === 'hit'
-                      ? 'default'
-                      : log.outcome === 'error'
-                        ? 'destructive'
-                        : 'secondary'
-                  }
-                >
-                  {OUTCOME_LABEL[log.outcome] || log.outcome}
-                </Badge>
+
+                {log.errorMessage && (
+                  <p className="text-xs text-muted-foreground">
+                    {log.errorMessage}
+                  </p>
+                )}
+
+                {/* What a hit actually wrote. Without this the history says a
+                    provider found something but not what, which is the one
+                    thing worth knowing when deciding whether to try another. */}
+                {log.outcome === 'hit' && (
+                  <p className="text-xs text-muted-foreground">
+                    {describeWritten(log.result)}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
