@@ -74,6 +74,16 @@ export const types = `
     counterpartNumber: String
     """Seconds the call was connected."""
     duration: Float
+    """
+    Seconds Plivo actually billed, which is not the same as duration: billing
+    rounds up to the minute on most rates, so a 20 second call commonly bills 60.
+    """
+    billDuration: Float
+    """
+    What Plivo charged for this call, in the account's own currency. Present
+    only once the hangup callback has reported it.
+    """
+    totalCost: Float
     """Why the call ended; the only way to tell a missed call from a short one."""
     hangupCause: String
     """
@@ -206,4 +216,10 @@ export const mutations = `
   calls through the SDK directly and has no need of this.
   """
   plivoEndCall(integrationId: String!, callUuid: String!): PlivoEndCallResult
+
+  """
+  Blind-transfers a live call to another number: the caller is moved and the
+  agent's leg is released. Returns the transferred call's uuid.
+  """
+  plivoTransferCall(integrationId: String!, callUuid: String!, to: String!): PlivoEndCallResult
 `;

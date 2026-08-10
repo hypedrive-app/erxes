@@ -8,6 +8,8 @@ import { discordConstants } from '@/integrations/discord/meta/automation/constan
 import { discordAutomationWorkers } from '@/integrations/discord/meta/automation/workers';
 import { whatsappConstants } from '@/integrations/whatsapp/meta/automation/constants';
 import { whatsappAutomationWorkers } from '@/integrations/whatsapp/meta/automation/workers';
+import { plivoConstants } from '@/integrations/plivo/meta/automation/constants';
+import { plivoAutomationWorkers } from '@/integrations/plivo/meta/automation/workers';
 import {
   frontlineAiKnowledgeProvider,
   FRONTLINE_KNOWLEDGEBASE_ARTICLE_SOURCE_KEY,
@@ -32,6 +34,7 @@ const modules = {
   // extractModuleName dispatches on it, and a missing entry means the trigger
   // is silently never evaluated.
   whatsapp: whatsappAutomationWorkers,
+  plivo: plivoAutomationWorkers,
   knowledgebase: frontlineAiKnowledgeProvider,
 };
 
@@ -44,6 +47,7 @@ export const automations = {
       ...ticketsAutomationContants.actions,
       ...discordConstants.actions,
       ...whatsappConstants.actions,
+      ...plivoConstants.actions,
     ],
     triggers: [
       ...inboxAutomationConstants.triggers,
@@ -52,6 +56,7 @@ export const automations = {
       ...ticketsAutomationContants.triggers,
       ...discordConstants.triggers,
       ...whatsappConstants.triggers,
+      ...plivoConstants.triggers,
     ],
     bots: [...facebookConstants.bots, ...instagramConstants.bots],
     ai: {

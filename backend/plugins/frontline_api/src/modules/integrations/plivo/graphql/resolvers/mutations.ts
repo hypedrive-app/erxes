@@ -1,6 +1,12 @@
 import { IContext } from '~/connectionResolvers';
 import { handlePlivoClickToCall } from '@/integrations/plivo/handlePlivoCall';
-import { hangupPlivoCall, PlivoApiError } from '@/integrations/plivo/utils';
+import {
+  hangupPlivoCall,
+  PlivoApiError,
+  transferPlivoCall,
+} from '@/integrations/plivo/utils';
+import { getPlivoCallbackBaseUrl } from '@/integrations/plivo/callbackUrl';
+import { normalizePhone } from 'erxes-api-shared/utils';
 
 /**
  * Ends a call that is still up, triggered from somewhere other than the
@@ -93,6 +99,69 @@ export const plivoMutations = {
         authId: integration.authId,
         authToken: integration.authToken,
         callUuid,
+      });
+    } catch (e) {
+      if (e instanceof PlivoApiError && e.isAuthError) {
+        await models.PlivoIntegrations.updateOne(
+          { erxesApiId: integrationId },
+          { $set: { healthStatus: 'error', error: e.message } },
+        ).catch(() => undefined);
+      }
+
+      throw e;
+    }
+
+    return { callUuid };
+  },
+
+  /**
+   * Blind-transfers a live call to another number.
+   *
+   * Blind, not attended: the caller is moved and the agent's leg is released,
+   * with no announcement to whoever picks up. Attended transfer would need the
+   * agent to hold a third leg and swap between them, which Plivo can do but
+   * which needs its own UI to be worth anything — a half-built attended
+   * transfer that drops the caller when the agent misclicks is worse than a
+   * blind one that works.
+   *
+   * `legs: 'aleg'` is what makes it the CALLER who moves. Redirecting the
+   * agent's leg instead would send the agent to the destination and leave the
+   * customer holding a dead line.
+   */
+  plivoTransferCall: async (
+    _root: undefined,
+    {
+      integrationId,
+      callUuid,
+      to,
+    }: { integrationId: string; callUuid: string; to: string },
+    { models, subdomain, user }: IContext,
+  ): Promise<{ callUuid: string }> => {
+    if (!user?._id) {
+      throw new Error('Login required');
+    }
+
+    const integration = await requireOwnCall(models, integrationId, callUuid);
+
+    const destination = normalizePhone(to, integration.defaultCountryCode);
+
+    // Validated here rather than left to the redirect: an unusable number would
+    // otherwise move the caller to XML that can only apologise and hang up,
+    // having already released the agent — the call would be lost to fix a typo.
+    if (!destination) {
+      throw new Error(`Cannot transfer to an unusable number: ${to}`);
+    }
+
+    const answerUrl =
+      `${getPlivoCallbackBaseUrl(subdomain)}/answer` +
+      `?TransferTo=${encodeURIComponent(destination)}`;
+
+    try {
+      await transferPlivoCall({
+        authId: integration.authId,
+        authToken: integration.authToken,
+        callUuid,
+        answerUrl,
       });
     } catch (e) {
       if (e instanceof PlivoApiError && e.isAuthError) {

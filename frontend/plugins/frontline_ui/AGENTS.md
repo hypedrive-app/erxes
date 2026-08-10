@@ -106,6 +106,13 @@
   clears it — Meta expresses removal as an empty emoji, not a delete.
 - The composer signals typing on WhatsApp as well as Discord, on a 10 second
   throttle that stays inside Meta's 25 second indicator expiry.
+- The Plivo in-call panel offers Mute, Keypad and Transfer. Transfer is blind —
+  the caller moves and this agent's leg is released — and is disabled until the
+  call is answered, since it needs the CallUUID that `onCallAnswered` supplies.
+  There is still no Hold: the Browser SDK v2 has no such method.
+- Call history shows what Plivo charged, deliberately unit-less: Plivo reports
+  the cost in the account's billing currency without naming it, so a rendered
+  symbol would be invented. The agent's live widget shows no cost.
 - Composer attachments on a WhatsApp thread are checked against Meta's per-type
   ceilings before upload, since those sit below the global
   `REACT_APP_FILE_UPLOAD_MAX_SIZE` cap (5MB image, 500KB sticker, 16MB
@@ -324,6 +331,20 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — Plivo transfer and call cost
+
+- **Summary:** Agents can blind-transfer a live call from the in-call panel,
+  and call history now shows what Plivo charged. The cost is kept off the live
+  widget on purpose — a running charge in front of an agent mid-call changes
+  how they talk to the customer.
+- **Affected areas:**
+  `src/modules/integrations/plivo/components/{PlivoTransferButton,PlivoInCall,PlivoCallHistoryRow}.tsx`,
+  `.../graphql/mutations/transferPlivoCall.ts` (new),
+  `.../graphql/queries/plivoQueries.ts`, `.../utils/plivoHistoryUtils.ts`,
+  `.../types/plivoTypes.ts`; 6 `plivo-*` keys in the gateway-owned locale.
+- **Contracts changed:** consumes the new `plivoTransferCall` mutation and
+  `billDuration`/`totalCost` on `PlivoCallHistory`, both from `frontline_api`.
+
 ### `2026-08-10` — WhatsApp: reactions, locations, contact cards, list and CTA
 
 - **Summary:** Reactions render as chips on the message they annotate and are
@@ -444,22 +465,3 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   `src/modules/inbox/channel/components/TeamChannelsNav.tsx`.
 - **Contracts changed:** None — `NavigationGroupActions` is new and internal;
   the sort toggle dropped its own now-redundant `stopPropagation`.
-
-### `2026-08-04` — Counts, members, and triage order in the inbox sidebar
-
-- **Summary:** `Me` and `Team inbox` now read like a triage list: every row
-  carries its open count and dims when it has none, sources still awaiting a
-  reply get a warning dot, team rows show a member avatar stack, the group
-  orders by count or name from a header toggle, and channels with nothing open
-  fold behind a "N quiet teams" row.
-- **Affected areas:**
-  `src/modules/inbox/channel/components/{PersonalInboxNav,TeamChannelsNav,UnreadSummary}.tsx`,
-  `src/modules/inbox/channel/states/teamInboxSortState.ts`,
-  `src/modules/inbox/conversations/{hooks/useConversationCounts.tsx,graphql/queries/getConversationCounts.ts}`,
-  `src/modules/integrations/{components/ChooseIntegrationType.tsx,constants/integrationImages.ts}`,
-  `src/modules/FrontlineSubGroups.tsx`, `frontline` locale files.
-- **Contracts changed:** `IntegrationTypeItem` gained optional `count` and
-  `awaitingCount` props and now renders a kind icon; `PersonalInboxNav` and
-  `TeamChannelsNav` render their own `NavigationMenuGroup` instead of expecting
-  a caller to wrap them; `ConversationCounts` gained an `$awaitingResponse`
-  variable.

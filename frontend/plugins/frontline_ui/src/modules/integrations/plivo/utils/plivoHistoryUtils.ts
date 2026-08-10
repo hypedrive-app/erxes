@@ -165,3 +165,23 @@ export const formatPlivoDuration = (seconds?: number | null): string => {
 
   return `${mins}:${String(secs).padStart(2, '0')}`;
 };
+
+/**
+ * What Plivo charged for a call.
+ *
+ * Deliberately unit-less. Plivo reports `TotalCost` as a bare number in the
+ * ACCOUNT's billing currency and does not say which currency that is on the
+ * call callback, so rendering "₹" or "$" would be inventing a fact — and the
+ * two differ by ~85x, which turns a wrong guess into a wrong decision. The
+ * figure is labelled as a cost by the column it sits in.
+ *
+ * Four decimals because per-call charges are fractions of a unit: rounding to
+ * two collapses most calls in this product to "0.00".
+ */
+export const formatPlivoCost = (cost?: number | null): string => {
+  if (!cost || cost < 0) {
+    return '';
+  }
+
+  return cost.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+};

@@ -85,6 +85,8 @@ export const PLIVO_CALL_HISTORIES = gql`
         to
         counterpartNumber
         duration
+        billDuration
+        totalCost
         hangupCause
         recordUrl
         recordingDuration

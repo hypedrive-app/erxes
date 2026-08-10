@@ -205,6 +205,15 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 
 ## Local Invariants
 
+- The Plivo call trigger is emitted from INSIDE the hangup callback's
+  conditional claim (`findOneAndUpdate` on `endedAt: {$exists:false}`), and
+  before the early return for a call with no conversation. Both matter: the
+  claim is what makes a redelivered webhook a no-op rather than a second
+  execution, and an unanswered call from an unknown number has no conversation
+  yet is exactly what a follow-up workflow is for.
+- Plivo has no transfer verb. `transferPlivoCall` redirects the caller's leg
+  (`legs: 'aleg'`) to a fresh answer URL carrying `TransferTo`; redirecting the
+  agent's leg instead would move the agent and strand the customer.
 - A WhatsApp reaction is stored on the message it annotates
   (`WhatsappConversationMessages.reactions`), never as a message row. Meta's
   own client renders it beneath the bubble, and giving it a row puts a bubble in
@@ -294,6 +303,24 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 ## Recent Changes
 
 <!-- Newest first. Keep at most 10 entries. -->
+
+### `2026-08-10` — Plivo: automations, blind transfer, call cost
+
+- **Summary:** Plivo had no automation surface at all — every other channel
+  (WhatsApp, Facebook, Instagram, Discord) declares one. It now has a
+  `Call Ended` trigger, filterable by direction and outcome, emitted from the
+  hangup callback's conditional claim so a redelivery cannot fire it twice, and
+  a `Place a Call` action. Blind transfer was added (Plivo has no transfer verb
+  — it is a redirect of the caller's leg to fresh XML). `billDuration`/
+  `totalCost` were written on every call and absent from the GraphQL schema
+  entirely; both are now exposed and the cost shows in call history.
+- **Affected areas:** `modules/integrations/plivo/meta/automation/*` (new),
+  `.../constants.ts`, `.../utils.ts`, `.../controller/{controller,receiveCall}.ts`,
+  `.../@types/index.ts`, `.../graphql/{schema/plivo.ts,resolvers/{mutations,queries}.ts}`,
+  `src/meta/automations.ts`.
+- **Contracts changed:** adds the `frontline:plivo.calls` trigger and its
+  `.create` action, the `plivoTransferCall` mutation, and
+  `billDuration`/`totalCost` on `PlivoCallHistory`.
 
 ### `2026-08-10` — WhatsApp: reactions land on the message, typing works
 
@@ -429,14 +456,3 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 - **Contracts changed:** `integrationsCreateExternalIntegration` no longer
   rejects an omitted `channelId` for non-mailbox kinds; the ownership check on
   another user's personal channel is unchanged.
-
-### `2026-08-06` — Fix the Facebook login callback behind the authorize redirector
-
-- **Summary:** The OAuth `state` carries the integration kind as a
-  `/kind/<kind>` path segment instead of a `?kind=` query string, and
-  `/facebook/kind/:kind/fblogin` accepts the redirector callback, so returning
-  from Facebook no longer lands on `/facebook` with `Cannot GET /facebook`.
-- **Affected areas:**
-  `src/modules/integrations/facebook/middlewares/loginMiddleware.ts`,
-  `src/modules/integrations/facebook/routes.ts`
-- **Contracts changed:** new HTTP route `GET /facebook/kind/:kind/fblogin`

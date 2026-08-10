@@ -19,6 +19,7 @@ import { toDialableNumber } from '@/integrations/plivo/utils/plivoPhone';
 import {
   PLIVO_CALL_OUTCOME_LABEL_KEYS,
   PLIVO_UNANSWERED_OUTCOMES,
+  formatPlivoCost,
   formatPlivoDuration,
   getPlivoCallOutcome,
   getPlivoCounterpartLabel,
@@ -47,6 +48,7 @@ export const PlivoCallHistoryRow = ({
     direction,
     counterpartNumber,
     duration,
+    totalCost,
     recordUrl,
     recordingDuration,
     isVoicemail,
@@ -148,6 +150,18 @@ export const PlivoCallHistoryRow = ({
               </span>
             ) : (
               !!duration && <span>{formatPlivoDuration(duration)}</span>
+            )}
+            {/* What Plivo charged. Shown here rather than on the agent's live
+                widget: it is an operational figure for whoever reviews the
+                log, and putting a running cost in front of an agent mid-call
+                changes how they talk to the customer.
+
+                `> 0` rather than truthiness so a genuinely free call is
+                omitted rather than rendering as a bare currency symbol. */}
+            {!!totalCost && totalCost > 0 && (
+              <span title={t('plivo-call-cost')}>
+                {formatPlivoCost(totalCost)}
+              </span>
             )}
           </div>
           {isVoicemail && voicemailLeftAt && (

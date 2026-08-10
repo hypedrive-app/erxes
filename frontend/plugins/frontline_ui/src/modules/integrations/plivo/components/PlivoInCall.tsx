@@ -10,6 +10,7 @@ import { useAtomValue } from 'jotai';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCallDurationFromDate } from '@/integrations/call/hooks/useCallDuration';
+import { PlivoTransferButton } from './PlivoTransferButton';
 import { usePlivo } from '@/integrations/plivo/components/PlivoProvider';
 import { PlivoQualityIndicator } from '@/integrations/plivo/components/PlivoActions';
 import {
@@ -239,9 +240,10 @@ export const PlivoInCall = () => {
           {t('plivo-you-are-muted')}
         </p>
       )}
-      <div className="grid grid-cols-2 items-stretch gap-2">
+      <div className="grid grid-cols-3 items-stretch gap-2">
         <PlivoMuteButton />
         <PlivoKeypadTrigger />
+        <PlivoTransferButton />
       </div>
       {/* Ending a call is destructive and time-critical, so it is a solid
           destructive button rather than a tinted secondary one. Once the call

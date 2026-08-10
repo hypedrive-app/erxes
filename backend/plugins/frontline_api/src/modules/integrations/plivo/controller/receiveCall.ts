@@ -9,9 +9,12 @@ import {
 import { rehostPlivoRecording } from '@/integrations/plivo/rehostRecording';
 import {
   PLIVO_BUSY_HANGUP_CAUSES,
+  PLIVO_CALL_TRIGGER_TYPE,
   PLIVO_FAILED_HANGUP_CAUSES,
   PLIVO_UNANSWERED_HANGUP_CAUSES,
 } from '@/integrations/plivo/constants';
+import { TPlivoTriggerTarget } from '@/integrations/plivo/meta/automation/types';
+import { sendAutomationTrigger } from 'erxes-api-shared/core-modules';
 import {
   IPlivoCallbackParams,
   IPlivoCallSessionDocument,
@@ -517,6 +520,45 @@ export const registerCallHangup = async (
   }
 
   const session = claimed;
+
+  /**
+   * Enrol the finished call into automations.
+   *
+   * Emitted here, BEFORE the early return below, because a call with no
+   * conversation is exactly the kind a follow-up workflow cares about — an
+   * unanswered call from an unknown number still needs calling back, and
+   * gating the trigger on a conversation would drop those silently.
+   *
+   * The conditional update above is what makes this fire once: only the
+   * delivery that actually claimed the row reaches this line, so a redelivered
+   * hangup callback cannot start a second execution.
+   *
+   * Not awaited — an automation that is slow or broken must not hold up the
+   * webhook response, which Plivo will otherwise retry.
+   */
+  sendAutomationTrigger(
+    subdomain,
+    {
+      type: PLIVO_CALL_TRIGGER_TYPE,
+      targets: [
+        {
+          _id: callUuid,
+          direction: session.direction,
+          status,
+          from: session.from || '',
+          to: session.to || '',
+          duration: duration || 0,
+          conversationId: session.erxesApiConversationId,
+          customerId: session.customerId,
+          userId: readCallAuthor(session),
+          hangupCause,
+          isVoicemail: session.isVoicemail,
+          createdAt: endedAt,
+        } satisfies TPlivoTriggerTarget,
+      ],
+    },
+    { transport: 'trpc' },
+  );
 
   if (!session.erxesApiConversationId) {
     return;

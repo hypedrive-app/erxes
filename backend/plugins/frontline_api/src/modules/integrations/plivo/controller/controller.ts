@@ -692,6 +692,43 @@ const buildAnswerXml = async (
         '<Hangup />',
       );
     }
+  } else if (params.TransferTo) {
+    /**
+     * The caller's leg was redirected here by `transferPlivoCall`.
+     *
+     * A transfer in Plivo is a redirect, not a verb: the leg comes back for
+     * fresh XML, and this branch is that XML. The destination rides on the
+     * query string for the same reason click-to-call's does — the redirected
+     * leg arrives as a brand new request that remembers nothing.
+     *
+     * Checked BEFORE `ClickToCallTo` so transferring a call that began as a
+     * click-to-call is not answered with the original bridge XML, which would
+     * dial the customer a second time instead of moving them.
+     */
+    const destination = normalizePhone(
+      params.TransferTo,
+      integration.defaultCountryCode,
+    );
+
+    if (destination) {
+      elements.push(
+        `<Dial timeout="${
+          integration.forwardTimeout || PLIVO_DEFAULT_FORWARD_RING_SECONDS
+        }" callerId="${escapeXml(
+          integration.plivoPhoneNumber.replace(/^\+/, ''),
+        )}" dialMusic="real">` +
+          `<Number>${escapeXml(destination.replace(/^\+/, ''))}</Number>` +
+          `</Dial>`,
+      );
+    } else {
+      // Validated before the transfer was requested, so reaching this means the
+      // query string was lost or tampered with. The caller hears why rather
+      // than sitting on a dead line.
+      elements.push(
+        '<Speak>Sorry, we could not transfer your call. Goodbye.</Speak>',
+        '<Hangup />',
+      );
+    }
   } else if (params.ClickToCallTo) {
     // The agent's SIP endpoint just answered a call `handlePlivoClickToCall`
     // placed on their behalf — this is the FIRST leg of Plivo's own

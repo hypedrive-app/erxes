@@ -242,6 +242,12 @@ export interface IPlivoCallbackParams {
   /** Erxes user id the click-to-call leg is attributed to. See `ClickToCallTo`. */
   ClickToCallUserId?: string;
   /**
+   * Number a transferred leg should be sent to, carried on the redirect's
+   * answer_url. Plivo has no transfer verb — a transfer is a redirect to fresh
+   * XML, and the redirected leg arrives with no memory of the original call.
+   */
+  TransferTo?: string;
+  /**
    * Plivo forwards custom SIP headers prefixed `X-PH-`, so an arbitrary key is
    * possible on any callback.
    */

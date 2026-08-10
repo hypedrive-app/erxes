@@ -60,6 +60,10 @@ export interface IPlivoCallHistory {
   to?: string;
   counterpartNumber?: string;
   duration?: number;
+  // Plivo's billed seconds and charge. Not derivable from `duration`: billing
+  // rounds up to the minute on most rates.
+  billDuration?: number;
+  totalCost?: number;
   hangupCause?: string;
   recordUrl?: string;
   recordingDuration?: number;
@@ -521,6 +525,8 @@ export const plivoQueries = {
       to: session.to,
       counterpartNumber: getCounterpartNumber(session),
       duration: session.duration,
+      billDuration: session.billDuration,
+      totalCost: session.totalCost,
       hangupCause: session.hangupCause,
       recordUrl: session.recordUrl,
       recordingDuration: session.recordingDuration,

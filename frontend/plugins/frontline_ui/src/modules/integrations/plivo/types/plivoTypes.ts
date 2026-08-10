@@ -170,6 +170,14 @@ export interface IPlivoCallHistory {
   /** The number of the party that is not this Plivo integration. */
   counterpartNumber?: string | null;
   duration?: number | null;
+  /**
+   * Plivo's billed seconds and charge. `billDuration` is deliberately not
+   * shown: it differs from `duration` only because billing rounds up to the
+   * minute, which is an accounting detail, while the cost it produces is the
+   * number anyone actually wants.
+   */
+  billDuration?: number | null;
+  totalCost?: number | null;
   hangupCause?: string | null;
   /** Storage key or absolute URL; `getPlivoRecordingUrl` accepts either. */
   recordUrl?: string | null;

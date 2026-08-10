@@ -150,3 +150,23 @@ export const PLIVO_RECORDING_FREE_STORAGE_DAYS = 90;
  * https://www.plivo.com/docs/voice/concepts/sip-endpoint
  */
 export const PLIVO_ENDPOINT_DOMAIN = 'phone.plivo.com';
+
+// ── Automation identifiers ───────────────────────────────────────────────────
+// Plivo declares its own trigger for the same reason WhatsApp does: reusing
+// `frontline:inbox.messages` would offer the workflow builder variables that
+// belong to the messenger widget (getStarted, quickReply, ticket fields) and
+// none of the ones a call actually has — who called, for how long, whether
+// anybody answered.
+export const PLIVO_MODULE_NAME = 'plivo';
+
+// Collections must end in 's' — the automation engine pluralizes otherwise
+// (see getFallbackTRPCModuleName / normalizeAutomationType).
+export const PLIVO_CALL_COLLECTION = 'calls';
+
+// `<plugin>:<module>.<collection>`, the shape splitType() parses.
+export const PLIVO_CALL_TRIGGER_TYPE = 'frontline:plivo.calls';
+
+// The action reuses the SAME collection as the trigger; the automation type for
+// an action gains a `.create` suffix from its `method`, so the two do not
+// collide (`frontline:plivo.calls` vs `frontline:plivo.calls.create`).
+export const PLIVO_CALL_ACTION_METHOD = 'create';

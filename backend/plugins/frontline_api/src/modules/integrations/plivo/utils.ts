@@ -648,3 +648,56 @@ export const getPlivoAccount = async ({
     method: 'GET',
     path: '/',
   });
+
+/**
+ * Transfers a live call by pointing its leg at new XML.
+ *
+ * Plivo has no "transfer" verb: a transfer IS a redirect of one leg to a fresh
+ * answer URL, which then returns whatever `<Dial>` should happen next. The
+ * `legs` parameter decides who moves — `aleg` sends the caller to the new
+ * destination and leaves the agent's leg to hang up, which is what a blind
+ * transfer means.
+ *
+ * The callback URL carries the destination as a query parameter, the same way
+ * `handlePlivoClickToCall` carries its own: the answer callback is a fresh
+ * request with no memory of this one, so anything it needs has to travel in the
+ * URL Plivo is told to fetch.
+ * https://www.plivo.com/docs/voice/api/call#transfer-a-call
+ */
+export const transferPlivoCall = async ({
+  authId,
+  authToken,
+  callUuid,
+  answerUrl,
+  legs = 'aleg',
+}: {
+  authId: string;
+  authToken: string;
+  callUuid: string;
+  answerUrl: string;
+  legs?: 'aleg' | 'bleg' | 'both';
+}): Promise<void> => {
+  try {
+    await plivoRequest({
+      authId,
+      authToken,
+      method: 'POST',
+      path: `/Call/${callUuid}/`,
+      body: {
+        legs,
+        aleg_url: answerUrl,
+        aleg_method: 'POST',
+      },
+    });
+  } catch (e: any) {
+    // A call that ended while the agent was choosing where to send it is not
+    // an error worth surfacing — there is simply nothing left to transfer.
+    if (e instanceof PlivoApiError && e.status === 404) {
+      throw new Error('That call has already ended.');
+    }
+
+    debugError(`Failed to transfer Plivo call ${callUuid}: ${e.message}`);
+
+    throw e;
+  }
+};
