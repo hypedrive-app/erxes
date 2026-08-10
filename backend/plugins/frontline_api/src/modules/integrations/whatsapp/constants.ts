@@ -101,3 +101,19 @@ export const whatsappMediaTypeFor = (mimetype = ''): WhatsappMediaType => {
 
   return 'document';
 };
+
+// ── Automation identifiers ───────────────────────────────────────────────────
+// WhatsApp declares its OWN trigger rather than reusing `frontline:inbox.messages`.
+// That type belongs to the messenger widget: its conditions are widget-specific
+// (getStarted, quickReply, ticket forms) and its declared output carries
+// `botId` and ticket fields WhatsApp has no equivalent of, so reusing it would
+// surface variables that are always undefined in the workflow builder. Facebook,
+// Instagram and Discord each own a trigger for the same reason.
+export const WHATSAPP_MODULE_NAME = 'whatsapp';
+
+// Collections must end in 's' — the automation engine pluralizes otherwise
+// (see getFallbackTRPCModuleName / normalizeAutomationType).
+export const WHATSAPP_MESSAGE_COLLECTION = 'messages';
+
+// `<plugin>:<module>.<collection>`, the shape splitType() parses.
+export const WHATSAPP_MESSAGE_TRIGGER_TYPE = 'frontline:whatsapp.messages';

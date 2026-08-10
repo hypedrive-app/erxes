@@ -13,7 +13,12 @@ import {
   markWhatsappMessageRead,
 } from '@/integrations/whatsapp/utils';
 import { rehostInboundMedia } from '@/integrations/whatsapp/media';
-import { MEDIA_MESSAGE_TYPES } from '@/integrations/whatsapp/constants';
+import {
+  MEDIA_MESSAGE_TYPES,
+  WHATSAPP_MESSAGE_TRIGGER_TYPE,
+} from '@/integrations/whatsapp/constants';
+import { TWhatsappTriggerTarget } from '@/integrations/whatsapp/meta/automation/types';
+import { sendAutomationTrigger } from 'erxes-api-shared/core-modules';
 import {
   IWhatsappAttachment,
   IWhatsappConversationMessageDocument,
@@ -270,6 +275,37 @@ const receiveCustomerMessage = async (
 
     created.erxesApiMessageId = response.data._id;
     await created.save();
+
+    // Enrol the message into automations, mirroring Discord/Facebook/Instagram:
+    // every channel emits from its own controller AFTER the inbox write, never
+    // from the shared receiveInboxMessage layer (which emits for nobody).
+    //
+    // Placed after the dedup guard above, so a Meta redelivery cannot enrol the
+    // same message twice, and after the inbox write, so an automation that
+    // reads the conversation sees the message that triggered it.
+    //
+    // No "is this from us" check is needed here, unlike Discord's bot filter:
+    // the Cloud API delivers customer messages in `value.messages[]` and our
+    // own sends in `value.statuses[]`, which `receiveStatusUpdate` handles —
+    // this function only ever sees genuine inbound customer messages.
+    sendAutomationTrigger(
+      subdomain,
+      {
+        type: WHATSAPP_MESSAGE_TRIGGER_TYPE,
+        targets: [
+          {
+            _id: message.id,
+            content: content || '',
+            conversationId: conversation.erxesApiId,
+            customerId: customer.erxesApiId,
+            from: waId,
+            phoneNumberId: value.metadata?.phone_number_id,
+            createdAt: timestamp,
+          } satisfies TWhatsappTriggerTarget,
+        ],
+      },
+      { transport: 'trpc' },
+    );
   } catch (e: any) {
     // Roll the local row back so a Meta retry is reprocessed rather than being
     // silently swallowed by the `mid` dedup check above.

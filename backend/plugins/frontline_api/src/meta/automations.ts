@@ -6,6 +6,8 @@ import { inboxAutomationConstants } from '@/inbox/meta/automation/constants';
 import { inboxAutomationWorkers } from '@/inbox/meta/automation/workers';
 import { discordConstants } from '@/integrations/discord/meta/automation/constants';
 import { discordAutomationWorkers } from '@/integrations/discord/meta/automation/workers';
+import { whatsappConstants } from '@/integrations/whatsapp/meta/automation/constants';
+import { whatsappAutomationWorkers } from '@/integrations/whatsapp/meta/automation/workers';
 import {
   frontlineAiKnowledgeProvider,
   FRONTLINE_KNOWLEDGEBASE_ARTICLE_SOURCE_KEY,
@@ -26,6 +28,10 @@ const modules = {
   inbox: inboxAutomationWorkers,
   tickets: ticketAutomationProducers,
   discord: discordAutomationWorkers,
+  // Key must equal the `moduleName` the emitter puts in the trigger type —
+  // extractModuleName dispatches on it, and a missing entry means the trigger
+  // is silently never evaluated.
+  whatsapp: whatsappAutomationWorkers,
   knowledgebase: frontlineAiKnowledgeProvider,
 };
 
@@ -44,6 +50,7 @@ export const automations = {
       ...instagramConstants.triggers,
       ...ticketsAutomationContants.triggers,
       ...discordConstants.triggers,
+      ...whatsappConstants.triggers,
     ],
     bots: [...facebookConstants.bots, ...instagramConstants.bots],
     ai: {

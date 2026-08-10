@@ -283,6 +283,23 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-10` — WhatsApp inbound messages can start automations
+
+- **Summary:** Inbound WhatsApp messages now emit an automation trigger, so a
+  workflow (e.g. an AI agent auto-reply) can run on them. Previously the
+  WhatsApp path called `receiveInboxMessage` and stopped — no channel emits
+  from that shared layer, so no automation could ever fire for WhatsApp while
+  Facebook, Instagram, Discord and the messenger widget all worked.
+- **Affected areas:** `modules/integrations/whatsapp/constants.ts` (automation
+  identifiers), new `modules/integrations/whatsapp/meta/automation/`
+  (`types.ts`, `constants.ts`, `workers.ts`),
+  `modules/integrations/whatsapp/controller/receiveMessage.ts` (emission),
+  `meta/automations.ts` (registration).
+- **Contracts changed:** Adds trigger `frontline:whatsapp.messages` with
+  variables `_id, content, conversationId, customerId, from, phoneNumberId,
+  createdAt`. No existing contract altered; no actions added yet, so replying
+  from a workflow still goes through the shared inbox action.
+
 ### `2026-08-07` — Indexed knowledge base articles carry their category name
 
 - **Summary:** Article documents sent for AI indexing are now titled
