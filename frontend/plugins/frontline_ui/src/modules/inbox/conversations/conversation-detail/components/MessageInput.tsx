@@ -181,9 +181,13 @@ export const MessageInput = ({
   const { addConversationMessage, loading } = useConversationMessageAdd();
 
   const [notifyAgentTyping] = useMutation(CONVERSATION_AGENT_TYPING);
+  // WhatsApp shows the indicator too, so it pings on the same schedule. Meta
+  // expires its own after 25 seconds, which the 10 second throttle stays
+  // comfortably inside; Discord's expires after 10.
+  const supportsTyping = isDiscord || isWhatsapp;
   const pingAgentTyping = useThrottledCallback(
     () => {
-      if (isDiscord && !isInternalNote && conversationId) {
+      if (supportsTyping && !isInternalNote && conversationId) {
         notifyAgentTyping({
           variables: { conversationId, typing: true },
         }).catch(() => undefined);
@@ -194,6 +198,9 @@ export const MessageInput = ({
   );
   const stopAgentTyping = useCallback(() => {
     pingAgentTyping.cancel();
+    // WhatsApp is deliberately excluded from the stop signal: Meta has no way
+    // to withdraw an indicator, so a `typing: false` would be a round trip
+    // that does nothing.
     if (isDiscord && conversationId) {
       notifyAgentTyping({
         variables: { conversationId, typing: false },
