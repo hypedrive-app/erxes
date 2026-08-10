@@ -30,6 +30,8 @@ const whatsappMessageActionOutput = {
     { key: 'mid', label: 'WhatsApp message ID (wamid)' },
     { key: 'content', label: 'Sent message content' },
     { key: 'conversationId', label: 'Conversation ID' },
+    { key: 'templateName', label: 'Template used, if any' },
+    { key: 'attachmentCount', label: 'Attachments sent' },
   ],
 };
 
@@ -42,7 +44,7 @@ export const whatsappConstants = {
       icon: 'IconBrandWhatsapp',
       label: 'Send WhatsApp Message',
       description:
-        'Reply to the customer on WhatsApp. Subject to the 24-hour customer service window.',
+        'Reply to the customer on WhatsApp with text, an attachment, or an approved template. Free-form replies are only allowed within 24 hours of the customer’s last message; a template is the only way to reach them after that.',
       output: whatsappMessageActionOutput,
     },
   ],

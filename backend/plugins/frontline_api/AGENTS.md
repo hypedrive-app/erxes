@@ -295,10 +295,14 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
   `modules/integrations/whatsapp/constants.ts`,
   `modules/integrations/whatsapp/meta/automation/{constants,workers}.ts`,
   `meta/automations.ts`.
-- **Contracts changed:** Adds action `frontline:whatsapp.messages.create` with
-  output `messageId, mid, content, conversationId`. It delegates to
-  `handleWhatsappMessage`, so the 24-hour-service-window error, the auth-failure
-  healthStatus flip, and message persistence stay identical to an agent reply.
+- **Contracts changed:** Adds action `frontline:whatsapp.messages.create`.
+  Config: `text`, `template` ({name, languageCode, components?}), `attachments`
+  ({url, name, type}[]), `replyToMessageId`, `quoteTriggerMessage`,
+  `conversationId`. Output: `messageId, mid, content, conversationId,
+  templateName, attachmentCount`. It delegates to `handleWhatsappMessage`, so
+  media upload, the 24-hour-service-window error, the auth-failure healthStatus
+  flip, and message persistence stay identical to an agent reply. Templates are
+  the only send that works outside the 24-hour window.
 
 ### `2026-08-10` — WhatsApp inbound messages can start automations
 
