@@ -120,7 +120,17 @@ export const ConversationDetail = () => {
                  over a failed thread would send into the void. */
               error || integration?.kind === 'imap' ? null : (
                 <MessageInputIntegrationWrapper>
-                  <MessageInput conversationId={conversationId || ''} />
+                  {/* Keyed on the conversation so switching threads mounts a
+                      fresh composer. Without it the same instance is reused and
+                      its draft, attachments and editor content follow the agent
+                      across — an attachment picked for one customer could be
+                      sent to the next one opened. A reset effect could not fix
+                      this alone: `useBlockEditor` holds its own document, which
+                      only a remount clears. */}
+                  <MessageInput
+                    key={conversationId || 'none'}
+                    conversationId={conversationId || ''}
+                  />
                 </MessageInputIntegrationWrapper>
               )
             }

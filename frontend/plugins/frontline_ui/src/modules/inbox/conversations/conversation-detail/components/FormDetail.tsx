@@ -41,7 +41,14 @@ export const ConversationFormDetail = () => {
 
   return (
     <ConversationDetailLayout
-      input={<MessageInput conversationId={conversationId as string} />}
+      // Keyed for the same reason as ConversationDetail: a reused composer
+      // carries its draft and attachments into the next conversation opened.
+      input={
+        <MessageInput
+          key={conversationId as string}
+          conversationId={conversationId as string}
+        />
+      }
     >
       <FormDetailMessages />
     </ConversationDetailLayout>

@@ -529,7 +529,19 @@ export const conversationMutations = {
       });
 
       return true;
-    } catch {
+    } catch (e) {
+      // Logged rather than silently swallowed. A typing indicator is
+      // best-effort and must never fail the caller, but this used to be a bare
+      // catch — and now that Discord and WhatsApp do real work on this path
+      // (rather than the no-ops it was written against), a broken integration
+      // showed zero signal anywhere: this returned false and the composer's own
+      // `.catch(() => undefined)` dropped it again.
+      debugError(
+        `Failed to dispatch typing for conversation ${conversationId}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+
       return false;
     }
   },

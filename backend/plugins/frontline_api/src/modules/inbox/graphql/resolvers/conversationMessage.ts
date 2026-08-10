@@ -1,6 +1,63 @@
 import { IMessageDocument } from '@/inbox/@types/conversationMessages';
 import { IContext } from '~/connectionResolvers';
 
+/**
+ * The WhatsApp row behind one inbox message, fetched at most once per request.
+ *
+ * Four fields on this type resolve off the SAME row — delivery state, the
+ * quoted message, the wamid and the reactions — and GraphQL calls each resolver
+ * separately for every message in the thread. Without this a fifty-message
+ * conversation issued two hundred point lookups per open, and paid them on
+ * Discord and Facebook threads too, since none of the resolvers can tell what
+ * kind of message they were handed before querying.
+ *
+ * Cached on the request rather than in a module-level map: the value is
+ * per-tenant and mutable (delivery status changes several times per message),
+ * so a cache outliving the request would serve another subdomain's row or a
+ * stale status. `req` is the narrowest thing here with exactly the right
+ * lifetime.
+ *
+ * A DataLoader would additionally batch across MESSAGES, not just across the
+ * four fields of one — the repo has that pattern in `sales_api`. It needs the
+ * resolver map to be built per request, which this default-export shape does
+ * not allow, so this takes the reduction that is available without a
+ * restructure: four lookups per message become one.
+ */
+const loadWhatsappRow = async (
+  message: IMessageDocument,
+  { models, req }: IContext,
+) => {
+  const scope = (req || {}) as unknown as Record<string, unknown>;
+  const cache = (scope.__whatsappRowCache ??= new Map()) as Map<
+    string,
+    unknown
+  >;
+
+  if (!cache.has(message._id)) {
+    cache.set(
+      message._id,
+      await models.WhatsappConversationMessages.findOne(
+        { erxesApiMessageId: message._id },
+        {
+          mid: 1,
+          deliveryStatus: 1,
+          errorMessage: 1,
+          replyToMid: 1,
+          reactions: 1,
+        },
+      ).lean(),
+    );
+  }
+
+  return cache.get(message._id) as {
+    mid?: string;
+    deliveryStatus?: string;
+    errorMessage?: string;
+    replyToMid?: string;
+    reactions?: Array<{ emoji: string; isCustomer: boolean; reactedAt: Date }>;
+  } | null;
+};
+
 export default {
   user(message: IMessageDocument) {
     return message.userId && { __typename: 'User', _id: message.userId };
@@ -32,11 +89,8 @@ export default {
    * Null for every other channel — they do not report delivery this way, and
    * inventing a status for them would be worse than saying nothing.
    */
-  async whatsappDelivery(message: IMessageDocument, _args, { models }: IContext) {
-    const sent = await models.WhatsappConversationMessages.findOne(
-      { erxesApiMessageId: message._id },
-      { deliveryStatus: 1, errorMessage: 1 },
-    ).lean();
+  async whatsappDelivery(message: IMessageDocument, _args, context: IContext) {
+    const sent = await loadWhatsappRow(message, context);
 
     if (!sent?.deliveryStatus) return null;
 
@@ -71,16 +125,16 @@ export default {
   async whatsappReplyTo(
     message: IMessageDocument,
     _args,
-    { models }: IContext,
+    context: IContext,
   ) {
-    const own = await models.WhatsappConversationMessages.findOne(
-      { erxesApiMessageId: message._id },
-      { replyToMid: 1 },
-    ).lean();
+    const own = await loadWhatsappRow(message, context);
 
     if (!own?.replyToMid) return null;
 
-    const quoted = await models.WhatsappConversationMessages.findOne(
+    // Not cacheable by the loader above: this is a DIFFERENT row, keyed by the
+    // quoted message's wamid rather than by this message's inbox id. It only
+    // runs for messages that actually quote something, which is the minority.
+    const quoted = await context.models.WhatsappConversationMessages.findOne(
       { mid: own.replyToMid },
       { erxesApiMessageId: 1, content: 1 },
     ).lean();
@@ -107,11 +161,8 @@ export default {
    * frontend — a message with no wamid has nothing Meta would accept as a
    * `context.message_id`.
    */
-  async whatsappMid(message: IMessageDocument, _args, { models }: IContext) {
-    const own = await models.WhatsappConversationMessages.findOne(
-      { erxesApiMessageId: message._id },
-      { mid: 1 },
-    ).lean();
+  async whatsappMid(message: IMessageDocument, _args, context: IContext) {
+    const own = await loadWhatsappRow(message, context);
 
     return own?.mid || null;
   },
@@ -130,12 +181,9 @@ export default {
   async whatsappReactions(
     message: IMessageDocument,
     _args,
-    { models }: IContext,
+    context: IContext,
   ) {
-    const own = await models.WhatsappConversationMessages.findOne(
-      { erxesApiMessageId: message._id },
-      { reactions: 1 },
-    ).lean();
+    const own = await loadWhatsappRow(message, context);
 
     if (!own) return null;
 
