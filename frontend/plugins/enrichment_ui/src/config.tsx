@@ -1,5 +1,5 @@
 
-import { IconSandbox, IconSparkles } from '@tabler/icons-react';
+import { IconSparkles } from '@tabler/icons-react';
 import { lazy, Suspense } from 'react';
 import { IUIConfig } from 'erxes-ui';
 
@@ -26,7 +26,7 @@ export const CONFIG: IUIConfig = {
   ),
   navigationGroup: {
     name: 'enrichment',
-    icon: IconSandbox,
+    icon: IconSparkles,
     content: () => (
       <Suspense fallback={<div />}>
         <EnrichmentNavigation />
@@ -37,7 +37,7 @@ export const CONFIG: IUIConfig = {
   modules: [
     {
       name: 'providers',
-      icon: IconSandbox,
+      icon: IconSparkles,
       path: 'providers',
       // Without this the module never appears in the relation-widget tab list,
       // no matter what `widgets` below declares.

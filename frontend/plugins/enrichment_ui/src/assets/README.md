@@ -1,24 +1,14 @@
 # Assets Directory
 
-This directory contains static assets used by the plugin.
+Static assets for this plugin. Currently empty — the icons in use come from
+`@tabler/icons-react`, and anything string-named must also exist in
+`erxes-ui`'s `ALL_ICONS` registry or it silently renders as `Icon123`.
 
-## Contents
-
-- `example-icon.svg`: Example icon in SVG format
-- `example-image.svg`: Example placeholder image in SVG format
+The generator's `example-icon.svg` / `example-image.svg` were removed (see
+`archive/`); nothing imported them.
 
 ## Usage
 
-Import assets in your components like this:
-
 ```tsx
-import exampleIcon from '~/assets/example-icon.svg';
-import exampleImage from '~/assets/example-image.svg';
+import someIcon from '~/assets/some-icon.svg';
 ```
-
-## Best Practices
-
-1. Use SVG format for icons and simple graphics
-2. Optimize images before adding them to the assets folder
-3. Keep file names descriptive and in kebab-case
-4. Document any new assets added to this directory

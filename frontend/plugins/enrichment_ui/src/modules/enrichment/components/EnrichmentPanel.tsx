@@ -105,8 +105,8 @@ export const EnrichmentPanel = ({ customerId }: { customerId: string }) => {
 
         {!providers.length && (
           <p className="text-sm text-muted-foreground">
-            No providers are configured yet. Add an API key in Settings →
-            Enrichment.
+            No providers are configured yet. Add an API key under Settings →
+            Enrichment → Providers.
           </p>
         )}
       </div>
