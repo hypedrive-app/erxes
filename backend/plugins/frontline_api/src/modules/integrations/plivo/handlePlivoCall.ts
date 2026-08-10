@@ -134,11 +134,29 @@ export const handlePlivoHangup = async (
     integrationId: integration.erxesApiId,
   });
 
-  await hangupPlivoCall({
-    authId: integration.authId,
-    authToken: integration.authToken,
-    callUuid,
-  });
+  try {
+    await hangupPlivoCall({
+      authId: integration.authId,
+      authToken: integration.authToken,
+      callUuid,
+    });
+  } catch (e) {
+    // Mirrors `plivoEndCall` and `handlePlivoClickToCall`: a dead token is
+    // otherwise invisible until some OTHER action happens to hit the same
+    // failure, so the settings screen keeps calling the integration healthy
+    // while every hangup from the inbox fails. Rate limits and transient codes
+    // are deliberately left alone — they are not evidence the credentials are
+    // broken, and flapping the status on a throttle would make the screen
+    // noise rather than signal.
+    if (e instanceof PlivoApiError && e.isAuthError) {
+      await models.PlivoIntegrations.updateOne(
+        { erxesApiId: integrationId },
+        { $set: { healthStatus: 'error', error: e.message } },
+      ).catch(() => undefined);
+    }
+
+    throw e;
+  }
 
   return { callUuid };
 };
