@@ -63,9 +63,16 @@ const readTemplate = (
  *   text                 string   body; falls back to the last AI action's text
  *   template             { name, languageCode, components? }  approved template
  *   attachments          IWhatsappAttachment[]  ({ url, name, type })
+ *   whatsappInteractive  reply buttons, a list, or a CTA URL
+ *   whatsappLocation     { latitude, longitude, name?, address? }
+ *   whatsappContacts     IWhatsappContactCard[]
  *   replyToMessageId     string   wamid to quote
  *   quoteTriggerMessage  boolean  quote the message that started the run
  *   conversationId       string   override; normally taken from the trigger
+ *
+ * The three rich types are what make a menu-driven flow possible from the
+ * builder: an automation can now ask a closed question with buttons and branch
+ * on the tap, which arrives back as an inbound `interactive` message.
  *
  * Delegates to `handleWhatsappMessage` rather than calling `sendWhatsappText`
  * directly. That function is the single path every agent reply already takes
@@ -117,11 +124,33 @@ export const actionSendWhatsappMessage = async ({
     ? resolved.attachments
     : [];
 
+  /**
+   * Interactive messages, locations and contact cards are forwarded as given.
+   *
+   * Unlike `template` above, these are NOT re-validated here: their validators
+   * live in `handleWhatsappMessage` (`getInteractiveDispatch`,
+   * `getLocationDispatch`, `getContactsDispatch`), they throw with the field
+   * named, and that error already surfaces on the execution through the catch
+   * below. Repeating the checks here would be a second copy to keep in step
+   * with Meta's caps for no gain.
+   */
+  const interactive = resolved.whatsappInteractive;
+  const location = resolved.whatsappLocation;
+  const contacts = resolved.whatsappContacts;
+
+  const messageKind = interactive
+    ? 'interactive'
+    : location
+      ? 'location'
+      : contacts
+        ? 'contacts'
+        : undefined;
+
   // A template needs no body text — it IS the message, and Meta renders it from
   // the approved definition. Everything else does.
-  if (!text && !template && !attachments.length) {
+  if (!text && !template && !attachments.length && !messageKind) {
     throw new Error(
-      'WhatsApp message action requires text, a template, an attachment, or a preceding AI action that produced text',
+      'WhatsApp message action requires text, a template, an attachment, an interactive/location/contacts payload, or a preceding AI action that produced text',
     );
   }
 
@@ -162,10 +191,21 @@ export const actionSendWhatsappMessage = async ({
         // Quoting is optional; Meta rejects an unknown wamid, so only send one
         // the workflow actually supplied.
         ...(replyToMessageId ? { replyToMessageId } : {}),
-        // handleWhatsappMessage reads the template off `extraInfo`, the same
+        // handleWhatsappMessage reads all of these off `extraInfo`, the same
         // envelope conversationMessageAdd uses when an agent picks a template
-        // in the inbox.
-        ...(template ? { extraInfo: { whatsappTemplate: template } } : {}),
+        // or builds an interactive message in the inbox. One object, because
+        // that is what the reader destructures — sending several would leave
+        // all but the last unread.
+        ...(template || messageKind
+          ? {
+              extraInfo: {
+                ...(template ? { whatsappTemplate: template } : {}),
+                ...(interactive ? { whatsappInteractive: interactive } : {}),
+                ...(location ? { whatsappLocation: location } : {}),
+                ...(contacts ? { whatsappContacts: contacts } : {}),
+              },
+            }
+          : {}),
       }),
     });
 
@@ -177,6 +217,9 @@ export const actionSendWhatsappMessage = async ({
         conversationId,
         templateName: template?.name,
         attachmentCount: attachments.length,
+        // Named on the execution so a run that sent buttons is distinguishable
+        // from one that sent text when reading back the history.
+        ...(messageKind ? { messageKind } : {}),
       },
     };
   } catch (e) {

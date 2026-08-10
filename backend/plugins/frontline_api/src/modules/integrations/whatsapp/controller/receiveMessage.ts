@@ -586,6 +586,41 @@ export const receiveMessage = async (
           );
         }
       }
+
+      /**
+       * Account-level errors, which name no message at all.
+       *
+       * These are how Meta reports that the account itself is in trouble — a
+       * WABA restriction, a number that lost its verification — as opposed to
+       * the per-message errors that ride on a failed status. They were typed
+       * but never read, so an integration could be suspended at Meta while the
+       * settings screen still called it healthy.
+       *
+       * Recorded the same way a failed auth call is, so the existing repair
+       * affordance covers this too.
+       */
+      if (value.errors?.length) {
+        const [error] = value.errors;
+        // `error_data.details` is Meta's specific explanation and `title` its
+        // category; the details are what tells an operator what to actually do.
+        const reason = [error.title, error.error_data?.details || error.message]
+          .filter(Boolean)
+          .join(': ');
+
+        debugError(
+          `WhatsApp reported an account-level error for ${phoneNumberId}: ${reason}`,
+        );
+
+        await models.WhatsappIntegrations.updateOne(
+          { erxesApiId: integration.erxesApiId },
+          {
+            $set: {
+              healthStatus: 'error',
+              error: reason || 'WhatsApp reported an account-level error',
+            },
+          },
+        ).catch(() => undefined);
+      }
     }
   }
 };
