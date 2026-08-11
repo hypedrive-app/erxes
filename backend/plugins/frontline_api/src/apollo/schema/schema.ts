@@ -47,6 +47,7 @@ import {
 } from '@/integrations/call/graphql/schema/call';
 
 import {
+  mutations as PlivoMutations,
   queries as PlivoQueries,
   types as PlivoTypes,
 } from '@/integrations/plivo/graphql/schema/plivo';
@@ -160,6 +161,7 @@ export const mutations = `
    ${InstagramMutations}
    ${CallMutations}
    ${WhatsappMutations}
+   ${PlivoMutations}
    ${ImapMutations}
    ${TicketMutations}
    ${WidgetMutations}
