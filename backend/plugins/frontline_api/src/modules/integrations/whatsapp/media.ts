@@ -58,7 +58,15 @@ export const rehostInboundMedia = async ({
   let tmpPath: string | undefined;
 
   try {
-    const buffer = await downloadWhatsappMedia({ accessToken, mediaId });
+    // The receive path already exchanged the media id for a download URL to
+    // build `attachment.url`; reusing it halves the Graph API calls per inbound
+    // media message and removes the second failure point that used to leave
+    // Meta's five-minute URL stored as if it were durable.
+    const buffer = await downloadWhatsappMedia({
+      accessToken,
+      mediaId,
+      url: attachment.url,
+    });
 
     if (!buffer) return attachment;
 

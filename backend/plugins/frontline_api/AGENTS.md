@@ -227,6 +227,11 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
   own client renders it beneath the bubble, and giving it a row puts a bubble in
   the thread for something the contact never sent — which is what
   `extractContent` used to do.
+- Every write in `applyReaction` is idempotent. Meta redelivers webhooks with
+  no ordering guarantee and "one reaction per person" is a WhatsApp rule, not a
+  Mongo index — a `$pull` followed by a separate `$push` let two concurrent
+  deliveries leave one person holding two reactions, and exposed a window where
+  a read saw none. Keep it to a single conditional write per path.
 - `reactions[].isCustomer` is stored, not derived. A contact's reaction is keyed
   by `wa_id` and an agent's by erxes user id, so nothing at read time can tell
   the two id spaces apart.
@@ -311,6 +316,22 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 ## Recent Changes
 
 <!-- Newest first. Keep at most 10 entries. -->
+
+### `2026-08-11` — WhatsApp: reaction race, media double-fetch, silent content drop
+
+- **Summary:** `applyReaction` used two non-atomic updates, so a redelivered
+  webhook could leave one person with two reactions on a message; each path is
+  now a single conditional write. Inbound media resolved its download URL twice,
+  and a failure on the second silently stored Meta's five-minute URL as if it
+  were durable — the caller's already-resolved URL is reused. A message carrying
+  two kinds of content (a template AND an attachment) dropped one without a
+  word; that is now refused. The interactive validator also re-checks the
+  lengths the composer enforces, since `extraInfo` is reachable without it.
+- **Affected areas:** `modules/integrations/whatsapp/controller/receiveMessage.ts`,
+  `.../media.ts`, `.../utils.ts`, `.../handleWhatsappMessage.ts`.
+- **Contracts changed:** `None` — `downloadWhatsappMedia` gained an optional
+  `url`; sending two content kinds at once now errors instead of silently
+  dropping one.
 
 ### `2026-08-10` — Plivo: per-agent routing, so one agent's network is not everyone's problem
 
@@ -452,18 +473,3 @@ accountId, brandId, data)` — `channelId` is **nullable** for every kind;
 - **Contracts changed:** The `knowledgebase.article` knowledge source declares
   `supportsFullScope: true`, and its `loadAiKnowledgeDocumentBatch` handler
   honours the new `scope: 'all' | 'selected'` producer input.
-
-### `2026-08-06` — Conversation counts on channels and used integration kinds
-
-- **Summary:** Added `Channel.conversationCount` /
-  `Channel.unreadConversationCount` field resolvers, and gave
-  `integrationsGetUsedTypesByChannel` its own return type carrying the same two
-  counts per integration kind, folded from one aggregation over the matched
-  channels' integrations.
-- **Affected areas:**
-  `src/modules/channel/graphql/{schemas/channel.ts,resolvers/customResolvers/channel.ts}`,
-  `src/modules/inbox/graphql/{schemas/integration.ts,resolvers/queries/integrations.ts}`.
-- **Contracts changed:** `Channel` gained two nullable `Int` fields;
-  `integrationsGetUsedTypesByChannel` now returns
-  `[integrationsGetUsedTypesByChannel]` instead of `[integrationsGetUsedTypes]`
-  — same `_id` / `name` fields, plus the two counts.

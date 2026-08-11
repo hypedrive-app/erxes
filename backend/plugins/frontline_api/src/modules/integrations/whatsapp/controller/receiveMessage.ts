@@ -208,10 +208,13 @@ const extractContent = async (
 /**
  * Applies an emoji reaction to the message it names.
  *
- * WhatsApp allows one reaction per person per message, so a second one from
- * the same person replaces the first — hence the pull-then-push rather than a
- * plain append. An empty `emoji` is Meta's "reaction removed" signal, which the
- * pull alone already expresses.
+ * WhatsApp allows one reaction per person per message, so a second one from the
+ * same person replaces the first rather than being appended. An empty `emoji`
+ * is Meta's "reaction removed" signal.
+ *
+ * Every path here is idempotent, because Meta redelivers webhooks with no
+ * ordering guarantee and "one per person" is a rule of WhatsApp's rather than
+ * an index Mongo enforces for us.
  *
  * A reaction to a message we do not hold is dropped. That happens when the
  * customer reacts to something sent before this integration was connected;
@@ -232,28 +235,63 @@ const applyReaction = async (
 
   const emoji = message.reaction?.emoji;
 
-  // Removing this person's existing reaction is the first half of BOTH cases:
-  // a removal is only this, and a new reaction replaces whatever they left
-  // before.
-  const result = await models.WhatsappConversationMessages.updateOne(
+  /**
+   * Both halves in ONE update, because Meta redelivers.
+   *
+   * A `$pull` followed by a separate `$push` is not atomic: two concurrent
+   * deliveries of the same reaction can both pull (the second a no-op) and then
+   * both push, leaving one person holding two reactions on the same message —
+   * "one reaction per person" is a rule of WhatsApp's, not an index Mongo is
+   * enforcing for us. It also leaves a window where a read between the two
+   * writes sees the reaction missing entirely.
+   *
+   * `$set` with a filtered positional operator replaces the existing entry in
+   * place when there is one, which is the whole of the update for a repeat.
+   */
+  if (emoji) {
+    const replaced = await models.WhatsappConversationMessages.updateOne(
+      { mid: targetMid },
+      {
+        $set: {
+          'reactions.$[entry].emoji': emoji,
+          'reactions.$[entry].reactedAt': reactedAt,
+        },
+      },
+      { arrayFilters: [{ 'entry.senderId': senderId }] },
+    );
+
+    if (!replaced.matchedCount) {
+      debugWhatsapp(`Reaction for unknown message ${targetMid} ignored`);
+      return;
+    }
+
+    // `modifiedCount` is 0 when this person had no reaction yet — nothing
+    // matched the array filter — so the entry is added instead. `$ne` in the
+    // query is what makes the add idempotent: a redelivery that lost the race
+    // finds the entry already present and writes nothing.
+    if (!replaced.modifiedCount) {
+      await models.WhatsappConversationMessages.updateOne(
+        { mid: targetMid, 'reactions.senderId': { $ne: senderId } },
+        {
+          $push: {
+            reactions: { senderId, isCustomer: true, emoji, reactedAt },
+          },
+        },
+      );
+    }
+
+    return;
+  }
+
+  // An empty emoji is Meta's "reaction removed". One operation, and naturally
+  // idempotent: pulling an entry that is already gone changes nothing.
+  const removed = await models.WhatsappConversationMessages.updateOne(
     { mid: targetMid },
     { $pull: { reactions: { senderId } } },
   );
 
-  if (!result.matchedCount) {
+  if (!removed.matchedCount) {
     debugWhatsapp(`Reaction for unknown message ${targetMid} ignored`);
-    return;
-  }
-
-  if (emoji) {
-    await models.WhatsappConversationMessages.updateOne(
-      { mid: targetMid },
-      {
-        $push: {
-          reactions: { senderId, isCustomer: true, emoji, reactedAt },
-        },
-      },
-    );
   }
 };
 

@@ -104,30 +104,92 @@ const getInteractiveDispatch = (
     throw new Error('WhatsApp interactive message needs body text');
   }
 
+  if (body.text.length > 1024) {
+    throw new Error('WhatsApp interactive body must be 1024 characters or fewer');
+  }
+
+  const footer = (whatsappInteractive as { footer?: { text?: string } }).footer;
+
+  if (footer?.text && footer.text.length > 60) {
+    throw new Error('WhatsApp interactive footer must be 60 characters or fewer');
+  }
+
   // Meta's own caps. Checked here because exceeding one costs a round trip and
   // loses whatever the agent composed.
+  //
+  // The lengths are re-checked rather than trusted to the composer: `extraInfo`
+  // is an open field on `conversationMessageAdd`, so an API client or a future
+  // composer reaches this without passing through the builder's own Zod schema,
+  // and Meta's answer to an over-long title names no field.
   if (type === 'button') {
     const buttons =
-      (whatsappInteractive as { action?: { buttons?: unknown[] } }).action
-        ?.buttons || [];
+      (whatsappInteractive as {
+        action?: { buttons?: Array<{ reply?: { title?: string } }> };
+      }).action?.buttons || [];
 
     if (!buttons.length || buttons.length > 3) {
       throw new Error('WhatsApp reply buttons must number between 1 and 3');
     }
+
+    for (const [index, button] of buttons.entries()) {
+      const title = button?.reply?.title || '';
+
+      if (!title.trim()) {
+        throw new Error(`WhatsApp reply button ${index + 1} needs text`);
+      }
+
+      if (title.length > 20) {
+        throw new Error(
+          `WhatsApp reply button ${index + 1} must be 20 characters or fewer`,
+        );
+      }
+    }
   }
 
   if (type === 'list') {
-    const sections =
-      (whatsappInteractive as { action?: { sections?: Array<{ rows?: unknown[] }> } })
-        .action?.sections || [];
-    const rows = sections.reduce(
-      (total, section) => total + (section.rows?.length || 0),
-      0,
-    );
+    const action = (whatsappInteractive as {
+      action?: {
+        button?: string;
+        sections?: Array<{
+          rows?: Array<{ title?: string; description?: string }>;
+        }>;
+      };
+    }).action;
+
+    const opener = action?.button || '';
+
+    if (!opener.trim()) {
+      throw new Error('A WhatsApp list needs a label on the button that opens it');
+    }
+
+    if (opener.length > 20) {
+      throw new Error('A WhatsApp list button must be 20 characters or fewer');
+    }
+
+    const sections = action?.sections || [];
+    const rows = sections.flatMap((section) => section.rows || []);
 
     // 10 rows in TOTAL across every section, not 10 per section.
-    if (!rows || rows > 10) {
+    if (!rows.length || rows.length > 10) {
       throw new Error('A WhatsApp list must have between 1 and 10 rows in total');
+    }
+
+    for (const [index, row] of rows.entries()) {
+      if (!row?.title?.trim()) {
+        throw new Error(`WhatsApp list row ${index + 1} needs a title`);
+      }
+
+      if (row.title.length > 24) {
+        throw new Error(
+          `WhatsApp list row ${index + 1} title must be 24 characters or fewer`,
+        );
+      }
+
+      if (row.description && row.description.length > 72) {
+        throw new Error(
+          `WhatsApp list row ${index + 1} description must be 72 characters or fewer`,
+        );
+      }
     }
   }
 
@@ -287,6 +349,34 @@ export const handleWhatsappMessage = async (
   }
 
   const attachments = doc.attachments || [];
+
+  /**
+   * Meta sends ONE kind of thing per message, and the branch below picks the
+   * first that is present — so a caller supplying two used to have the loser
+   * dropped with no error, and the local row recorded only the winner.
+   *
+   * No first-party composer does this, but nothing at the API boundary stopped
+   * it either: `extraInfo` and `attachments` are independent fields on
+   * `conversationMessageAdd`, so the next composer to send a template WITH a
+   * file would have lost the file silently. Named here rather than left to be
+   * discovered from a customer not receiving something.
+   */
+  const kinds = [
+    template && 'a template',
+    interactive && 'an interactive message',
+    location && 'a location',
+    contacts && 'a contact card',
+    attachments.length ? 'an attachment' : '',
+  ].filter(Boolean);
+
+  if (kinds.length > 1) {
+    throw new Error(
+      `A WhatsApp message carries one kind of content, but this one has ${kinds.join(
+        ' and ',
+      )}. Send them as separate messages.`,
+    );
+  }
+
 
   let mid: string;
 

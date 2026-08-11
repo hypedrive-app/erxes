@@ -534,11 +534,23 @@ export const sendWhatsappMedia = async ({
 export const downloadWhatsappMedia = async ({
   accessToken,
   mediaId,
+  url: resolvedUrl,
 }: {
   accessToken: string;
   mediaId: string;
+  /**
+   * A download URL the caller has already resolved.
+   *
+   * Passing it in avoids a second `/{media-id}` round trip for media the
+   * receive path has just looked up — two calls meant two chances to fail, and
+   * a failure on the second left the message holding Meta's own URL, which
+   * expires in five minutes. The agent then saw an attachment that was there
+   * and would not open.
+   */
+  url?: string;
 }): Promise<Buffer | null> => {
-  const url = await getWhatsappMediaUrl({ accessToken, mediaId });
+  const url =
+    resolvedUrl || (await getWhatsappMediaUrl({ accessToken, mediaId }));
 
   if (!url) return null;
 
