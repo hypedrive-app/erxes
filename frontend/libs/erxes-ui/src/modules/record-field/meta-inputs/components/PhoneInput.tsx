@@ -40,9 +40,12 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
     ref,
   ) => {
 
+    const displayValue =
+      value && !value.startsWith('+') ? `+${value}` : value || '';
+
     let parsedNumber;
     try {
-      parsedNumber = parsePhoneNumberFromString(value || '');
+      parsedNumber = parsePhoneNumberFromString(displayValue);
     } catch {
       parsedNumber = null;
     }
@@ -56,10 +59,10 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
       CountryPhoneCodes.find((c) => c.code === initialCountry)
     );
 
-    const initialValue = value
+    const initialValue = displayValue
       ? parsedNumber
         ? parsedNumber.formatInternational()
-        : value
+        : displayValue
       : selectedCountry?.dial_code || '';
     const [phoneNumber, setPhoneNumber] = useState<string>(() =>
       formatPhoneNumber({ value: initialValue || selectedCountry?.dial_code || '' }),

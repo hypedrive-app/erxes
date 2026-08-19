@@ -23,8 +23,12 @@ import { MessageInputIntegrationWrapper } from '@/integrations/components/Messag
 import { messageExtraInfoState } from '../states/messageExtraInfoState';
 import { useEffect } from 'react';
 import { ConversationSideWidget } from '@/inbox/conversations/conversation-detail/components/ConversationSideWidget';
+import { useCompactWidth } from '@/inbox/hooks/useCompactWidth';
 import { MESSAGE_THREAD_INTEGRATION_KINDS } from '@/inbox/conversations/conversation-detail/constants/messageThreadIntegrationKinds';
 import { useLocation } from 'react-router-dom';
+
+// Narrower than this, the widget overlays instead of taking a 320px column.
+const SIDE_WIDGET_OVERLAY_WIDTH = 700;
 
 /**
  * Apollo flips `loading` to false on failure just as it does on success, so
@@ -54,6 +58,9 @@ const ConversationLoadFailed = ({ onRetry }: { onRetry: () => void }) => {
 };
 
 export const ConversationDetail = () => {
+  const { ref: detailRef, isCompact } = useCompactWidth<HTMLDivElement>(
+    SIDE_WIDGET_OVERLAY_WIDTH,
+  );
   const [conversationId] = useQueryState<string>('conversationId');
   const [relatedConversationId] = useQueryState<string>(
     'relatedConversationId',
@@ -109,8 +116,8 @@ export const ConversationDetail = () => {
   };
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <div className="flex flex-col h-full overflow-hidden flex-auto">
+    <div ref={detailRef} className="relative flex h-full overflow-hidden">
+      <div className="flex flex-col h-full overflow-hidden flex-auto min-w-0">
         <ConversationProvider conversation={conversationAllDetails}>
           <ConversationHeader />
           <Separator />
@@ -159,6 +166,8 @@ export const ConversationDetail = () => {
       <ConversationSideWidget
         customerId={conversationAllDetails?.customerId || ''}
         _id={conversationAllDetails?._id || ''}
+        asSheet={isCompact}
+        boundaryRef={detailRef}
       />
     </div>
   );

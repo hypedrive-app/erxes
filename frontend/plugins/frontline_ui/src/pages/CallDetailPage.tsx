@@ -27,7 +27,7 @@ import {
   ICallQueueAgent,
   ICallQueueRealtimeSnapshot,
 } from '@/integrations/call/types/callTypes';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   formatSeconds,
   safeFormatDate,
@@ -225,10 +225,11 @@ export const CallDetailAgents = ({
       <RecordTable.Provider
         columns={useAgentColumns()}
         data={filteredMembersList}
+        tableId="frontline_call_agents_record_table"
       >
         <RecordTable.Scroll>
           <RecordTable>
-            <RecordTable.Header />
+            <RecordTable.Header showColumnSelector />
             <RecordTable.Body>
               <RecordTable.RowList />
             </RecordTable.Body>
@@ -410,10 +411,7 @@ export const CallDetailWaiting = ({
       <h5 className="font-mono text-xs uppercase font-semibold">
         {t('waiting')}
       </h5>
-      <RecordTable.Provider
-        columns={useWaitingColumns()}
-        data={waitingList}
-      >
+      <RecordTable.Provider columns={useWaitingColumns()} data={waitingList}>
         <RecordTable.Scroll>
           <RecordTable>
             <RecordTable.Header />
@@ -428,6 +426,26 @@ export const CallDetailWaiting = ({
 };
 
 type TalkingCall = ICallQueueRealtimeSnapshot['talking'][number];
+
+function TalkingCallDurationCell({
+  value,
+}: Readonly<{ value?: string | Date }>) {
+  const startDate = useMemo(() => {
+    if (!value) {
+      return null;
+    }
+
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }, [value]);
+  const duration = useCallDurationFromDate(startDate);
+
+  return (
+    <RecordTableInlineCell className="font-medium">
+      {startDate ? duration : '-'}
+    </RecordTableInlineCell>
+  );
+}
 
 export const useTalkingColumns = (): ColumnDef<TalkingCall>[] => {
   const { t } = useTranslation('frontline');
@@ -454,15 +472,11 @@ export const useTalkingColumns = (): ColumnDef<TalkingCall>[] => {
     {
       accessorKey: 'bridge_time',
       header: () => <RecordTable.InlineHead label={t('duration')} />,
-      cell: ({ cell }) => {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const duration = useCallDurationFromDate(cell.getValue() as Date);
-        return (
-          <RecordTableInlineCell className="font-medium">
-            {duration}
-          </RecordTableInlineCell>
-        );
-      },
+      cell: ({ cell }) => (
+        <TalkingCallDurationCell
+          value={cell.getValue() as string | Date | undefined}
+        />
+      ),
     },
   ];
 };
@@ -478,10 +492,7 @@ export const CallDetailTalking = ({
       <h5 className="font-mono text-xs uppercase font-semibold">
         {t('talking')}
       </h5>
-      <RecordTable.Provider
-        columns={useTalkingColumns()}
-        data={talkingList}
-      >
+      <RecordTable.Provider columns={useTalkingColumns()} data={talkingList}>
         <RecordTable.Scroll>
           <RecordTable>
             <RecordTable.Header />

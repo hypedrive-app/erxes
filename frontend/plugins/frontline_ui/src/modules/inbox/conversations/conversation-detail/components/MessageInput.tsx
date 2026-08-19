@@ -710,7 +710,7 @@ export const MessageInput = ({
           </div>
         )}
 
-        <div className="flex px-6 gap-4 items-center mt-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 mt-2 sm:gap-4 sm:px-6">
           {/* On a thread with no reply channel — a phone call — the note is the
               only thing that can be sent, so the toggle is genuinely disabled
               rather than merely ignoring presses: an enabled-looking control
@@ -721,29 +721,32 @@ export const MessageInput = ({
             variant="outline"
             disabled={onlyInternal}
             title={onlyInternal ? t('internal-note-only') : undefined}
+            className="min-w-20 max-w-full px-2 sm:px-5"
             onPressedChange={() =>
               !onlyInternal && setIsInternalNote(!isInternalNote)
             }
           >
-            {t('internal-note')}
+            <span className="truncate">{t('internal-note')}</span>
           </Toggle>
 
-          <ResponseTemplateSelector onSelect={handleTemplateSelect}>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t('response-templates')}
-              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <IconMessage2 className="h-4 w-4" />
-            </Button>
-          </ResponseTemplateSelector>
+          {!isInternalNote && (
+            <ResponseTemplateSelector onSelect={handleTemplateSelect}>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('response-templates')}
+                className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <IconMessage2 className="h-4 w-4" />
+              </Button>
+            </ResponseTemplateSelector>
+          )}
 
           <Button
             variant="ghost"
             size="icon"
             aria-label={t('upload-file')}
-            className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="h-8 w-8 flex-none rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => document.getElementById('file-upload')?.click()}
           >
             <IconPaperclip className="h-4 w-4" />
@@ -762,7 +765,7 @@ export const MessageInput = ({
 
           <Button
             size="lg"
-            className="ml-auto"
+            className="ml-auto flex-none"
             disabled={
               loading ||
               isLoading ||
@@ -772,7 +775,7 @@ export const MessageInput = ({
           >
             {loading || isLoading ? <Spinner size="sm" /> : <IconArrowUp />}
             {t('send')}
-            <Kbd className="ml-1">
+            <Kbd className="ml-1 hidden sm:flex">
               <IconCommand size={12} />
               <IconCornerDownLeft size={12} />
             </Kbd>

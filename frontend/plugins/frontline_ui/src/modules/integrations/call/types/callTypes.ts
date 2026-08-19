@@ -36,7 +36,7 @@ export interface ICallQueueRealtimeSnapshot {
     callerid: string;
     calleeid?: string;
     bridged?: boolean;
-    bridge_time?: string;
+    bridge_time?: string | Date;
   }[];
   agents: ICallQueueAgent[];
   stats: Record<string, unknown>;

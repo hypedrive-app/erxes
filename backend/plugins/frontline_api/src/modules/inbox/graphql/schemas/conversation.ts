@@ -248,6 +248,7 @@ const mutationFilterParams = `
   integrationType: String
   participating: String
   awaitingResponse: String
+  automationStatus: String
   starred: String
   startDate: String
   endDate: String

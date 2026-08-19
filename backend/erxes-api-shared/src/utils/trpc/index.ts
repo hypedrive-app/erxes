@@ -39,7 +39,7 @@ export type MessageProps = {
   throwOnFailure?: boolean;
 };
 
-type CommonTRPCContext = {
+export type CommonTRPCContext = {
   processId?: string;
   userId?: string;
   cpUserId?: string;
@@ -90,7 +90,12 @@ export function encodeTRPCContextHeader(
   return Buffer.from(contextJson, 'utf8').toString('base64');
 }
 
-function decodeTRPCContextHeader(headers: IncomingHttpHeaders): {
+/**
+ * Decode the base64 JSON tRPC context header into tenant, method, and caller
+ * context. Returns null when the header is absent or malformed. Note: the
+ * header is an encoding, not an authentication credential.
+ */
+export function decodeTRPCContextHeader(headers: IncomingHttpHeaders): {
   subdomain: string;
   method: 'query' | 'mutation';
   context: CommonTRPCContext;
@@ -212,6 +217,48 @@ export const sendTRPCMessage = async ({
   }
 };
 
+/**
+ * Shared plugin-context initialization for in-process tRPC execution:
+ * request process state, event-handler runtime context, and scoped event
+ * handlers. Used by the /trpc express adapter and by the agent-tools
+ * endpoints so both paths build identical contexts.
+ */
+export const createPluginTRPCContext = async <TContext>(
+  subdomain: string,
+  reqContext: CommonTRPCContext,
+  trpcContext?: (subdomain: string, context: any) => Promise<TContext>,
+): Promise<TContext | TRPCContext> => {
+  const processInfo = generateRequestProcess();
+
+  const context: RequestTRPCContext = {
+    ...processInfo,
+    ...reqContext,
+    subdomain,
+  };
+
+  const runtimeContext = {
+    subdomain,
+    processId: context.processId || '',
+    userId: context.userId || '',
+  };
+
+  setEventHandlerRuntimeContext(subdomain, runtimeContext);
+
+  const eventHandlers = createScopedEventHandlers(subdomain, runtimeContext);
+
+  if (trpcContext) {
+    return await trpcContext(subdomain, {
+      ...context,
+      eventHandlers,
+    });
+  }
+
+  return {
+    ...context,
+    eventHandlers,
+  };
+};
+
 export const createTRPCContext =
   <TContext>(
     trpcContext: (
@@ -219,49 +266,26 @@ export const createTRPCContext =
       context: any,
     ) => Promise<TContext & TRPCContext>,
   ) =>
-  async ({ req }: trpcExpress.CreateExpressContextOptions) => {
+  async ({
+    req,
+  }: trpcExpress.CreateExpressContextOptions): Promise<
+    TContext & TRPCContext
+  > => {
     // Extract context from header (encoded) or fallback to request body/input
-    const {
-      subdomain,
-      context: reqContext,
-      method = 'query',
-    } = decodeTRPCContextHeader(req.headers) || {};
+    const decoded = decodeTRPCContextHeader(req.headers);
+    const subdomain = decoded?.subdomain;
+    const reqContext = decoded?.context;
+    const method = decoded?.method || 'query';
 
     if (!subdomain || (method === 'mutation' && !reqContext)) {
       throw new Error('Invalid context');
     }
 
-    const processInfo = generateRequestProcess();
-
-    const context: RequestTRPCContext = {
-      ...processInfo,
-      ...reqContext,
+    return (await createPluginTRPCContext(
       subdomain,
-    };
-
-    setEventHandlerRuntimeContext(subdomain, {
-      subdomain,
-      processId: context.processId || '',
-      userId: context.userId || '',
-    });
-
-    const eventHandlers = createScopedEventHandlers(subdomain, {
-      subdomain,
-      processId: context.processId || '',
-      userId: context.userId || '',
-    });
-
-    if (trpcContext) {
-      return await trpcContext(subdomain, {
-        ...context,
-        eventHandlers,
-      });
-    }
-
-    return {
-      ...(context as TContext & RequestTRPCContext),
-      eventHandlers,
-    };
+      reqContext || {},
+      trpcContext,
+    )) as TContext & TRPCContext;
   };
 
 export type ITRPCContext<TExtraContext = object> = Awaited<
