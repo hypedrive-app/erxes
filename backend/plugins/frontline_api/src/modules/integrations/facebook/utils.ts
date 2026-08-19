@@ -124,7 +124,7 @@ export const uploadUnpublishedPhotoFromKey = async (
 
   try {
     const response = await fetch(
-      `https://graph.facebook.com/v7.0/${pageId}/photos`,
+      `https://graph.facebook.com/v${META_GRAPH_API_VERSION}/${pageId}/photos`,
       { method: 'POST', body: form },
     );
 

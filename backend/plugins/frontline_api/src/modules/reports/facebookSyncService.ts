@@ -1,6 +1,10 @@
 import { IModels } from '~/connectionResolvers';
+import { META_GRAPH_API_VERSION } from '@/integrations/meta/graphApiVersion';
 
-const GRAPH_BASE = 'https://graph.facebook.com';
+// An unversioned Graph URL is not "latest" — Meta serves it from the oldest
+// version the app still has available, so the field syntax below would quietly
+// be interpreted by a version nobody chose. Pinned with every other Meta call.
+const GRAPH_BASE = `https://graph.facebook.com/v${META_GRAPH_API_VERSION}`;
 const POST_FIELDS =
   'id,comments.filter(stream).summary(true),reactions.summary(true),shares';
 const DEFAULT_POST_LIMIT = 50;
