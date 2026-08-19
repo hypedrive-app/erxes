@@ -17,7 +17,7 @@ type TSelectedFixedAsset = Pick<IFixedAsset, '_id' | 'code' | 'name'>;
 interface ISelectFixedAssetContext {
   fixedAssetIds: string[];
   fixedAssets: TSelectedFixedAsset[];
-  onSelect: (fixedAsset?: IFixedAsset) => void;
+  onSelect: (fixedAsset?: TSelectedFixedAsset) => void;
   setFixedAssets: (fixedAssets: TSelectedFixedAsset[]) => void;
   defaultFilter?: Record<string, string | boolean | string[]>;
   placeholder?: string;
@@ -44,7 +44,7 @@ interface SelectFixedAssetProviderProps {
   onValueChange?: (value: string[] | string) => void;
   mode?: 'single' | 'multiple';
   defaultFilter?: Record<string, string | boolean | string[]>;
-  onCallback?: (fixedAsset: IFixedAsset) => void;
+  onCallback?: (fixedAsset: TSelectedFixedAsset) => void;
   placeholder?: string;
   fixedAssets?: TSelectedFixedAsset[];
 }
@@ -71,7 +71,7 @@ const SelectFixedAssetProvider = ({
   }, [initialFixedAssets]);
 
   const onSelect = useCallback(
-    (fixedAsset?: IFixedAsset) => {
+    (fixedAsset?: TSelectedFixedAsset) => {
       if (!fixedAsset) {
         return;
       }
@@ -209,7 +209,7 @@ const SelectFixedAssetContent = () => {
 const SelectFixedAssetCommandItem = ({
   fixedAsset,
 }: {
-  fixedAsset: IFixedAsset;
+  fixedAsset: TSelectedFixedAsset;
 }) => {
   const { fixedAssetIds, onSelect } = useSelectFixedAssetContext();
 

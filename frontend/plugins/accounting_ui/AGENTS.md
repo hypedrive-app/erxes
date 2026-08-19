@@ -6,7 +6,7 @@
 - **Project:** `accounting_ui`
 - **Layer:** `Frontend UI`
 - **Path:** `frontend/plugins/accounting_ui`
-- **Last synchronized:** `2026-08-17`
+- **Last synchronized:** `2026-08-19`
 
 ## Scope
 
@@ -100,6 +100,8 @@
 - Account currency create/edit, inline edit, and filter selectors must use the same system `dealCurrency` options.
 - Currency amount inputs display rounded values by default but expose configured edit precision while focused.
 - Transaction currency amount synchronization must react to manual amount-field changes and avoid hook cycles.
+- `PRINT_DOCUMENTS` is a partial map over `TrJournalEnum`: journals with no printable layout are either absent or mapped to `''`, so every lookup must guard the falsy result before rendering.
+- Transaction form journal payload types must be derived from the zod schemas in `transaction-form/contants/transactionSchema` instead of being redeclared by hand, so form state cannot drift from validation.
 - Module Federation exposes, route paths, and named exports must stay aligned.
 - Journal report total calculation must stay scoped to the rendered report table body and zero-row hiding must preserve rows explicitly marked with `data-draw-zero="1"`.
 - Journal report headers and footers must stay aligned with each report config's two recursive grouping columns plus `colCount` value columns.
@@ -118,6 +120,12 @@
 ## Recent Changes
 
 <!-- Newest first. Keep at most 10 entries. -->
+
+### `2026-08-19` — `Transaction Type Safety Cleanup`
+
+- **Summary:** Fixed asset selector callbacks are typed to the three fields they actually read, `PRINT_DOCUMENTS` is an explicit partial `TrJournalEnum` map instead of an implicitly indexed literal, and the fixed asset income instance type is derived from the form schema; entries and runtime behavior are unchanged.
+- **Affected areas:** `src/modules/settings/fixed-assets/components/SelectFixedAsset.tsx`, `src/modules/transactions/transaction-form/contants/printDocuments.tsx`, `src/modules/transactions/transaction-form/components/forms/FxaIncomeForm/FxaIncomeInstancesSheet.tsx`.
+- **Contracts changed:** None.
 
 ### `2026-08-17` — `Related Account Default Display`
 
@@ -172,15 +180,3 @@
 - **Summary:** Journal report config and renderer registries were split by report family, while the report selector shows full wrapped names inside wider, scrollable, collapsed report groups.
 - **Affected areas:** `src/modules/journal-reports/components`, `src/modules/journal-reports/types`.
 - **Contracts changed:** None.
-
-### `2026-08-14` — `Erkhet Journal Report Coverage`
-
-- **Summary:** Journal report UI now exposes erxes-native product/fixed-asset/customer filters and renders fund, debt, fixed asset, inventory sale/cost/period/price/profit/shipper/document, and inventory seller subsystem variants alongside the main journal reports through the shared grouped report renderer.
-- **Affected areas:** `src/modules/journal-reports/components`, `src/modules/journal-reports/types`.
-- **Contracts changed:** None.
-
-### `2026-08-13` — `Journal Report Rendering`
-
-- **Summary:** Journal report rendering now mirrors the Erkhet generated-report templates more closely with transaction-kind filtering, scoped total calculation, all-zero row hiding, immutable detail grouping, and transaction navigation from account-statement detail rows.
-- **Affected areas:** `src/modules/journal-reports/components`, `src/modules/journal-reports/graphql`, `src/modules/journal-reports/hooks`, `src/modules/journal-reports/states`, `src/modules/journal-reports/types`.
-- **Contracts changed:** Consumes optional `trKind`, `trKinds`, and `getTrKind` journal report filters.

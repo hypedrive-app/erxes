@@ -649,11 +649,14 @@ customerIds, tagIds, propertiesData: JSON)` — the public messenger ticket
   counted into `missingInErxes` and never created, because
   `posts_conversations_facebooks` means "posts this deployment ingested" and
   the summary KPI counts it.
-- `syncFacebookPostStats` calls Graph through a plain `fetch` on an
-  **unversioned** `https://graph.facebook.com/...` URL, so Meta resolves the
-  app's own oldest-available version. This deliberately bypasses the shared
-  `graphRequest`, which pins `v7.0` globally via `graph.setVersion` — changing
-  that pin would affect every Facebook code path, not just reports.
+- `syncFacebookPostStats` calls Graph through a plain `fetch` rather than the
+  shared `graphRequest`, but its `GRAPH_BASE` interpolates the same
+  `META_GRAPH_API_VERSION` that `graphRequest` passes to `graph.setVersion`.
+  Every Meta Graph URL in this plugin resolves to a version constant —
+  `META_GRAPH_API_VERSION` for Messenger, Instagram and reports, WhatsApp's own
+  `GRAPH_API_VERSION` for the Cloud API, both pinned at v26.0. Never write an
+  unversioned `https://graph.facebook.com/...` URL: Meta does not treat it as
+  "latest", it resolves it to the oldest version the app still has available.
 - Meta's comment total is requested as `comments.filter(stream)` so it counts
   replies too, matching what the report shows as `comments + replies`. Dropping
   the filter would silently compare top-level-only against a total that
@@ -743,6 +746,19 @@ customerIds, tagIds, propertiesData: JSON)` — the public messenger ticket
 ## Recent Changes
 
 <!-- Newest first. Keep at most 10 entries. -->
+
+### `2026-08-19` — Every Meta Graph call resolves to the pinned version
+
+- **Summary:** Upstream's new `facebookSyncService` built its URLs from a bare
+  `https://graph.facebook.com` with no version, which is not "latest" — Meta
+  resolves an unversioned call to the oldest version the app still has — and
+  `uploadUnpublishedPhotoFromKey` still carried a hardcoded, long-expired
+  `v7.0`. Both now interpolate `META_GRAPH_API_VERSION` (`26.0`), so no Meta
+  call is left running on a version nobody chose.
+- **Affected areas:** `src/modules/reports/facebookSyncService.ts` (`GRAPH_BASE`),
+  `src/modules/integrations/facebook/utils.ts`
+  (`uploadUnpublishedPhotoFromKey`).
+- **Contracts changed:** None — the same requests, now issued against v26.0.
 
 ### `2026-08-19` — Bot typing status survives conversation creation
 
@@ -871,181 +887,3 @@ customerIds, tagIds, propertiesData: JSON)` — the public messenger ticket
   `ticketStatusesManage` action, granted to the `frontline:admin` default
   group; the three status mutations now fail with `Permission required`
   (`FORBIDDEN`) for users without it.
-
-### `2026-08-15` — Call reports scope by integration, queue becomes a filter
-
-- **Summary:** Every call report resolver was anchored on `queueId`, so a
-  deployment that stopped routing through its queue reported nothing at all —
-  IVR and direct-to-extension traffic was invisible even though it was the only
-  traffic left. Reports now resolve an integration scope through
-  `resolveReportScope` and bound their CDR reads on `inboxIntegrationId`,
-  applying `QUEUE[<id>]` only when a queue is actually chosen. This also closes
-  the gap where `callCarrierBreakdown`, `callHeatmap`, and `callTopNumbers` had
-  no integration bound at all.
-- **Affected areas:**
-  `src/modules/reports/graphql/resolvers/callQueries.ts` (all nine report
-  resolvers, `resolveReportScope` / `inboxScopeFilter` /
-  `operatorUserIdByExtension` replacing `findQueueIntegration` and
-  `readableQueues`), `src/modules/reports/graphql/schema/call.ts`,
-  `ICallReportArgs` in `src/modules/reports/callReportService.ts`.
-- **Contracts changed:** Nine report queries gained an optional
-  `integrationId: String`; `queueId` stays optional and now accepts `"all"`.
-  Existing callers keep working, and a queue-scoped call returns the same rows
-  as before, additionally bounded to that queue's integration.
-
-### `2026-08-11` — WhatsApp: reaction race, media double-fetch, silent content drop
-
-- **Summary:** `applyReaction` used two non-atomic updates, so a redelivered
-  webhook could leave one person with two reactions on a message; each path is
-  now a single conditional write. Inbound media resolved its download URL twice,
-  and a failure on the second silently stored Meta's five-minute URL as if it
-  were durable — the caller's already-resolved URL is reused. A message carrying
-  two kinds of content (a template AND an attachment) dropped one without a
-  word; that is now refused. The interactive validator also re-checks the
-  lengths the composer enforces, since `extraInfo` is reachable without it.
-- **Affected areas:** `modules/integrations/whatsapp/controller/receiveMessage.ts`,
-  `.../media.ts`, `.../utils.ts`, `.../handleWhatsappMessage.ts`.
-- **Contracts changed:** `None` — `downloadWhatsappMedia` gained an optional
-  `url`; sending two content kinds at once now errors instead of silently
-  dropping one.
-
-### `2026-08-10` — Plivo: per-agent routing, so one agent's network is not everyone's problem
-
-- **Summary:** Routing had exactly one signal — whether a browser held a SIP
-  registration — which could not express an agent at lunch, an agent already on
-  a call, or an agent whose network drops the audio. Each agent can now choose
-  browser, phone or both, give a handset number, and mark themselves
-  unavailable; busy agents are skipped. Browser and handset legs share one
-  `<Dial>` so they ring together.
-- **Affected areas:** `modules/integrations/plivo/db/definitions/endpointCredentials.ts`,
-  `.../helpers.ts` (`getReachableAgentEndpoints` → `getReachableAgentTargets`),
-  `.../controller/controller.ts`, `.../@types/index.ts`,
-  `.../graphql/{schema/plivo.ts,resolvers/{queries,mutations}.ts}`,
-  `.../handlePlivoCall.ts`.
-- **Contracts changed:** adds `plivoAgentRouting` query, `plivoSaveAgentRouting`
-  mutation and the `PlivoAgentRouting` type; `getReachableAgentEndpoints` is
-  renamed and now returns `{ usernames, phoneNumbers }`.
-
-### `2026-08-10` — Plivo: automations, blind transfer, call cost
-
-- **Summary:** Plivo had no automation surface at all — every other channel
-  (WhatsApp, Facebook, Instagram, Discord) declares one. It now has a
-  `Call Ended` trigger, filterable by direction and outcome, emitted from the
-  hangup callback's conditional claim so a redelivery cannot fire it twice, and
-  a `Place a Call` action. Blind transfer was added (Plivo has no transfer verb
-  — it is a redirect of the caller's leg to fresh XML). `billDuration`/
-  `totalCost` were written on every call and absent from the GraphQL schema
-  entirely; both are now exposed and the cost shows in call history.
-- **Affected areas:** `modules/integrations/plivo/meta/automation/*` (new),
-  `.../constants.ts`, `.../utils.ts`, `.../controller/{controller,receiveCall}.ts`,
-  `.../@types/index.ts`, `.../graphql/{schema/plivo.ts,resolvers/{mutations,queries}.ts}`,
-  `src/meta/automations.ts`.
-- **Contracts changed:** adds the `frontline:plivo.calls` trigger and its
-  `.create` action, the `plivoTransferCall` mutation, and
-  `billDuration`/`totalCost` on `PlivoCallHistory`.
-
-### `2026-08-10` — WhatsApp: reactions land on the message, typing works
-
-- **Summary:** Reactions are stored on the reacted-to message and exposed as
-  `ConversationMessage.whatsappReactions`, with a `whatsappReactToMessage`
-  mutation for leaving and clearing one; inbound reactions no longer become
-  their own bubble. Typing notifications now branch on `action` in the message
-  broker instead of falling into the send path and throwing on every keystroke.
-  Locations and contact cards became reachable through `extraInfo`, the
-  automation action gained the same three rich types, and account-level
-  `value.errors[]` now flips `healthStatus` instead of being ignored.
-- **Affected areas:** `modules/integrations/whatsapp/{messageBroker.ts,handleWhatsappMessage.ts,utils.ts}`,
-  `.../controller/receiveMessage.ts`, `.../db/definitions/conversationMessages.ts`,
-  `.../@types/index.ts`, `.../graphql/{schema/whatsapp.ts,resolvers/mutations.ts}`,
-  `.../meta/automation/sendMessage.ts`,
-  `modules/inbox/graphql/{schemas/conversation.ts,resolvers/conversationMessage.ts}`.
-- **Contracts changed:** adds `whatsappReactToMessage` mutation, the
-  `WhatsappReaction` type, and `ConversationMessage.whatsappReactions`.
-
-### `2026-08-10` — WhatsApp: interactive, reaction, location and contact sends
-
-- **Summary:** Adds the outbound message types the Cloud API supports and this
-  integration lacked — interactive (reply buttons, list menus, CTA URL),
-  reactions, location pins and contact cards. Interactive is wired into the
-  agent send path via `extraInfo.whatsappInteractive`, the same envelope
-  templates already ride on; the other three are API-level only for now.
-- **Affected areas:** `modules/integrations/whatsapp/utils.ts` (four new send
-  functions), `@types/index.ts` (dispatch types), `handleWhatsappMessage.ts`
-  (dispatch + validation).
-- **Contracts changed:** None existing. Interactive obeys the 24-hour customer
-  service window like every other free-form message — only templates may be
-  sent outside it, so the existing guard covers it unchanged.
-
-### `2026-08-10` — WhatsApp automations can reply
-
-- **Summary:** Adds the `Send WhatsApp Message` action, so a workflow started by
-  the WhatsApp trigger can answer the customer. Without it WhatsApp was the only
-  channel that could be listened to but not spoken on — Facebook, Instagram and
-  Discord each ship a send action, and the shared inbox action only writes into
-  the agent's thread, it does not reach the Cloud API.
-- **Affected areas:** new
-  `modules/integrations/whatsapp/meta/automation/sendMessage.ts`,
-  `modules/integrations/whatsapp/constants.ts`,
-  `modules/integrations/whatsapp/meta/automation/{constants,workers}.ts`,
-  `meta/automations.ts`.
-- **Contracts changed:** Adds action `frontline:whatsapp.messages.create`.
-  Config: `text`, `template` ({name, languageCode, components?}), `attachments`
-  ({url, name, type}[]), `replyToMessageId`, `quoteTriggerMessage`,
-  `conversationId`. Output: `messageId, mid, content, conversationId,
-  templateName, attachmentCount`. It delegates to `handleWhatsappMessage`, so
-  media upload, the 24-hour-service-window error, the auth-failure healthStatus
-  flip, and message persistence stay identical to an agent reply. Templates are
-  the only send that works outside the 24-hour window.
-
-### `2026-08-10` — WhatsApp inbound messages can start automations
-
-- **Summary:** Inbound WhatsApp messages now emit an automation trigger, so a
-  workflow (e.g. an AI agent auto-reply) can run on them. Previously the
-  WhatsApp path called `receiveInboxMessage` and stopped — no channel emits
-  from that shared layer, so no automation could ever fire for WhatsApp while
-  Facebook, Instagram, Discord and the messenger widget all worked.
-- **Affected areas:** `modules/integrations/whatsapp/constants.ts` (automation
-  identifiers), new `modules/integrations/whatsapp/meta/automation/`
-  (`types.ts`, `constants.ts`, `workers.ts`),
-  `modules/integrations/whatsapp/controller/receiveMessage.ts` (emission),
-  `meta/automations.ts` (registration).
-- **Contracts changed:** Adds trigger `frontline:whatsapp.messages` with
-  variables `_id, content, conversationId, customerId, from, phoneNumberId,
-  createdAt`. No existing contract altered; no actions added yet, so replying
-  from a workflow still goes through the shared inbox action.
-
-### `2026-08-07` — Indexed knowledge base articles carry their category name
-
-- **Summary:** Article documents sent for AI indexing are now titled
-  `Category › Article` and carry the category title as a keyword, so articles
-  named only `1`, `2`, `3` are still reachable by the subject that lives on
-  their category. Categories are resolved in one batched query per document
-  batch.
-- **Affected areas:** `src/modules/knowledgebase/meta/automations.ts`
-- **Contracts changed:** `None` (same `TKnowledgeDocument` shape; `title` and
-  `metadata.keywords` are richer). Existing chunks keep their old titles until
-  the source is re-indexed.
-
-### `2026-08-06` — AI context history is bounded to messages older than the trigger
-
-- **Summary:** `generateAiContext` now excludes messages created at or after the
-  triggering message, so an execution that starts seconds later no longer sees
-  newer customer messages as its own conversation history.
-- **Affected areas:** `src/modules/inbox/meta/automation/workers.ts`,
-  `src/modules/integrations/facebook/meta/automation/workers.ts`,
-  `src/modules/integrations/discord/meta/automation/workers.ts`
-- **Contracts changed:** `None` (same `TAiContext` shape; `history` is narrower)
-
-### `2026-08-06` — Knowledge base articles support whole-source AI indexing
-
-- **Summary:** The knowledge base AI source now streams every published article
-  through a cursor-paginated batch when the agent selects the whole scope,
-  instead of only resolving an explicit article id list. Single-document
-  refreshes narrow that batch with `candidateSourceIds`.
-- **Affected areas:**
-  `src/modules/knowledgebase/meta/automations.ts`
-  (`frontlineAiKnowledgeProvider.loadAiKnowledgeDocumentBatch`),
-  `src/meta/automations.ts` (knowledge source declaration)
-- **Contracts changed:** The `knowledgebase.article` knowledge source declares
-  `supportsFullScope: true`, and its `loadAiKnowledgeDocumentBatch` handler
-  honours the new `scope: 'all' | 'selected'` producer input.

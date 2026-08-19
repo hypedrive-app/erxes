@@ -29,17 +29,9 @@ type TExistingInstance = {
   sequence?: number;
 };
 
-type TFxaIncomeInstance = {
-  tempId?: string;
-  transactionDetailId?: string;
-  fixedAssetId: string;
-  code: string;
-  sequence?: number;
-  branchId?: string;
-  departmentId?: string;
-  responsibleUserId?: string;
-  originalCost?: number;
-};
+type TFxaIncomeInstance = NonNullable<
+  NonNullable<TFxaIncomeJournal['extraData']>['fxaInstances']
+>[number];
 
 const getExistingIncomeInstance = (
   previous: TFxaIncomeInstance[],

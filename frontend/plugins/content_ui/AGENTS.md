@@ -6,7 +6,7 @@
 - **Project:** `content_ui`
 - **Layer:** `Frontend UI`
 - **Path:** `frontend/plugins/content_ui`
-- **Last synchronized:** `2026-08-17`
+- **Last synchronized:** `2026-08-19`
 
 ## Scope
 
@@ -193,7 +193,14 @@
 
 <!-- Newest first. Keep at most 10 entries. -->
 
-### `2026-08-17` — Raise custom-field upload limit to 650 MiB
+### `2026-08-19` — Type embedded post blocks as the editor's `Block`
+
+- **Summary:** Typed the embedded-document validator's blocks as the generic
+  `Block` from `@blocknote/core` instead of `typeof BLOCK_SCHEMA.Block`, so
+  `parseBlockStructureFromHTML` output is assignable to `useBlockEditor`'s
+  `initialContent`. Runtime validation is unchanged.
+- **Affected areas:** `src/modules/cms/posts/utils/blockStructureHTML.ts`
+- **Contracts changed:** None
 
 - **Summary:** Raised the CMS custom-field file upload ceiling from 630 MiB to
   650 MiB while preserving chunked upload behavior.

@@ -1,3 +1,5 @@
+import { ComponentType } from 'react';
+import { ITransaction } from '../../types/Transaction';
 import { TrJournalEnum } from '../../types/constants';
 import { PrintBankDocument } from '../components/documents/bank';
 import { PrintCashDocument } from '../components/documents/cash';
@@ -9,7 +11,10 @@ import { PrintInvSaleReturnDocument } from '../components/documents/invSaleRetur
 import { PrintInvoiceDocument } from '../components/documents/invoice';
 import { TransactionDocument } from '../components/documents/TransactionDocument';
 
-export const PRINT_DOCUMENTS = {
+// Journals with no printable layout are either absent here or mapped to ''.
+export const PRINT_DOCUMENTS: Partial<
+  Record<TrJournalEnum, ComponentType<{ transaction: ITransaction }> | ''>
+> = {
   [TrJournalEnum.MAIN]: TransactionDocument,
   [TrJournalEnum.TAX]: '',
   [TrJournalEnum.CASH]: PrintCashDocument,

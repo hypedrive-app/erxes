@@ -235,7 +235,10 @@
   `integrationType` together; without it, only `integrationType`. `nested`
   indents it under a channel. `count` renders the trailing figure and dims the
   row when zero; `awaitingCount` renders the warning dot. Its icon comes from
-  `INTEGRATION_ICONS` keyed by kind, falling back to `IconInbox`.
+  `INTEGRATION_ICONS`, which is keyed by `IntegrationType` and must stay
+  exhaustive — the server-reported kind is narrowed to that type before it
+  indexes the map, so a kind added without an icon is a compile error and
+  the `IconInbox` fallback covers only kinds this build does not know.
 - `channelScopeOf(channel)` from `src/modules/channels/utils/channelScope.ts` —
   the single place that resolves a missing `scope` to `team`.
 - `ReportComponentProps` — every report card component receives `title`,
@@ -542,6 +545,14 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   `TicketStatusFilterView` reads only the first selected pipeline and shows
   "Pipeline not selected" until at least one is picked; it does not attempt
   to merge statuses across multiple selected pipelines.
+- The conversation report source list is three copies of one list —
+  `SOURCE_OPTIONS` in `report/constants/data.ts`, the `SourceType` union and
+  label map in `report/utils/sourceFilter.ts`, and the `GroupSelect` menu —
+  and every value in it must be a key of `sourceMap` in `frontline_api`'s
+  `modules/reports/utils.ts`; a value that is not one filters to nothing. The
+  call-status filter is a separate axis gated on `source === 'calls'` in both
+  `report-filter.tsx` and `useConversationChartCard`, so it does not apply to
+  `plivo-call`.
 - A report card must take its identity from the `cardId` prop, never from its
   translated `title`. Deriving the id from the title made filter atoms, the
   filter popover's session key, and the drag-and-drop id change with the
@@ -627,19 +638,51 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
 
 <!-- Newest first. Keep at most 10 entries. -->
 
+### `2026-08-19` — Callpro is a real integration type again
 
-- **Summary:** `EMHoursTimeTable` was rewritten to the Availability Schedule
-  design: the three `everyday` / `weekday` / `weekend` switch rows became one
-  `ToggleGroup` quick-set control under a `Quick set` caption, separated by
-  `Separator`s from the day list, and every day row now keeps its two
-  `TimeField`s visible — disabled and dimmed when the day is off — instead of
-  swapping them for a "not working" label. All work-flag writes go through one
-  `applyDayWork` helper that writes the whole `onlineHours` object once, so the
-  group keys stay derived and the `as never` casts are gone.
-- **Affected areas:**
-  `src/modules/integrations/erxes-messenger/components/EmHoursAvailability.tsx`,
-  `backend/gateway/src/locales/{en,mn}/frontline.json` (new `quick-set` key).
-- **Contracts changed:** None — the `onlineHours` form shape is unchanged.
+- **Summary:** `IntegrationType` gained `CALLPRO = 'callpro'` — a kind
+  `getIntegrationsKinds` has always returned, with a shipped `callpro.webp`
+  asset and an `INTEGRATION_ICONS` entry, but no enum member — and `INTEGRATIONS`
+  gained the matching catalogue card on the `integration-desc-callpro` key that
+  already existed in the locale. `INTEGRATION_ICONS` lost its duplicated `imap`
+  key, and `IntegrationTypeItem` narrows the server-reported kind before
+  indexing that map, so a kind added without an icon now fails to compile and
+  `?? IconInbox` covers only kinds this build does not know.
+- **Affected areas:** `src/modules/types/Integration.ts`,
+  `src/modules/integrations/constants/{integrations,integrationImages}.ts`,
+  `src/modules/integrations/components/ChooseIntegrationType.tsx`.
+- **Contracts changed:** None — `callpro` was already served by the API's
+  `getIntegrationsKinds`; only the enum and the catalogue caught up.
+
+### `2026-08-19` — WhatsApp and Plivo selectable as report sources
+
+- **Summary:** `SOURCE_OPTIONS`, the `SourceType` union and label map in
+  `report/utils/sourceFilter.ts`, and the `GroupSelect` menu each gained
+  `whatsapp-messenger` and `plivo-call`. `frontline_api`'s `sourceMap` already
+  accepted both, so the two channels this fork adds were filterable by the API
+  and unreachable from the UI. The call-status filter is deliberately untouched
+  and still gated on `source === 'calls'`, so it does not apply to `plivo-call`.
+- **Affected areas:** `src/modules/report/constants/data.ts`,
+  `src/modules/report/utils/sourceFilter.ts`,
+  `src/modules/report/components/frontline-card/GroupSelect.tsx`.
+- **Contracts changed:** None — both values are existing `sourceMap` keys, and
+  the `whatsapp-messenger` / `plivo-call` locale keys already existed.
+
+### `2026-08-19` — Pipeline property selection is typed on `IPipeline`
+
+- **Summary:** `IPipeline` gained `propertyIds?: string[]` and
+  `isPropertySelectionConfigured?: boolean | null`; both are on the `Pipeline`
+  GraphQL type and the mongoose definition and were declared only on
+  `PermissionState`, so every read of them went through `any`.
+  `PipelinePermissionsList` now carries `propertyIds` through its form defaults
+  and its reset values instead of dropping it. `StatusSheetForm` narrows on
+  `editingStatus` itself rather than the derived `isEditing` boolean, which is
+  what makes `editingStatus._id` and `.name` type-check.
+- **Affected areas:** `src/modules/pipelines/types/index.ts`,
+  `src/modules/pipelines/components/permissions/components/PipelinePermissionsList.tsx`,
+  `src/modules/status/components/StatusSheet.tsx`.
+- **Contracts changed:** None — both fields are already selected by
+  `getPipeline` and `updatePipeline`.
 
 ### `2026-08-19` — Messenger availability schedule follows the design canvas
 
@@ -739,129 +782,3 @@ awaitingResponse?)` — a JSON map. `only: "byChannels"` keys by channel id,
   15 `plivo-routing-*` keys in the gateway-owned locale.
 - **Contracts changed:** consumes `plivoAgentRouting` and
   `plivoSaveAgentRouting` from `frontline_api`.
-
-### `2026-08-10` — Plivo: detect calls that connect and carry no audio
-
-- **Summary:** The SDK never revises "connected", so a network that drops RTP
-  left an agent on a call the UI called healthy, hearing nothing, with no
-  explanation — the exact failure that took a long manual diagnosis. A
-  `getStats()` monitor now names it, a separate check names a silent
-  microphone, the ICE candidate type is logged per call, and a `Test network`
-  button answers the question before a customer is on the line.
-- **Affected areas:**
-  `src/modules/integrations/plivo/utils/{plivoMediaHealth,plivoNetworkCheck}.ts` (new),
-  `.../hooks/usePlivoMediaHealth.ts` (new),
-  `.../components/{PlivoNetworkCheckButton,PlivoActions,PlivoProvider}.tsx`,
-  `.../types/plivoTypes.ts`; 11 `plivo-*` keys in the gateway-owned locale.
-- **Contracts changed:** `None`
-
-### `2026-08-10` — Plivo transfer and call cost
-
-- **Summary:** Agents can blind-transfer a live call from the in-call panel,
-  and call history now shows what Plivo charged. The cost is kept off the live
-  widget on purpose — a running charge in front of an agent mid-call changes
-  how they talk to the customer.
-- **Affected areas:**
-  `src/modules/integrations/plivo/components/{PlivoTransferButton,PlivoInCall,PlivoCallHistoryRow}.tsx`,
-  `.../graphql/mutations/transferPlivoCall.ts` (new),
-  `.../graphql/queries/plivoQueries.ts`, `.../utils/plivoHistoryUtils.ts`,
-  `.../types/plivoTypes.ts`; 6 `plivo-*` keys in the gateway-owned locale.
-- **Contracts changed:** consumes the new `plivoTransferCall` mutation and
-  `billDuration`/`totalCost` on `PlivoCallHistory`, both from `frontline_api`.
-
-### `2026-08-10` — WhatsApp: reactions, locations, contact cards, list and CTA
-
-- **Summary:** Reactions render as chips on the message they annotate and are
-  left from the hover bar; locations send from a pasted maps link; contact
-  cards are built from a CRM record; the interactive builder now covers list
-  menus and CTA URL buttons alongside reply buttons. The composer also signals
-  typing on WhatsApp, which previously threw on every keystroke.
-- **Affected areas:**
-  `src/modules/integrations/whatsapp/components/{WhatsappReactionChips,WhatsappLocationSender,WhatsappContactCardSender}.tsx`
-  (new), `.../components/{WhatsappInteractiveBuilder,WhatsappMessageActions,WhatsappMessageInputWrapper}.tsx`,
-  `.../utils/parseLocation.ts` (new),
-  `.../hooks/useWhatsappReactToMessage.ts` (new),
-  `.../graphql/mutations/reactToWhatsappMessage.ts` (new),
-  `src/modules/inbox/conversation-messages/components/MessageItem.tsx`,
-  `src/modules/inbox/conversations/conversation-detail/components/MessageInput.tsx`,
-  `src/modules/inbox/types/Conversation.ts`,
-  `.../graphql/queries/getConversationMessages.ts`;
-  38 `whatsapp-*` keys in the gateway-owned locale.
-- **Contracts changed:** consumes the new `whatsappReactions` field on
-  `ConversationMessage` and the `whatsappReactToMessage` mutation, both from
-  `frontline_api`.
-
-### `2026-08-10` — WhatsApp attachments checked before upload
-
-- **Summary:** A composer attachment on a WhatsApp thread is measured against
-  Meta's per-type ceiling before it is uploaded, instead of uploading, toasting
-  success, and failing only on Send. Oversized files are named with their size
-  and their kind's limit; the rest of a multi-select still uploads.
-- **Affected areas:**
-  `src/modules/integrations/whatsapp/constants/whatsappMedia.ts` (new),
-  `src/modules/inbox/conversations/conversation-detail/components/MessageInput.tsx`;
-  one `whatsapp-attachment-too-large` key in the gateway-owned locale.
-- **Contracts changed:** `None`
-
-### `2026-08-10` — WhatsApp reply-button composer
-
-- **Summary:** Agents can send an interactive message of up to three reply
-  buttons from the conversation composer, validated against Meta's caps before
-  the send and dispatched on `extraInfo.whatsappInteractive`; the builder is
-  mounted only while the 24 hour window is open, since Meta rejects free-form
-  interactive messages after it closes.
-- **Affected areas:**
-  `src/modules/integrations/whatsapp/components/{WhatsappInteractiveBuilder,WhatsappMessageInputWrapper}.tsx`;
-  eleven `whatsapp-interactive-*` keys in the gateway-owned `frontline` locale.
-- **Contracts changed:** `None` — reuses the existing `conversationMessageAdd`
-  mutation and the `extraInfo` envelope templates already ride on.
-
-### `2026-08-08` — Call widget stays clickable above modal surfaces
-
-- **Summary:** The floating call trigger and the popover that holds the
-  incoming-call `Answer`/`Decline` buttons now render at `z-100` with
-  `pointer-events-auto`, so an open `Sheet`/`Dialog` (Radix `modal`, which sets
-  `pointer-events: none` on `body` and paints a `z-50` overlay) no longer
-  swallows clicks on the widget.
-- **Affected areas:**
-  `src/modules/integrations/call/components/{CallWidget.tsx,CallWidgetDraggable.tsx}`.
-- **Contracts changed:** `None`
-
-### `2026-08-06` — Live unread counts on team channel rows
-
-- **Summary:** `Team inbox` rows now show `Channel.unreadConversationCount`
-  instead of the channel's open-conversation count, kept current by a
-  `conversationClientMessageInserted` subscription that refetches
-  `GetMyChannels`, and by a refetch when a conversation is marked read. The
-  quiet/busy split follows the same number, and the now-unused
-  `useConversationCountsByChannel` hook was removed.
-- **Affected areas:**
-  `src/modules/inbox/channel/{components/TeamChannelsNav.tsx,hooks/useChannelUnreadUpdates.tsx}`,
-  `src/modules/inbox/conversations/{hooks/useConversationCounts.tsx,conversation-detail/hooks/useConversationMarkAsRead.tsx}`,
-  `src/modules/channels/{graphql/queries.ts,types/index.ts,hooks/useGetMyChannels.tsx}`.
-- **Contracts changed:** `useGetMyChannels` also returns `refetch`;
-  `useConversationCountsByChannel` removed; `IChannel` gained optional
-  `conversationCount` and `unreadConversationCount`.
-
-### `2026-08-06` — Personal channel offers the full integration catalogue
-
-- **Summary:** Dropped `PERSONAL_INTEGRATION_TYPES` and the `integrationTypes`
-  filter on `IntegrationList`, so the personal channel page lists the same
-  integration cards as a team channel.
-- **Affected areas:**
-  `src/modules/integrations/{components/IntegrationList.tsx,constants/integrations.ts}`,
-  `src/modules/channels/components/settings/personal-channel/PersonalChannelDetails.tsx`.
-- **Contracts changed:** `IntegrationList` lost its optional `integrationTypes`
-  prop; `channelId` and `heading` are unchanged.
-
-### `2026-08-06` — Team inbox sort control removed
-
-- **Summary:** Dropped the `Team inbox` sort toggle, the unread re-order behind
-  it, and the `teamInboxSortState` atom. The group now renders channels in the
-  order the API returns them; the quiet-channel folding and per-row counts are
-  unaffected.
-- **Affected areas:**
-  `src/modules/inbox/channel/components/TeamChannelsNav.tsx`,
-  `src/modules/inbox/channel/states/teamInboxSortState.ts` (deleted),
-  `frontline` locale files (`sort-team-inbox`, `sort-by-unread` removed).
-- **Contracts changed:** None.
