@@ -343,13 +343,12 @@ export const msdynamicCheckMutations = {
 
       const result = await sendTRPCMessage({
         subdomain,
+        // Mutation procedure: the default 'query' issues a GET, which tRPC
+        // refuses to route to a mutation, so this write would silently no-op.
         method: 'mutation',
         pluginName: 'core',
         module: 'products',
         action: 'updateProduct',
-        // Mutation procedure: the default 'query' issues a GET, which tRPC
-        // refuses to route to a mutation, so this write silently no-opped.
-        method: 'mutation',
         input: {
           _id: price._id,
           doc: {

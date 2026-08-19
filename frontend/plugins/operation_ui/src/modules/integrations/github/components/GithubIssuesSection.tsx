@@ -93,7 +93,7 @@ export function GithubIssuesSection({
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline" size="sm">
+                    <Badge variant="secondary">
                       {cfg.syncMode === 'twoWay' ? 'Two-way' : 'One-way'}
                     </Badge>
                   </li>

@@ -27,19 +27,17 @@ export function ConnectedOrgCard({
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center gap-3">
-        <Avatar
-          src={org.orgAvatarUrl}
-          alt={org.orgName}
-          fallback={org.orgName[0]?.toUpperCase()}
-          size="md"
-        />
+        <Avatar size="lg">
+          <Avatar.Image src={org.orgAvatarUrl} alt={org.orgName} />
+          <Avatar.Fallback>{org.orgName[0]?.toUpperCase()}</Avatar.Fallback>
+        </Avatar>
         <div>
           <div className="flex items-center gap-2">
             <span className="font-semibold ">{org.orgName}</span>
-            <Badge variant="success" size="sm">
+            <Badge variant="success">
               Active
             </Badge>
-            <Badge variant="outline" size="sm">
+            <Badge variant="secondary">
               {org.orgType}
             </Badge>
           </div>

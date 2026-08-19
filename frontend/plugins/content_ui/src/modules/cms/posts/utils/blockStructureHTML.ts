@@ -1,8 +1,12 @@
+import type { Block } from '@blocknote/core';
 import { BLOCK_SCHEMA } from 'erxes-ui';
 
 const BLOCK_STRUCTURE_ATTRIBUTE = 'data-erxes-editor-document';
 
-type CmsEditorBlock = typeof BLOCK_SCHEMA.Block;
+// The editor's own Block, not `typeof BLOCK_SCHEMA.Block`: these blocks are
+// handed straight to useBlockEditor, and the schema-specialised type is not
+// assignable to the generic one it accepts.
+type CmsEditorBlock = Block;
 
 const BLOCK_CONFIGS: Record<string, unknown> = BLOCK_SCHEMA.blockSchema;
 const INLINE_CONTENT_CONFIGS: Record<string, unknown> =

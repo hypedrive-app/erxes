@@ -1,3 +1,8 @@
+// qz-tray ships no types of its own; the ambient declaration next door supplies
+// them. It is only loaded when it is part of the program, and every consuming
+// plugin's tsconfig includes just its own src — so reference it explicitly here
+// rather than adding the path to each plugin in turn.
+/// <reference path="../types/qz-tray.d.ts" />
 import qz from 'qz-tray';
 
 let connectingPromise: Promise<void> | null = null;
@@ -29,14 +34,19 @@ export const connectQz = async (): Promise<void> => {
     return connectingPromise;
   }
 
-  connectingPromise = qz.websocket
+  // Held locally as well: the `finally` callback clears the shared field, so
+  // narrowing it to non-null across the return is not something the compiler
+  // can do — and returning the field could yield the null it just wrote.
+  const pending = qz.websocket
     .connect({ retries: 1, delay: 1 })
     .then(() => undefined)
     .finally(() => {
       connectingPromise = null;
     });
 
-  return connectingPromise;
+  connectingPromise = pending;
+
+  return pending;
 };
 
 export const ensureQzConnected = async () => {

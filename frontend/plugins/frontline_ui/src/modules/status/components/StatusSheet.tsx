@@ -72,7 +72,7 @@ const StatusSheetForm = ({
     });
 
   const onSubmit = ({ name, description, color }: TStatusForm) => {
-    if (isEditing) {
+    if (editingStatus) {
       updateStatus({
         variables: {
           id: editingStatus._id,
@@ -107,7 +107,7 @@ const StatusSheetForm = ({
       >
         <Sheet.Header>
           <Sheet.Title className="capitalize">
-            {isEditing ? editingStatus.name : t('status')}
+            {editingStatus ? editingStatus.name : t('status')}
           </Sheet.Title>
           <Sheet.Description className="sr-only">
             {t('manage-ticket-statuses')}

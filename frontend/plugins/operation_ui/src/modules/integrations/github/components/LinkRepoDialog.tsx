@@ -82,8 +82,8 @@ export function LinkRepoDialog({
 
         <div className="space-y-4">
           {saveError && (
-            <Alert variant="error" onClose={() => setSaveError(null)}>
-              {saveError}
+            <Alert variant="destructive">
+              <Alert.Description>{saveError}</Alert.Description>
             </Alert>
           )}
 
@@ -114,7 +114,7 @@ export function LinkRepoDialog({
                     <Select.Item key={r.fullName} value={r.fullName}>
                       {r.fullName}
                       {r.isPrivate && (
-                        <Badge variant="outline" size="sm" className="ml-2">
+                        <Badge variant="secondary" className="ml-2">
                           Private
                         </Badge>
                       )}

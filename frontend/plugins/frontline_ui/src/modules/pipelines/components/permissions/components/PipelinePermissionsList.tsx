@@ -225,6 +225,7 @@ export const PipelinePermissionsList = memo(() => {
       selectedUsers: [],
       visibility: 'public',
       memberIds: [],
+      propertyIds: [],
     },
   });
 
@@ -265,6 +266,7 @@ export const PipelinePermissionsList = memo(() => {
           | 'public'
           | 'private',
         memberIds: pipeline.memberIds || [],
+        propertyIds: pipeline.propertyIds || [],
       };
 
       if (!initialValuesRef.current) {

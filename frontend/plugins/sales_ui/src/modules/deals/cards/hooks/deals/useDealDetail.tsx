@@ -159,7 +159,7 @@ export const useDealDetail = (
       return;
     }
 
-    if (currentDeal?._id === finalId && currentDeal.pipeline) {
+    if (currentDeal && currentDeal._id === finalId && currentDeal.pipeline) {
       lastCompleteDealRef.current = currentDeal;
       return;
     }

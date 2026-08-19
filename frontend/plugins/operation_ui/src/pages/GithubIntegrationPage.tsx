@@ -109,7 +109,7 @@ export const GithubIntegrationPage = () => {
           </div>
 
           {disconnectError && (
-            <Alert variant="error">{disconnectError.message}</Alert>
+            <Alert variant="destructive">{disconnectError.message}</Alert>
           )}
 
           <Card>
@@ -133,7 +133,7 @@ export const GithubIntegrationPage = () => {
                   <Spinner />
                 </div>
               ) : error ? (
-                <Alert variant="error">
+                <Alert variant="destructive">
                   Failed to load connection status. Please refresh.
                 </Alert>
               ) : isConnected ? (

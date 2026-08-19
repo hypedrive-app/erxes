@@ -44,6 +44,10 @@ export interface IPipeline {
   tagId: string;
   visibility: 'public' | 'private';
   memberIds: string[];
+  // Both are on the Pipeline GraphQL type and the mongoose definition; they were
+  // added to PermissionState but never here, so every read went through `any`.
+  propertyIds?: string[];
+  isPropertySelectionConfigured?: boolean | null;
 }
 
 export interface ITicketsPipelineFilter {
