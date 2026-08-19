@@ -605,6 +605,7 @@
   "integration-desc-instagram-messenger": "Connect with your customers through Instagram Direct Messages.",
   "integration-desc-instagram-post": "Manage comments and replies on your Instagram posts.",
   "integration-desc-call": "Handle inbound and outbound calls using the Grandstream call integration.",
+  "integration-desc-callpro": "Send and receive SMS through the Callpro service.",
   "integration-desc-imap": "Connect your email account via IMAP to manage email conversations.",
   "integration-desc-message-pro": "Send and receive SMS and messaging campaigns through Message Pro.",
   "integration-desc-lead": "Capture leads from forms embedded on your website.",

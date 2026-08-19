@@ -40,15 +40,32 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
     ref,
   ) => {
 
-    const displayValue =
-      value && !value.startsWith('+') ? `+${value}` : value || '';
-
+    // A stored value may be international (with or without its leading `+`) or
+    // a bare national number. Reading a bare national number as international —
+    // which prefixing `+` unconditionally does — silently attributes it to
+    // whichever country owns its leading digits: `9876543210` parses as Iran.
+    // So the `+` reading is only accepted when it is actually a valid number,
+    // and anything else is read as a national number of `defaultCountry`.
     let parsedNumber;
     try {
-      parsedNumber = parsePhoneNumberFromString(displayValue);
+      if (value?.startsWith('+')) {
+        parsedNumber = parsePhoneNumberFromString(value);
+      } else if (value) {
+        const asInternational = parsePhoneNumberFromString(`+${value}`);
+
+        parsedNumber = asInternational?.isValid()
+          ? asInternational
+          : parsePhoneNumberFromString(value, defaultCountry);
+      } else {
+        parsedNumber = null;
+      }
     } catch {
       parsedNumber = null;
     }
+
+    // Keep the raw text for the input when nothing could be parsed.
+    const displayValue =
+      value && !value.startsWith('+') ? `+${value}` : value || '';
 
     // A country carried by the number itself always wins: it is a fact about
     // that number, whereas `defaultCountry` is only where this deployment dials

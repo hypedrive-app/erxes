@@ -12,6 +12,10 @@ export enum IntegrationType {
   INSTAGRAM_MESSENGER = 'instagram-messenger',
   INSTAGRAM_POST = 'instagram-post',
   DISCORD_MESSENGER = 'discord-messenger',
+  // Served by `getIntegrationsKinds` and carried in INTEGRATION_ICONS, but
+  // missing from this enum — the same gap LEAD had, and the reason the icon
+  // map failed to type-check against it.
+  CALLPRO = 'callpro',
   WHATSAPP_MESSENGER = 'whatsapp-messenger',
   PLIVO_CALL = 'plivo-call',
 }

@@ -605,6 +605,7 @@
   "integration-desc-instagram-messenger": "Instagram Шууд Мессежээр дамжуулан харилцагчидтай холбогдоорой.",
   "integration-desc-instagram-post": "Instagram пост дахь сэтгэгдэл болон хариуг удирдаарай.",
   "integration-desc-call": "Grandstream дуудлагын холболтыг ашиглан ирж буй болон гарч буй дуудлагуудыг удирдаарай.",
+  "integration-desc-callpro": "Callpro үйлчилгээгээр дамжуулан SMS илгээж, хүлээн аваарай.",
   "integration-desc-imap": "Имэйл харилцаа удирдахын тулд IMAP-аар дамжуулан имэйл бүртгэлээ холбоорой.",
   "integration-desc-message-pro": "Message Pro-оор SMS болон мессеж илгээх, хүлээн авах.",
   "integration-desc-lead": "Вэб сайтад байршуулсан формоос лид цуглуулах.",

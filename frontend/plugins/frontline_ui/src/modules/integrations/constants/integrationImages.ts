@@ -38,7 +38,6 @@ export const INTEGRATION_ICONS: Record<IntegrationType, FC<any>> = {
   messenger: IconMessageFilled,
   calls: IconPhone,
   callpro: IconPhone,
-  imap: IconMail,
   'discord-messenger': IconBrandDiscord,
   'whatsapp-messenger': IconBrandWhatsapp,
   // Distinguished from `calls` (IconPhone) so the two call integrations are

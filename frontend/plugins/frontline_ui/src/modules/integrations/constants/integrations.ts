@@ -58,6 +58,11 @@ export const INTEGRATIONS: Record<
     descriptionKey: 'integration-desc-call',
     img: 'grandstream.webp',
   },
+  [IntegrationType.CALLPRO]: {
+    name: 'Callpro',
+    descriptionKey: 'integration-desc-callpro',
+    img: 'callpro.webp',
+  },
   [IntegrationType.IMAP]: {
     name: 'IMAP',
     descriptionKey: 'integration-desc-imap',

@@ -84,7 +84,10 @@ export const IntegrationTypeItem = ({
   };
 
   const canCreatePost = _id === IntegrationType.FACEBOOK_POST;
-  const Icon = INTEGRATION_ICONS[_id] ?? IconInbox;
+  // `_id` is whatever kind the server reports, while INTEGRATION_ICONS is keyed
+  // by IntegrationType so a new kind without an icon fails to compile. The
+  // `?? IconInbox` fallback is what covers a kind this build does not know.
+  const Icon = INTEGRATION_ICONS[_id as IntegrationType] ?? IconInbox;
   // A source with nothing waiting recedes, so a scan of the group lands on the
   // rows that still need someone.
   const isQuiet = count === 0 && !isActive;
