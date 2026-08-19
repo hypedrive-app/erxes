@@ -15,6 +15,67 @@ export const sourceMap: Record<string, string> = {
   form: 'form',
 };
 
+/**
+ * The report vocabulary for call outcomes. Mirrors CALL_HISTORY_CONSTANTS.CALL_STATUS in the
+ * `call` integration, which is module-private there; the strings are the contract the report
+ * filter already speaks, so they are restated rather than re-exported.
+ */
+const REPORT_CALL_STATUS = {
+  CANCELLED: 'cancelled',
+  MISSED: 'missed',
+  CONNECTED: 'connected',
+} as const;
+
+/**
+ * Plivo terminal statuses that mean the call was never picked up.
+ *
+ * `ringing` and `in-progress` are excluded because they are not outcomes — the call is still
+ * live. `unknown` is excluded deliberately and is the important one: the schema defines it as
+ * "the hangup callback never arrived and we genuinely do not know how the call ended", so
+ * folding it into either bucket would invent an outcome. A report that quietly counts unknowns
+ * as missed overstates missed calls, which is exactly the number someone would act on.
+ */
+const PLIVO_UNANSWERED_STATUSES = ['no-answer', 'busy', 'failed'];
+
+/**
+ * Translate the report's call-status filter into a query over Plivo's own call sessions.
+ *
+ * `calls` stores a resolved `callStatus` per history row, so its filter is a direct field match.
+ * Plivo stores the raw lifecycle instead, so the equivalent has to be derived:
+ *
+ *   connected — the call was answered. `answeredAt` is the direct analogue of the `calls`
+ *               integration's `isAnswered` flag.
+ *   missed    — inbound and never answered.
+ *   cancelled — outbound and never answered.
+ *
+ * Splitting missed from cancelled by direction is something `calls` cannot do (it treats both as
+ * simply "not answered"), and it matches what the words mean: a missed call is one that came TO
+ * you. Returns undefined for an unrecognised filter value so the caller can decline to filter
+ * rather than silently matching everything.
+ */
+const buildPlivoCallStatusMatch = (
+  callStatus: string,
+): Record<string, unknown> | undefined => {
+  if (callStatus === REPORT_CALL_STATUS.CONNECTED) {
+    return { answeredAt: { $exists: true, $ne: null } };
+  }
+
+  const unanswered = {
+    answeredAt: { $in: [null, undefined] },
+    status: { $in: PLIVO_UNANSWERED_STATUSES },
+  };
+
+  if (callStatus === REPORT_CALL_STATUS.MISSED) {
+    return { ...unanswered, direction: 'inbound' };
+  }
+
+  if (callStatus === REPORT_CALL_STATUS.CANCELLED) {
+    return { ...unanswered, direction: 'outbound' };
+  }
+
+  return undefined;
+};
+
 export const calculatePercentage = (value: number, total: number) => {
   if (total === 0) return 0;
 
@@ -87,6 +148,34 @@ export async function generateConversationReportFilter(
     } else {
       match.integrationId = { $in: sourceIntegrations.map((i) => i._id) };
     }
+  }
+
+  if (
+    filters.callStatus &&
+    filters.source &&
+    sourceMap[filters.source] === 'plivo-call'
+  ) {
+    const sessionMatch = buildPlivoCallStatusMatch(filters.callStatus);
+
+    // An unrecognised status must not fall through to "no filter at all" — that would silently
+    // widen the report to every call rather than narrowing it.
+    if (!sessionMatch) {
+      return { _id: { $in: [] } };
+    }
+
+    const sessions = await models.PlivoCallSessions.find(sessionMatch, {
+      erxesApiConversationId: 1,
+    }).lean();
+
+    const conversationIds = sessions
+      .map((session) => session.erxesApiConversationId)
+      .filter(Boolean);
+
+    if (!conversationIds.length) {
+      return { _id: { $in: [] } };
+    }
+
+    match._id = { $in: conversationIds };
   }
 
   if (
