@@ -5,6 +5,8 @@ export const SOURCE_OPTIONS = [
   { value: 'instagram-messenger', label: 'instagram-messenger' },
   { value: 'instagram-post', label: 'instagram-post' },
   { value: 'calls', label: 'calls' },
+  { value: 'whatsapp-messenger', label: 'whatsapp-messenger' },
+  { value: 'plivo-call', label: 'plivo-call' },
   { value: 'messenger', label: 'messenger' },
   { value: 'form', label: 'form' },
 ];

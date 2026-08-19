@@ -6,6 +6,8 @@ type SourceType =
   | 'instagram-post'
   | 'messenger'
   | 'calls'
+  | 'whatsapp-messenger'
+  | 'plivo-call'
   | 'form';
 
 interface SourceOption {
@@ -24,6 +26,8 @@ export function getSourceFilter(value: string): SourceOption {
     form: { label: 'form' },
     messenger: { label: 'messenger' },
     calls: { label: 'calls' },
+    'whatsapp-messenger': { label: 'whatsapp-messenger' },
+    'plivo-call': { label: 'plivo-call' },
   };
 
   const normalizedValue = value.toLowerCase() as SourceType;

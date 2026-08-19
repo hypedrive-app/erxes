@@ -27,6 +27,8 @@ export const GroupSelect = ({
       'instagram-messenger': t('instagram-messenger'),
       'instagram-post': t('instagram-post'),
       calls: t('calls'),
+      'whatsapp-messenger': t('whatsapp-messenger'),
+      'plivo-call': t('plivo-call'),
       messenger: t('messenger'),
       form: t('source-form'),
     };
@@ -80,6 +82,18 @@ export const GroupSelect = ({
                 onSelect={() => handleValueChange('calls')}
               >
                 {t('calls')}
+              </Command.Item>
+              <Command.Item
+                value="whatsapp-messenger"
+                onSelect={() => handleValueChange('whatsapp-messenger')}
+              >
+                {t('whatsapp-messenger')}
+              </Command.Item>
+              <Command.Item
+                value="plivo-call"
+                onSelect={() => handleValueChange('plivo-call')}
+              >
+                {t('plivo-call')}
               </Command.Item>
               <Command.Item
                 value="messenger"
